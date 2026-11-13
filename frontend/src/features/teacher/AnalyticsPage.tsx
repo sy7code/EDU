@@ -7,6 +7,8 @@ import { Badge, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../c
 import { summarizeClass, type Distribution } from "../../lib/analytics";
 import { QUESTION_TYPE_LABEL, type QuestionType } from "../../lib/questionType";
 import { formatDuration } from "../../lib/time";
+import { paginate } from "../../lib/paginate";
+import { Pager } from "../../components/Pager";
 
 export type AnalyticsRange = "7d" | "4w";
 const RANGE_DAYS: Record<AnalyticsRange, number> = { "7d": 7, "4w": 28 };
@@ -25,6 +27,8 @@ export function useClassAnalytics(range: AnalyticsRange) {
   return useQuery({
     queryKey: ["class-analytics", classId, range],
     enabled: !!classId,
+    // 학생 상세를 오갈 때마다 반 전체를 다시 부르지 않게 5분 동안 재사용
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       const to = new Date();
       const from = new Date(to.getTime() - RANGE_DAYS[range] * 86400000);
@@ -40,6 +44,15 @@ export const countText = (v: number | null) => (v === null ? "-" : `${Math.round
 
 function DistCard({ title, dist, format }: { title: string; dist: Distribution; format: (v: number | null) => string }) {
   const max = Math.max(1, ...dist.buckets.map((b) => b.count));
+  if (dist.mean === null) {
+    return (
+      <Card>
+        <p className="text-xs text-stone-500">{title}</p>
+        <p className="mt-1 text-2xl font-bold">-</p>
+        <p className="mt-3 text-sm text-stone-500">이 기간에 기록이 없어요</p>
+      </Card>
+    );
+  }
   return (
     <Card>
       <p className="text-xs text-stone-500">{title}</p>
@@ -83,15 +96,17 @@ export function TypeBar({ types }: { types: Record<QuestionType, number> }) {
           </span>
         ))}
       </div>
-      <p className="mt-1 text-[11px] text-stone-400">자동 분류 · 참고용 (질문 문장의 표현으로 나눠요)</p>
+      <p className="mt-1 text-[11px] text-stone-400">자동 분류 · 참고용 (AI가 나눈 값, 없으면 질문 표현으로 나눠요)</p>
     </div>
   );
 }
 
 export function AnalyticsPage() {
   const [range, setRange] = useState<AnalyticsRange>("4w");
+  const [page, setPage] = useState(1);
   const q = useClassAnalytics(range);
   const nav = useNavigate();
+  const paged = paginate(q.data?.summary.students ?? [], page, 10);
 
   return (
     <div>
@@ -102,7 +117,10 @@ export function AnalyticsPage() {
             key={r}
             role="radio"
             aria-checked={range === r}
-            onClick={() => setRange(r)}
+            onClick={() => {
+              setRange(r);
+              setPage(1);
+            }}
             className={`rounded-lg border px-3 py-1.5 text-sm ${range === r ? "border-brand-500 bg-brand-50 font-semibold text-brand-700" : "border-stone-300"}`}
           >
             {r === "7d" ? "최근 7일" : "최근 4주"}
@@ -116,7 +134,7 @@ export function AnalyticsPage() {
       {q.data && q.data.raw.sessions.length > 0 && (
         <div className="space-y-4">
           {q.data.summary.excludedCount > 0 && (
-            <p className="text-sm text-stone-500">기록 비공개 {q.data.summary.excludedCount}명은 질문·정답률 집계에서 빠져 있어요 (학습 시간은 포함).</p>
+            <p className="text-sm text-stone-500">기록 비공개 {q.data.summary.excludedCount}명은 질문·정답률·주제 집계에서 빠져 있어요 (학습 시간은 포함).</p>
           )}
           <div className="grid gap-3 sm:grid-cols-3">
             <DistCard title="학습 시간 (학생당)" dist={q.data.summary.minutes} format={minutesText} />
@@ -171,7 +189,7 @@ export function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {q.data.summary.students.map((s) => (
+                {paged.items.map((s) => (
                   <tr
                     key={s.studentId}
                     onClick={() => nav(`/teacher/students/${s.studentId}`)}
@@ -202,6 +220,7 @@ export function AnalyticsPage() {
               </tbody>
             </table>
           </Card>
+          <Pager page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
         </div>
       )}
     </div>

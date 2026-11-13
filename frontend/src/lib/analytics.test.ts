@@ -121,3 +121,13 @@ describe("반 분석 집계", () => {
     expect(r.students.map((s) => s.number)).toEqual([1, 2]);
   });
 });
+
+describe("반 분석 최종 리뷰 수정", () => {
+  it("서버 질문 유형이 있으면 규칙 분류보다 먼저 쓴다 (5-2)", () => {
+    const r = summarizeClass(
+      raw({ students: [A], questions: [{ ...q("1", "a", "왜 그래?"), questionType: "CHECK" }, { ...q("2", "a", "왜 그래?"), questionType: null }] }),
+    );
+    expect(r.types).toEqual({ CONCEPT: 1, CHECK: 1, ANSWER: 0, OTHER: 0 });
+  });
+});
+

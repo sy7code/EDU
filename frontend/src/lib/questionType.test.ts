@@ -26,3 +26,13 @@ describe("질문 유형 규칙 분류", () => {
     expect(classifyQuestion("   ")).toBe("OTHER");
   });
 });
+
+describe("질문 유형 최종 리뷰 수정", () => {
+  it("'정답'이 들어가도 답을 달라는 말이 아니면 ANSWER가 아니다 (M1)", () => {
+    expect(classifyQuestion("정답률이 왜 낮아?")).toBe("CONCEPT");
+    expect(classifyQuestion("내가 쓴 정답 맞는지 봐줘")).toBe("CHECK");
+    expect(classifyQuestion("정답이 뭐야?")).toBe("ANSWER");
+    expect(classifyQuestion("정답 알려줘")).toBe("ANSWER");
+  });
+});
+

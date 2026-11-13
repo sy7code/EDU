@@ -89,7 +89,7 @@ export function summarizeClass(raw: ClassAnalyticsRaw): ClassAnalytics {
       const types = zeroTypes();
       const qs = raw.questions.filter((q) => q.studentId === st.studentId);
       for (const q of qs) {
-        const t = classifyQuestion(q.content);
+        const t = q.questionType ?? classifyQuestion(q.content);
         types[t] += 1;
         classTypes[t] += 1;
       }

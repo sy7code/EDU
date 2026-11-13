@@ -214,6 +214,9 @@ export function consentRows(studentId: string, policyVersion: string, input: Arr
   return input.map((c) => ({ student_id: studentId, kind: c.kind, granted: c.granted, by_guardian: c.byGuardian, policy_version: policyVersion }));
 }
 
+type QType = "CONCEPT" | "CHECK" | "ANSWER" | "OTHER";
+const QTYPES: QType[] = ["CONCEPT", "CHECK", "ANSWER", "OTHER"];
+
 /** 실제 조회 결과 → 반 분석 원자료. AI 답은 빼고, 기록 공유 미동의 학생의 질문·응시·주제는 한 번 더 거른다 */
 export function buildAnalyticsRaw(input: {
   classId: string;
@@ -236,7 +239,14 @@ export function buildAnalyticsRaw(input: {
     sessions: input.sessions,
     questions: input.aiRows
       .filter((r) => r.role !== "ai" && owner.has(sid(r)))
-      .map((r) => ({ id: String(r.id), sessionId: sid(r), studentId: owner.get(sid(r))!, content: String(r.content ?? ""), createdAt: String(r.createdAt ?? "") })),
+      .map((r) => ({
+        id: String(r.id),
+        sessionId: sid(r),
+        studentId: owner.get(sid(r))!,
+        content: String(r.content ?? ""),
+        createdAt: String(r.createdAt ?? ""),
+        questionType: QTYPES.includes(r.questionType as QType) ? (r.questionType as QType) : null,
+      })),
     attempts: input.attemptRows
       .filter((r) => owner.has(sid(r)))
       .map((r) => ({ sessionId: sid(r), studentId: owner.get(sid(r))!, topicId: String(r.topicId), correct: Number(r.correct ?? 0), total: Number(r.total ?? 0), createdAt: String(r.createdAt ?? "") })),
@@ -244,4 +254,26 @@ export function buildAnalyticsRaw(input: {
       .filter((r) => owner.has(sid(r)))
       .map((r) => ({ sessionId: sid(r), topicId: String(r.topicId), name: String(r.name ?? "") })),
   };
+}
+
+/** class_dashboard의 shared 값으로 기록 공유 여부 판정. 값이 없거나 이상하면 비공개로 본다 (fail-closed) */
+export function isShared(v: unknown): boolean {
+  return v === true;
+}
+
+/** in(...) 목록이 URL 한도를 넘지 않게 나눈다 */
+export function chunk<T>(xs: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += size) out.push(xs.slice(i, i + size));
+  return out;
+}
+
+/** PostgREST 최대 행 수에 잘리지 않게 페이지를 끝까지 받는다 */
+export async function fetchAllPages<T>(page: (from: number, to: number) => PromiseLike<T[]>, pageSize = 1000): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const rows = await page(from, from + pageSize - 1);
+    out.push(...rows);
+    if (rows.length < pageSize) return out;
+  }
 }

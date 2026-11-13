@@ -58,7 +58,7 @@ export function StudentProfile({ studentId }: { studentId: string }) {
               <h3 className="mt-5 text-sm font-semibold">AI에 한 질문 ({questions.length}개, 최근 순)</h3>
               <ul className="mt-2 divide-y divide-stone-100">
                 {questions.slice(0, shown).map((x) => {
-                  const t = classifyQuestion(x.content);
+                  const t = x.questionType ?? classifyQuestion(x.content);
                   return (
                     <li key={x.id} className="flex flex-wrap items-start gap-2 py-2 text-sm">
                       <Badge tone={t === "ANSWER" ? "amber" : t === "CHECK" ? "sky" : t === "CONCEPT" ? "brand" : "stone"}>{QUESTION_TYPE_LABEL[t]}</Badge>

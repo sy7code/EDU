@@ -252,7 +252,8 @@ export type ClassAnalyticsRaw = {
   /** 기간 내 반 학생 세션 (기록 공유 여부와 무관) */
   sessions: LearningSession[];
   /** 학생이 AI 도우미에 보낸 메시지. 기록 공유 학생만 */
-  questions: Array<{ id: string; sessionId: string; studentId: string; content: string; createdAt: string }>;
+  /** questionType: 서버 AI 분류(5-2). 없으면 null → 화면에서 규칙 분류로 대신함 */
+  questions: Array<{ id: string; sessionId: string; studentId: string; content: string; createdAt: string; questionType?: "CONCEPT" | "CHECK" | "ANSWER" | "OTHER" | null }>;
   attempts: Array<{ sessionId: string; studentId: string; topicId: string; correct: number; total: number; createdAt: string }>;
   sessionTopics: Array<{ sessionId: string; topicId: string; name: string }>;
 };

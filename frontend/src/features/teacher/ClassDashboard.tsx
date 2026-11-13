@@ -5,6 +5,8 @@ import { api, FEATURES } from "../../api";
 import { useMe } from "../../auth/session";
 import { Badge, Button, Card, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import { formatDateTime, formatDuration } from "../../lib/time";
+import { paginate } from "../../lib/paginate";
+import { Pager } from "../../components/Pager";
 
 export function ClassDashboard() {
   const me = useMe();
@@ -16,6 +18,8 @@ export function ClassDashboard() {
     refetchInterval: 5000, // 실서비스: Realtime 구독
   });
   const [filter, setFilter] = useState<"all" | "attention" | "active" | "pending">("all");
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [filter]);
   const [manualMsg, setManualMsg] = useState<string | null>(null);
   const [confirmedId, setConfirmedId] = useState<string | null>(null);
   const manual = useMutation({
@@ -42,6 +46,8 @@ export function ClassDashboard() {
   const shown = rows.filter((r) =>
     filter === "attention" ? r.needsAttention : filter === "active" ? r.activeNow : filter === "pending" ? r.pendingAssessment > 0 : true,
   );
+
+  const paged = paginate(shown, page, 10);
 
   const stat = (label: string, value: string | number, key: typeof filter) => (
     <button
@@ -89,7 +95,7 @@ export function ClassDashboard() {
             </tr>
           </thead>
           <tbody>
-            {shown.map((r) => (
+            {paged.items.map((r) => (
               <tr key={r.studentId} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
                 <td className="px-4 py-2.5 text-stone-500">{r.number}</td>
                 <td className="px-4 py-2.5 font-medium">
@@ -133,6 +139,7 @@ export function ClassDashboard() {
           </tbody>
         </table>
       </Card>
+      <Pager page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
       <p className={`mt-2 text-xs text-stone-400 ${FEATURES.manualAuth ? "" : "hidden"}`}>
         '선생님이 확인'은 얼굴 인증이나 QR을 쓰지 않는(또는 못 쓰는) 학생이 학습을 시작·종료할 때, 단말기 대신 선생님이 눈으로
         확인해 주는 기능이에요. 누르면 그 학생 기기의 인증 대기 화면이 바로 넘어가요. 누가 언제 확인했는지 기록이 남아요.

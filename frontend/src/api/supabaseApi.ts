@@ -17,7 +17,7 @@ import type {
   Student,
   User,
 } from "../types/domain";
-import { buildAnalyticsRaw, consentRows, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
+import { buildAnalyticsRaw, chunk, consentRows, fetchAllPages, isShared, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
 
 const POLICY_VERSION = "2026-11-v1";
 import { ApiError, type Api } from "./types";
@@ -294,29 +294,43 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
 
     // ---------- 백엔드에 없는 기능: 화면에서 숨김. 공통 화면이 부르는 조회는 빈 값 ----------
     getClassAnalytics: async (classId, from, to) => {
-      const studs = ok(await sb.from("v_students").select().eq("classId", classId).order("number")) as Row[];
-      const ids = studs.map((r) => String(r.id));
-      // 학생별 기록 공유 여부: 지금은 student_topic_growth의 shared로만 알 수 있음 (백엔드 요청 5-1: class_dashboard에 shared 추가)
-      const shares = await Promise.all(
-        ids.map(async (id) => {
-          const g = ok(await sb.rpc("student_topic_growth", { p_student_id: id })) as { shared?: boolean } | null;
-          return g?.shared !== false;
-        }),
-      );
-      const students = studs.map((r, i) => ({ studentId: ids[i], name: String(r.name), number: (r.number as number) ?? 0, shared: shares[i] }));
-      const sessionRows = ids.length
-        ? (ok(await sb.from("v_sessions").select().in("studentId", ids).gte("startedAt", from.toISOString()).lte("startedAt", to.toISOString())) as Row[])
+      // 학생 명단·기록 공유 여부: class_dashboard 한 번 (백엔드 5-1). shared가 true일 때만 공유로 본다 (fail-closed)
+      const dash = ok(await sb.rpc("class_dashboard", { p_class_id: classId, p_from: seoulDate(from), p_to: seoulDate(to) })) as {
+        students?: Array<{ studentId: string; name: string; number: number; shared?: unknown }>;
+      } | null;
+      const students = (dash?.students ?? [])
+        .map((r) => ({ studentId: String(r.studentId), name: String(r.name), number: r.number ?? 0, shared: isShared(r.shared) }))
+        .sort((x, y) => x.number - y.number);
+      const ids = students.map((s) => s.studentId);
+      const fromIso = from.toISOString();
+      const toIso = to.toISOString();
+      const sessionRows: Row[] = ids.length
+        ? await fetchAllPages(async (a, b) =>
+            ok(await sb.from("v_sessions").select().in("studentId", ids).gte("startedAt", fromIso).lte("startedAt", toIso).order("id").range(a, b)) as Row[],
+          )
         : [];
       const sessions = sessionRows.map(mapSession);
-      const sids = sessions.map((s) => s.id);
-      const [aiRows, attemptRows, topicRows] = sids.length
-        ? await Promise.all([
-            sb.from("v_ai_messages").select().in("sessionId", sids).then((r) => ok(r) as Row[]),
-            sb.from("v_quiz_attempts").select("sessionId,studentId,topicId,correct,total,createdAt").in("sessionId", sids).then((r) => ok(r) as Row[]),
-            sb.from("v_session_topics").select("sessionId,topicId,name").in("sessionId", sids).then((r) => ok(r) as Row[]),
-          ])
-        : [[], [], []];
-      return buildAnalyticsRaw({ classId, from: from.toISOString(), to: to.toISOString(), students, sessions, aiRows, attemptRows, topicRows });
+      // 세션 id 목록이 길면 URL 한도를 넘으므로 100개씩 나눠 조회하고, 각 조회도 행 수 한도에 잘리지 않게 끝까지 받는다
+      const byChunks = async (view: string, cols: string, orderBy: string[], studentOnly = false): Promise<Row[]> => {
+        const out: Row[] = [];
+        for (const part of chunk(sessions.map((x) => x.id), 100)) {
+          const rows = await fetchAllPages(async (a, b) => {
+            const base = sb.from(view).select(cols).in("sessionId", part);
+            const q = studentOnly ? base.neq("role", "ai") : base;
+            // 페이지 경계가 흔들리지 않게 행마다 고유한 순서로 정렬
+            const ordered = orderBy.reduce((acc, c) => acc.order(c), q);
+            return ok(await ordered.range(a, b)) as unknown as Row[];
+          });
+          out.push(...rows);
+        }
+        return out;
+      };
+      const [aiRows, attemptRows, topicRows] = await Promise.all([
+        byChunks("v_ai_messages", "id,sessionId,role,content,questionType,createdAt", ["id"], true),
+        byChunks("v_quiz_attempts", "id,sessionId,studentId,topicId,correct,total,createdAt", ["id"]),
+        byChunks("v_session_topics", "sessionId,topicId,name", ["sessionId", "topicId"]),
+      ]);
+      return buildAnalyticsRaw({ classId, from: fromIso, to: toIso, students, sessions, aiRows, attemptRows, topicRows });
     },
     getQuizAttempt: async (sessionId) => {
       const row = ok(await sb.from("v_quiz_attempts").select().eq("sessionId", sessionId).maybeSingle()) as QuizAttempt | null;

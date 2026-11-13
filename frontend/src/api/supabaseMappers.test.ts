@@ -14,6 +14,9 @@ import {
   rowToUser,
   consentRows,
   buildAnalyticsRaw,
+  isShared,
+  chunk,
+  fetchAllPages,
 } from "./supabaseMappers";
 
 describe("목표 ↔ 텍스트", () => {
@@ -200,7 +203,7 @@ describe("반 분석 원자료 변환", () => {
   };
 
   it("학생 질문만 세션 주인과 함께 넣는다 (AI 답 제외)", () => {
-    expect(buildAnalyticsRaw(input).questions).toEqual([{ id: "m1", sessionId: "sa", studentId: "a", content: "왜 그래?", createdAt: "x" }]);
+    expect(buildAnalyticsRaw(input).questions).toEqual([{ id: "m1", sessionId: "sa", studentId: "a", content: "왜 그래?", createdAt: "x", questionType: null }]);
   });
 
   it("기록 공유 미동의 학생의 응시·주제는 뺀다", () => {
@@ -208,6 +211,46 @@ describe("반 분석 원자료 변환", () => {
     expect(r.attempts).toEqual([{ sessionId: "sa", studentId: "a", topicId: "t1", correct: 4, total: 5, createdAt: "c" }]);
     expect(r.sessionTopics).toEqual([{ sessionId: "sa", topicId: "t1", name: "꼭짓점" }]);
     expect(r.sessions.length).toBe(2);
+  });
+});
+
+describe("반 분석 최종 리뷰 수정", () => {
+  it("공유 여부는 shared === true 일 때만 공유 (I4)", () => {
+    expect(isShared(true)).toBe(true);
+    expect(isShared(false)).toBe(false);
+    expect(isShared(null)).toBe(false);
+    expect(isShared(undefined)).toBe(false);
+  });
+
+  it("서버 질문 유형(questionType)을 넘기고 이상한 값은 null (5-2)", () => {
+    const r = buildAnalyticsRaw({
+      classId: "c", from: "f", to: "t",
+      students: [{ studentId: "a", name: "학생01", number: 1, shared: true }],
+      sessions: [{ id: "sa", studentId: "a", goal: { subject: "수학", activities: [] }, startedAt: "x", endedAt: null, startAuth: "FACEPASS", endAuth: null, status: "ACTIVE", durationMinutes: null }],
+      aiRows: [
+        { id: "m1", sessionId: "sa", role: "user", content: "왜?", questionType: "ANSWER", createdAt: "x" },
+        { id: "m2", sessionId: "sa", role: "user", content: "왜?", questionType: "WEIRD", createdAt: "x" },
+      ],
+      attemptRows: [], topicRows: [],
+    });
+    expect(r.questions.map((q) => q.questionType)).toEqual(["ANSWER", null]);
+  });
+
+  it("세션 id 목록을 100개씩 나눈다 (I2)", () => {
+    const ids = Array.from({ length: 250 }, (_, i) => String(i));
+    expect(chunk(ids, 100).map((c) => c.length)).toEqual([100, 100, 50]);
+    expect(chunk([], 100)).toEqual([]);
+  });
+
+  it("페이지가 가득 차면 다음 페이지를 계속 받는다 (I1)", async () => {
+    const all = Array.from({ length: 2500 }, (_, i) => i);
+    const calls: Array<[number, number]> = [];
+    const got = await fetchAllPages(async (from, to) => {
+      calls.push([from, to]);
+      return all.slice(from, to + 1);
+    }, 1000);
+    expect(got.length).toBe(2500);
+    expect(calls).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
   });
 });
 
