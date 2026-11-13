@@ -7,7 +7,6 @@ import { activityLabel } from "../../lib/checklists";
 import { formatDateTime, formatDuration } from "../../lib/time";
 import { SessionDetail } from "../records/SessionDetail";
 import { AssessmentPanel } from "./AssessmentPanel";
-import { StudentOverviewBoard } from "./StudentOverviewBoard";
 
 export function StudentDetailPage() {
   const { studentId = "" } = useParams();
@@ -36,7 +35,6 @@ export function StudentDetailPage() {
       <PageTitle sub={`학생이 '교사 공개'로 남긴 기록만 보여요${FEATURES.audit ? " · 열람 기록이 남아요" : ""}`}>
         {dash.data ? `${dash.data.number}번 ${dash.data.name}` : "학생 기록"}
       </PageTitle>
-      {FEATURES.quiz && <StudentOverviewBoard studentId={studentId} />}
       {sessions.isLoading && <Spinner />}
       {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
       {sessions.data?.length === 0 && <EmptyState title="학습 기록이 없어요">먼저 학생과 학습 계획을 이야기해 보세요.</EmptyState>}

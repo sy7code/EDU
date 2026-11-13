@@ -1,33 +1,23 @@
 import { useCallback, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { api } from "../../api";
-import { useMe } from "../../auth/session";
 import { Button, Card, CheckChip, ErrorState, PageTitle } from "../../components/ui";
-import { GOAL_ACTIVITIES, SUBJECTS } from "../../lib/checklists";
+import { GOAL_ACTIVITIES } from "../../lib/checklists";
 import type { AuthEvent, SessionGoal } from "../../types/domain";
 import { AuthWait } from "./AuthWait";
 
+/** 과목·단원을 고르지 않는다(고교학점제). "오늘 할 것"만 쓰면 되고, 주제는 마칠 때 AI가 기록에서 찾는다. */
 export function StartPage() {
-  const [subject, setSubject] = useState<string>("");
+  const [plan, setPlan] = useState("");
   const [activities, setActivities] = useState<string[]>([]);
-  const [note, setNote] = useState("");
-  const [unitId, setUnitId] = useState<string>("");
   const [step, setStep] = useState<"goal" | "auth">("goal");
   const qc = useQueryClient();
   const nav = useNavigate();
-  const me = useMe();
-  const units = useQuery({
-    queryKey: ["units", me.data?.classId],
-    queryFn: () => api.listUnits(me.data!.classId),
-    enabled: !!me.data,
-  });
-  const subjectUnits = (units.data ?? []).filter((u) => u.subject === subject);
-  const unitTitle = subjectUnits.find((u) => u.id === unitId)?.title;
 
   const start = useMutation({
     mutationFn: (ev: AuthEvent) => {
-      const goal: SessionGoal = { subject, activities, note: note.trim() || undefined, unitId: unitId || undefined };
+      const goal: SessionGoal = { subject: plan.trim(), activities };
       return api.startSession({ goal, authEventId: ev.id });
     },
     onSuccess: async (s) => {
@@ -43,20 +33,15 @@ export function StartPage() {
     [start],
   );
 
-  const toggle = (id: string, on: boolean) =>
-    setActivities((a) => (on ? [...a, id] : a.filter((x) => x !== id)));
+  const toggle = (id: string, on: boolean) => setActivities((a) => (on ? [...a, id] : a.filter((x) => x !== id)));
 
   if (step === "auth") {
     return (
       <div className="mx-auto max-w-xl">
-        <PageTitle sub={`${subject}${unitTitle ? ` · ${unitTitle}` : ""} · 목표 ${activities.length}개`}>학습 시작 인증</PageTitle>
-        {start.error ? (
-          <ErrorState error={start.error} onRetry={() => start.reset()} />
-        ) : (
-          <AuthWait purpose="start" onAuth={onAuth} />
-        )}
+        <PageTitle sub={plan.trim()}>학습 시작 인증</PageTitle>
+        {start.error ? <ErrorState error={start.error} onRetry={() => start.reset()} /> : <AuthWait purpose="start" onAuth={onAuth} />}
         <Button variant="ghost" className="mt-3" onClick={() => setStep("goal")}>
-          목표 다시 고르기
+          다시 쓰기
         </Button>
       </div>
     );
@@ -64,48 +49,23 @@ export function StartPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <PageTitle sub="고르기만 하면 돼요. 메모는 쓰고 싶을 때만.">오늘의 학습 목표</PageTitle>
+      <PageTitle sub="과목을 고를 필요 없어요. 무엇을 공부했는지는 마칠 때 기록을 보고 AI가 정리해 줘요.">오늘 할 것</PageTitle>
       <Card>
-        <h2 className="text-sm font-semibold">과목</h2>
-        <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="과목">
-          {SUBJECTS.map((s) => (
-            <button
-              key={s}
-              role="radio"
-              aria-checked={subject === s}
-              onClick={() => {
-                setSubject(s);
-                setUnitId(""); // 과목이 바뀌면 단원 선택 초기화
-              }}
-              className={`rounded-lg border px-4 py-2 text-sm ${subject === s ? "border-brand-500 bg-brand-50 font-semibold text-brand-700" : "border-stone-300"}`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+        <label htmlFor="plan" className="text-sm font-semibold">
+          오늘 무엇을 공부할까요?
+        </label>
+        <input
+          id="plan"
+          value={plan}
+          maxLength={200}
+          onChange={(e) => setPlan(e.target.value)}
+          placeholder="예: 이차함수 꼭짓점 구하는 법 복습"
+          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+        />
 
-        {subjectUnits.length > 0 && (
-          <>
-            <h2 className="mt-5 text-sm font-semibold">
-              단원 <span className="font-normal text-stone-400">(고르면 마칠 때 단원 테스트를 볼 수 있어요)</span>
-            </h2>
-            <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="단원">
-              {[{ id: "", title: "단원 없이" }, ...subjectUnits].map((u) => (
-                <button
-                  key={u.id || "none"}
-                  role="radio"
-                  aria-checked={unitId === u.id}
-                  onClick={() => setUnitId(u.id)}
-                  className={`rounded-lg border px-3 py-2 text-sm ${unitId === u.id ? "border-brand-500 bg-brand-50 font-semibold text-brand-700" : "border-stone-300"}`}
-                >
-                  {u.title}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        <h2 className="mt-5 text-sm font-semibold">무엇을 할까요? (여러 개 가능)</h2>
+        <h2 className="mt-5 text-sm font-semibold">
+          어떻게 할까요? <span className="font-normal text-stone-400">(선택)</span>
+        </h2>
         <div className="mt-2 grid grid-cols-2 gap-2">
           {GOAL_ACTIVITIES.map((a) => (
             <CheckChip key={a.id} checked={activities.includes(a.id)} onChange={(v) => toggle(a.id, v)}>
@@ -113,20 +73,8 @@ export function StartPage() {
             </CheckChip>
           ))}
         </div>
-
-        <label className="mt-5 block text-sm font-semibold" htmlFor="note">
-          메모 <span className="font-normal text-stone-400">(선택)</span>
-        </label>
-        <input
-          id="note"
-          value={note}
-          maxLength={100}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="예: 이차함수 꼭짓점 구하는 법"
-          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-        />
       </Card>
-      <Button className="mt-4 w-full" disabled={!subject || activities.length === 0} onClick={() => setStep("auth")}>
+      <Button className="mt-4 w-full" disabled={!plan.trim()} onClick={() => setStep("auth")}>
         다음: 단말기에서 인증하기
       </Button>
     </div>

@@ -1,13 +1,13 @@
 import { useCallback, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
-import { api } from "../../api";
+import { api, FEATURES } from "../../api";
 import { Button, Card, CheckChip, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import { REFLECTION_ITEMS, UNDERSTANDING_LABELS } from "../../lib/checklists";
 import { formatDuration, formatTime } from "../../lib/time";
 import type { AuthEvent, GroundedItem, LearningSession } from "../../types/domain";
 import { AuthWait } from "./AuthWait";
-import { UnitQuiz } from "./UnitQuiz";
+import { TopicStep } from "./TopicQuiz";
 
 export function EndPage() {
   const { id = "" } = useParams();
@@ -44,15 +44,16 @@ export function EndPage() {
   return <AfterEnd session={s} />;
 }
 
-/** 종료 후: 단원이 있으면 단원 테스트(이미 봤으면 생략) → 돌아보기 */
+/** 종료 후: AI가 찾은 주제 → 확인 테스트(이미 봤으면 생략) → 돌아보기 */
 function AfterEnd({ session }: { session: LearningSession }) {
   const [quizDone, setQuizDone] = useState(false);
   const attempt = useQuery({
     queryKey: ["quiz-attempt", session.id],
     queryFn: () => api.getQuizAttempt(session.id),
-    enabled: !!session.goal.unitId,
+    enabled: FEATURES.quiz,
   });
-  if (session.goal.unitId && !quizDone) {
+  if (FEATURES.quiz && !quizDone) {
+    if (attempt.error) return <ErrorState error={attempt.error} onRetry={() => attempt.refetch()} />;
     if (attempt.isLoading) return <Spinner />;
     if (!attempt.data) {
       return (
@@ -60,7 +61,7 @@ function AfterEnd({ session }: { session: LearningSession }) {
           <PageTitle sub={`${formatTime(session.startedAt)} ~ ${formatTime(session.endedAt!)}`}>
             오늘 {formatDuration(session.durationMinutes ?? 0)} 공부했어요
           </PageTitle>
-          <UnitQuiz sessionId={session.id} onDone={() => setQuizDone(true)} />
+          <TopicStep sessionId={session.id} onDone={() => setQuizDone(true)} />
         </div>
       );
     }

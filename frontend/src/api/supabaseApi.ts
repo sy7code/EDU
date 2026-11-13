@@ -9,8 +9,10 @@ import type {
   Feedback,
   LearningEntry,
   LearningSession,
+  QuizAttempt,
   Reflection,
   SessionTopic,
+  StudentQuizQuestion,
   Student,
   User,
 } from "../types/domain";
@@ -241,7 +243,6 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const active = ok(await sb.from("v_sessions").select("studentId").eq("status", "ACTIVE")) as Row[];
       return mapDashboard(raw, new Set(active.map((r) => String(r.studentId))));
     },
-    getStudentOverview: async () => notSupported(),
 
     // ---------- 주제별 성장 (명세 v0.5, 백엔드 반영 전엔 FEATURES.quiz=false 로 숨김) ----------
     extractTopics: async (sessionId) => {
@@ -249,16 +250,19 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return (r.topics ?? []).map((t) => ({ topicId: String(t.topicId), name: String(t.name), subject: t.subject, evidenceIds: t.evidenceIds ?? [] }));
     },
 
+    // 주제 테스트 (명세 v0.5)
+    getQuiz: async (sessionId, topicId) =>
+      fn<{ topic: { id: string; name: string }; questions: StudentQuizQuestion[] }>("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz`, { topicId }),
+    reportQuestion: async (sessionId, questionId, reason) => {
+      await fn("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz/report`, { questionId, reason });
+    },
+    submitQuiz: async (sessionId, answers) => fn<QuizAttempt>("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz/submit`, { answers }),
+
     // ---------- 백엔드에 없는 기능: 화면에서 숨김. 공통 화면이 부르는 조회는 빈 값 ----------
-    listUnits: async () => [],
-    listUnitQuestions: async () => notSupported(),
-    draftQuestionsWithAi: async () => notSupported(),
-    saveQuestion: async () => notSupported(),
-    setQuestionStatus: async () => notSupported(),
-    deleteQuestion: async () => notSupported(),
-    getQuiz: async () => notSupported(),
-    submitQuiz: async () => notSupported(),
-    getQuizAttempt: async () => null,
+    getQuizAttempt: async (sessionId) => {
+      const row = ok(await sb.from("v_quiz_attempts").select().eq("sessionId", sessionId).maybeSingle()) as QuizAttempt | null;
+      return row ?? null;
+    },
     getRubric: async () => notSupported(),
     getAssessment: async () => null,
     requestAiAssessment: async () => notSupported(),

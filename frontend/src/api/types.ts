@@ -4,12 +4,10 @@ import type {
   AuthEvent,
   CriterionScore,
   QuizAttempt,
-  QuizQuestion,
   Rubric,
   SessionTopic,
-  StudentOverview,
   StudentQuizQuestion,
-  Unit,
+  QuizReportReason,
   SessionGoal,
   Consent,
   ConsentKind,
@@ -128,26 +126,16 @@ export interface Api {
 
   // 교사
   getDashboard(classId: string): Promise<Dashboard>;
-  /** 학생 종합 보드: 단원별 학습량·테스트·이해도·신호 (교사만, 자기 반) */
-  getStudentOverview(studentId: string): Promise<StudentOverview>;
 
   // 주제 (AI가 기록에서 추출, 반 주제 사전으로 이름 통일)
   /** 본인 ENDED 세션의 주제 1~3개. 근거 없는 주제는 만들지 않음. 결과는 캐시 */
   extractTopics(sessionId: string): Promise<SessionTopic[]>;
 
-  // 단원·문제 관리 (교사)
-  listUnits(classId: string): Promise<Unit[]>;
-  listUnitQuestions(unitId: string): Promise<QuizQuestion[]>;
-  /** 성취기준을 근거로 DRAFT 문제 3개 생성. 근거가 없으면 VALIDATION */
-  draftQuestionsWithAi(unitId: string): Promise<QuizQuestion[]>;
-  /** id가 빈 문자열이면 새로 만든다 */
-  saveQuestion(q: QuizQuestion): Promise<QuizQuestion>;
-  setQuestionStatus(id: string, status: "DRAFT" | "APPROVED"): Promise<QuizQuestion>;
-  deleteQuestion(id: string): Promise<void>;
-
-  // 단원 테스트 (학생)
-  /** 본인 ENDED 세션 + 단원 있음. 승인 문제 최대 5개, 정답·해설 없음 */
-  getQuiz(sessionId: string): Promise<{ unit: Unit; questions: StudentQuizQuestion[] }>;
+  // 주제 테스트 (학생)
+  /** 본인 ENDED 세션 + 이번 세션에서 추출된 주제만. 고정 5문항(개념 3 + 적용 2), 정답·해설 없음. 출제 스냅샷 */
+  getQuiz(sessionId: string, topicId: string): Promise<{ topic: { id: string; name: string }; questions: StudentQuizQuestion[] }>;
+  /** 제출 전에만. 신고한 문항은 채점에서 제외되고 교사에게 모인다 */
+  reportQuestion(sessionId: string, questionId: string, reason: QuizReportReason): Promise<void>;
   /** 세션당 1회. 채점 결과(정답·해설 포함)를 돌려준다 */
   submitQuiz(sessionId: string, answers: Record<string, number | null>): Promise<QuizAttempt>;
   /** 학생 본인 / 교사(기록 공유 동의 시) */

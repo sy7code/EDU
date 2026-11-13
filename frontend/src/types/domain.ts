@@ -47,7 +47,6 @@ export type SessionGoal = {
   subject: string;
   activities: string[];
   note?: string;
-  unitId?: string; // 단원 테스트 대상 단원 (선택)
 };
 
 // ---------- 주제 (반 단위 주제 사전) ----------
@@ -56,32 +55,11 @@ export type Topic = { id: string; classId: string; name: string; subject?: strin
 /** 이번 세션 기록에서 AI가 찾은 주제. 근거 기록 ID 필수 */
 export type SessionTopic = { topicId: string; name: string; subject?: string; evidenceIds: string[] };
 
-// ---------- 단원 테스트 ----------
-export type Unit = {
-  id: string;
-  classId: string;
-  subject: string;
-  order: number;
-  title: string;
-  standard: string; // 성취기준 문장 (AI 초안의 근거)
-  material?: string;
-};
-
-export type QuizQuestion = {
-  id: string;
-  unitId: string;
-  type: "MCQ" | "OX";
-  prompt: string;
-  choices: string[];
-  answerIndex: number;
-  explanation: string;
-  source: "AI" | "TEACHER";
-  status: "DRAFT" | "APPROVED";
-  evidence: string; // 근거 문장 (성취기준·자료)
-};
-
+// ---------- 주제 테스트 (고정 난이도 5문항: 개념 3 + 적용 2) ----------
 /** 학생에게 내려가는 문항: 정답·해설 없음 */
 export type StudentQuizQuestion = { id: string; type: "MCQ" | "OX"; prompt: string; choices: string[] };
+
+export type QuizReportReason = "WRONG_ANSWER" | "UNCLEAR" | "UNRELATED";
 
 export type QuizResultItem = {
   questionId: string;
@@ -91,36 +69,16 @@ export type QuizResultItem = {
   answerIndex: number;
   correct: boolean;
   explanation: string;
-};
-
-/** 교사 종합 보드의 단원별 행. 기록 공유 동의가 없으면 횟수·시간 외에는 null */
-export type UnitOverview = {
-  unitId: string;
-  subject: string;
-  title: string;
-  sessions: number;
-  minutes: number;
-  entries: number | null;
-  questions: number | null;
-  lastQuizRate: number | null;
-  lastUnderstanding: 1 | 2 | 3 | null;
-  signal: "OVERCONFIDENT" | "LOW_SCORE" | null;
-};
-
-export type StudentOverview = {
-  studentId: string;
-  shared: boolean;
-  units: UnitOverview[];
-  noUnit: { sessions: number; minutes: number };
+  reported: boolean; // 학생이 신고한 문항 → 채점(total)에서 제외
 };
 
 export type QuizAttempt = {
   id: string;
   sessionId: string;
-  unitId: string;
+  topicId: string;
   studentId: string;
   correct: number;
-  total: number;
+  total: number; // 신고 제외 문항 수
   createdAt: string;
   items: QuizResultItem[];
 };

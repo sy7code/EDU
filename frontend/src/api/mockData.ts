@@ -9,15 +9,14 @@ import type {
   LearningEntry,
   LearningSession,
   QuizAttempt,
-  QuizQuestion,
+  QuizReportReason,
   Reflection,
   Rubric,
   SessionTopic,
   Topic,
-  Unit,
   User,
 } from "../types/domain";
-import { SEED_QUESTIONS, SEED_UNITS } from "./mockQuizData";
+import { TOPIC_DICTIONARY, type TopicLevel } from "./mockTopicData";
 
 export type Db = {
   users: User[];
@@ -34,15 +33,39 @@ export type Db = {
   rubrics: Rubric[];
   assessments: Assessment[];
   auditLogs: Array<{ actorId: string; action: string; targetStudentId: string | null; at: string }>;
-  units: Unit[];
-  questions: QuizQuestion[];
+  /** 반 단위 주제별 문항 풀 (정답 포함 → 학생에게 직접 노출 금지) */
+  topicQuestions: TopicQuestion[];
+  quizReports: QuizReport[];
   quizAttempts: QuizAttempt[];
   /** 세션별 출제 스냅샷 (섞인 선택지·맞춘 정답 번호). 채점은 이것으로 */
-  quizServes: Record<string, ServedQuestion[]>;
+  quizServes: Record<string, { topicId: string; questions: ServedQuestion[] }>;
   /** 반 단위 주제 사전 (key = mock 사전 키, 실서비스에선 LLM이 기존 주제를 고름) */
   topics: Array<Topic & { key: string }>;
   /** 세션별 추출 주제 캐시 */
   sessionTopics: Record<string, SessionTopic[]>;
+};
+
+export type TopicQuestion = {
+  id: string;
+  topicId: string;
+  type: "MCQ" | "OX";
+  level: TopicLevel;
+  prompt: string;
+  choices: string[];
+  answerIndex: number;
+  explanation: string;
+  excluded: boolean; // 교사가 신고를 받아들여 풀에서 뺀 문항
+};
+
+export type QuizReport = {
+  id: string;
+  sessionId: string;
+  questionId: string;
+  studentId: string;
+  classId: string;
+  reason: QuizReportReason;
+  status: "OPEN" | "KEEP_EXCLUDED" | "DISMISSED";
+  createdAt: string;
 };
 
 export type ServedQuestion = {
@@ -52,6 +75,7 @@ export type ServedQuestion = {
   choices: string[];
   answerIndex: number;
   explanation: string;
+  reported: boolean;
 };
 
 const SURNAMES = ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임"];
@@ -133,6 +157,12 @@ export function createSeed(now: Date): Db {
   const entries: LearningEntry[] = [];
   const reflections: Reflection[] = [];
   const quizAttempts: QuizAttempt[] = [];
+  // 반 c1 주제 사전·문항 풀 (데모: 이미 다른 학생들이 쓰던 주제)
+  const topics: Db["topics"] = TOPIC_DICTIONARY.map((d) => ({ id: "topic-c1-" + d.key, classId: "c1", key: d.key, name: d.name, subject: d.subject }));
+  const topicQuestions: TopicQuestion[] = TOPIC_DICTIONARY.flatMap((d) =>
+    d.pool.map((q, i) => ({ id: "tq-" + d.key + "-" + (i + 1), topicId: "topic-c1-" + d.key, ...q, choices: [...q.choices], excluded: false })),
+  );
+  const sessionTopics: Db["sessionTopics"] = {};
   const qr = rng(4242);
   let seq = 0;
   const nextId = (p: string) => `${p}-seed-${++seq}`;
@@ -149,12 +179,13 @@ export function createSeed(now: Date): Db {
       const sid = nextId("sess");
       const subject = ["수학", "영어", "국어", "과학"][Math.floor(r() * 4)];
       // 단원 테스트 데모용: 별도 난수로 단원을 붙인다 (기존 시드 값은 그대로 유지)
-      const subjectUnits = SEED_UNITS.filter((x) => x.classId === "c1" && x.subject === subject && x.standard);
-      const unit = qr() < 0.8 ? subjectUnits[Math.floor(qr() * subjectUnits.length)] : undefined;
+      // 주제별 성장 데모: 별도 난수로 그 과목의 사전 주제를 붙인다 (기존 시드 값은 유지)
+      const subjectTopics = TOPIC_DICTIONARY.filter((d) => d.subject === subject);
+      const dict = subjectTopics.length && qr() < 0.8 ? subjectTopics[Math.floor(qr() * subjectTopics.length)] : undefined;
       sessions.push({
         id: sid,
         studentId: u.id,
-        goal: { subject, activities: [["concept", "problem", "review", "summary"][Math.floor(r() * 4)]], unitId: unit?.id },
+        goal: { subject, activities: [["concept", "problem", "review", "summary"][Math.floor(r() * 4)]] },
         startedAt: iso(start),
         endedAt: iso(end),
         startAuth: u.id === "s03" ? "QR" : "FACEPASS",
@@ -187,26 +218,24 @@ export function createSeed(now: Date): Db {
         remainingQuestions: SAMPLE_QUESTIONS.slice(0, rq),
         updatedAt: iso(end),
       });
-      // 단원 테스트 결과 (s09는 '이해했다는데 점수 낮음' 데모)
-      const qs = unit ? SEED_QUESTIONS.filter((x) => x.unitId === unit.id && x.status === "APPROVED").slice(0, 5) : [];
-      if (qs.length > 0 && qr() < 0.85) {
-        const pCorrect = u.id === "s09" ? 0.2 : 0.35 + understanding * 0.18;
-        const items = qs.map((x) => {
-          const ok = qr() < pCorrect;
-          const chosen = ok ? x.answerIndex : (x.answerIndex + 1) % x.choices.length;
-          return { questionId: x.id, prompt: x.prompt, choices: [...x.choices], chosen, answerIndex: x.answerIndex, correct: ok, explanation: x.explanation };
-        });
-        if (u.id === "s09") reflections[reflections.length - 1].understanding = 3;
-        quizAttempts.push({
-          id: nextId("quiz"),
-          sessionId: sid,
-          unitId: unit!.id,
-          studentId: u.id,
-          correct: items.filter((i) => i.correct).length,
-          total: items.length,
-          createdAt: iso(end),
-          items,
-        });
+      // 주제·테스트 결과 (s09는 '이해했다는데 점수 낮음' 데모)
+      if (dict) {
+        const topicId = "topic-c1-" + dict.key;
+        const evId = nextId("entry");
+        entries.push({ id: evId, sessionId: sid, kind: "MEMO", content: dict.keywords[0] + " 정리", visibility: "TEACHER", createdAt: iso(new Date(start.getTime() + 3 * 60000)) });
+        sessionTopics[sid] = [{ topicId, name: dict.name, subject: dict.subject, evidenceIds: [evId] }];
+        if (qr() < 0.85) {
+          const pool = topicQuestions.filter((x) => x.topicId === topicId);
+          const qs = [...pool.filter((x) => x.level === "CONCEPT").slice(0, 3), ...pool.filter((x) => x.level === "APPLY").slice(0, 2)];
+          const pCorrect = u.id === "s09" ? 0.2 : 0.35 + understanding * 0.18;
+          const items = qs.map((x) => {
+            const ok = qr() < pCorrect;
+            const chosen = ok ? x.answerIndex : (x.answerIndex + 1) % x.choices.length;
+            return { questionId: x.id, prompt: x.prompt, choices: [...x.choices], chosen, answerIndex: x.answerIndex, correct: ok, explanation: x.explanation, reported: false };
+          });
+          if (u.id === "s09") reflections[reflections.length - 1].understanding = 3;
+          quizAttempts.push({ id: nextId("quiz"), sessionId: sid, topicId, studentId: u.id, correct: items.filter((i) => i.correct).length, total: items.length, createdAt: iso(end), items });
+        }
       }
     }
   }
@@ -246,11 +275,11 @@ export function createSeed(now: Date): Db {
     rubrics,
     assessments: [],
     auditLogs: [],
-    units: structuredClone(SEED_UNITS),
-    questions: structuredClone(SEED_QUESTIONS),
+    topicQuestions,
+    quizReports: [],
     quizAttempts,
     quizServes: {},
-    topics: [],
-    sessionTopics: {},
+    topics,
+    sessionTopics,
   };
 }

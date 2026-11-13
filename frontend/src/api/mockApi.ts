@@ -16,10 +16,8 @@ import type {
   LearningEntry,
   LearningSession,
   QuizAttempt,
-  QuizQuestion,
   SessionTopic,
   StudentQuizQuestion,
-  UnitOverview,
   User,
 } from "../types/domain";
 import type { Db, ServedQuestion } from "./mockData";
@@ -39,7 +37,8 @@ export const SESSION_USER_KEY = "growth-pace-mock-user";
 const AUTH_EVENT_TTL_MS = 120_000;
 const QR_TTL_MS = 60_000;
 const CODE_PER_MINUTE = 20;
-const QUIZ_MAX = 5;
+const QUIZ_CONCEPT = 3; // 고정 난이도: 개념 확인 3
+const QUIZ_APPLY = 2; // + 적용 2 = 5문항
 const TOPICS_MAX = 3;
 const MAX_ENTRY = 2000;
 const MAX_AI_INPUT = 1000;
@@ -289,86 +288,60 @@ export function createMockApi(opts: MockOptions): Api {
     return t;
   }
 
-  // ---------- 단원·문제 ----------
-  /** 교사 본인 반 단원만. 학생은 FORBIDDEN, 다른 반은 NOT_FOUND */
-  function ownUnit(unitId: string) {
-    const t = teacher();
-    const unit = db.units.find((u) => u.id === unitId);
-    if (!unit || unit.classId !== t.classId) throw new ApiError("NOT_FOUND");
-    return unit;
-  }
-  function validateQuestion(q: Pick<QuizQuestion, "type" | "prompt" | "choices" | "answerIndex" | "explanation">) {
-    const prompt = q.prompt.trim();
-    const okLen = prompt.length > 0 && prompt.length <= 300 && q.explanation.trim().length <= 500;
-    const okChoices =
-      q.type === "OX"
-        ? q.choices.length === 2 && q.choices[0] === "O" && q.choices[1] === "X"
-        : q.choices.length >= 2 && q.choices.length <= 5 && q.choices.every((c) => c.trim().length > 0 && c.length <= 100);
-    const okAnswer = Number.isInteger(q.answerIndex) && q.answerIndex >= 0 && q.answerIndex < q.choices.length;
-    if (!okLen || !okChoices || !okAnswer) throw new ApiError("VALIDATION");
-  }
-  /** mock AI: 성취기준 문장에서 핵심어를 뽑아 확인 문제 초안을 만든다 (근거 밖 내용 생성 안 함) */
-  function aiDraftTemplates(unit: { title: string; standard: string }) {
-    const goal = unit.standard.replace(/\s*수 있다\.?$/, "").trim();
-    return [
-      { type: "OX" as const, prompt: `[${unit.title}] 다음은 이 단원의 학습 목표이다: "${unit.standard}"`, choices: ["O", "X"], answerIndex: 0, explanation: "성취기준 문장 그대로예요. 선생님이 단원 내용에 맞게 문항을 다듬어 주세요." },
-      { type: "MCQ" as const, prompt: `[${unit.title}] 이 단원에서 할 수 있어야 하는 것은?`, choices: [goal, "단원과 관계없는 내용 암기", "결과만 외우기", "문제 풀이 생략"], answerIndex: 0, explanation: `성취기준: ${unit.standard}` },
-      { type: "OX" as const, prompt: `[${unit.title}] 이 단원의 개념을 내 말로 설명할 수 있으면 목표를 이룬 것이다.`, choices: ["O", "X"], answerIndex: 0, explanation: "선생님이 실제 개념 문항으로 바꿔 주세요 (AI 초안)." },
-    ];
-  }
-
-  /** 학생 본인 + ENDED + 단원 있는 세션의 출제 문항. 승인 문제만, 세션 ID 기반으로 섞어 최대 5개 (새로고침해도 같음) */
-  function quizFor(sessionId: string) {
+  // ---------- 주제 테스트 ----------
+  /** 학생 본인 세션 확인 (남의 세션이면 존재를 숨김) */
+  function ownSession(sessionId: string) {
     const u = me();
     const s = visibleSession(sessionId);
-    if (u.role !== "student" || s.studentId !== u.id) throw new ApiError("FORBIDDEN");
-    const unit = s.goal.unitId ? db.units.find((x) => x.id === s.goal.unitId) : undefined;
-    if (s.status !== "ENDED" || !unit) throw new ApiError("QUIZ_NOT_AVAILABLE");
-    const questions = db.questions
-      .filter((x) => x.unitId === unit.id && x.status === "APPROVED")
-      .sort((a, b) => hash(sessionId + a.id) - hash(sessionId + b.id))
-      .slice(0, QUIZ_MAX);
-    return { s, unit, questions };
+    if (u.role !== "student" || s.studentId !== u.id) throw new ApiError("NOT_FOUND");
+    return s;
   }
 
-  /** 처음 출제할 때 문항을 스냅샷으로 고정한다. 객관식은 선택지를 세션 기준으로 섞고 정답 번호를 맞춘다. */
-  function servedQuiz(sessionId: string) {
-    const { s, unit, questions } = quizFor(sessionId);
+  /**
+   * 처음 출제할 때 문항을 스냅샷으로 고정한다.
+   * - 이번 세션에서 추출된 주제만, ENDED 세션만
+   * - 반 문항 풀(제외되지 않은 것)에서 개념 3 + 적용 2를 세션 기준으로 결정적 선택 → 학생과 무관한 고정 난이도
+   * - 객관식 선택지는 세션 기준으로 섞고 정답 번호 보정 (O/X는 고정)
+   */
+  function servedQuiz(sessionId: string, topicId?: string) {
+    const s = ownSession(sessionId);
+    if (s.status !== "ENDED") throw new ApiError("QUIZ_NOT_AVAILABLE");
     const existing = db.quizServes[sessionId];
-    if (existing) return { s, unit, questions: existing };
-    const snap: ServedQuestion[] = questions.map((x) => {
-      if (x.type === "OX") return { id: x.id, type: x.type, prompt: x.prompt, choices: [...x.choices], answerIndex: x.answerIndex, explanation: x.explanation };
+    if (existing) {
+      if (topicId && existing.topicId !== topicId) throw new ApiError("QUIZ_NOT_AVAILABLE");
+      const topic = db.topics.find((t) => t.id === existing.topicId)!;
+      return { s, topic, questions: existing.questions };
+    }
+    const st = (db.sessionTopics[sessionId] ?? []).find((t) => t.topicId === topicId);
+    const topic = st ? db.topics.find((t) => t.id === st.topicId) : undefined;
+    if (!topic) throw new ApiError("QUIZ_NOT_AVAILABLE");
+    const pool = db.topicQuestions.filter((x) => x.topicId === topic.id && !x.excluded);
+    const pick = (level: "CONCEPT" | "APPLY", n: number) =>
+      pool
+        .filter((x) => x.level === level)
+        .sort((a, b) => hash(sessionId + a.id) - hash(sessionId + b.id))
+        .slice(0, n);
+    // 실서비스: 풀이 모자라면 LLM이 고정 난이도로 부족분만 생성해 풀에 추가 (명세 v0.5)
+    const chosen = [...pick("CONCEPT", QUIZ_CONCEPT), ...pick("APPLY", QUIZ_APPLY)];
+    const snap: ServedQuestion[] = chosen.map((x) => {
+      if (x.type === "OX") return { id: x.id, type: x.type, prompt: x.prompt, choices: [...x.choices], answerIndex: x.answerIndex, explanation: x.explanation, reported: false };
       const order = x.choices.map((_, i) => i).sort((a, b) => hash(`${sessionId}:${x.id}:${a}`) - hash(`${sessionId}:${x.id}:${b}`));
-      return {
-        id: x.id,
-        type: x.type,
-        prompt: x.prompt,
-        choices: order.map((i) => x.choices[i]),
-        answerIndex: order.indexOf(x.answerIndex),
-        explanation: x.explanation,
-      };
+      return { id: x.id, type: x.type, prompt: x.prompt, choices: order.map((i) => x.choices[i]), answerIndex: order.indexOf(x.answerIndex), explanation: x.explanation, reported: false };
     });
-    db.quizServes[sessionId] = snap;
-    return { s, unit, questions: snap };
+    db.quizServes[sessionId] = { topicId: topic.id, questions: snap };
+    return { s, topic, questions: snap };
   }
 
-  /** 학생의 최근 응시 (unitId 없으면 전체 단원 중 최근) */
-  function lastAttempt(studentId: string, unitId?: string): QuizAttempt | null {
+  /** 학생의 최근 응시 (topicId 없으면 전체 주제 중 최근) */
+  function lastAttempt(studentId: string, topicId?: string): QuizAttempt | null {
     const list = db.quizAttempts
-      .filter((a) => a.studentId === studentId && (!unitId || a.unitId === unitId) && a.total > 0)
+      .filter((a) => a.studentId === studentId && (!topicId || a.topicId === topicId) && a.total > 0)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return list[0] ?? null;
   }
-  function lastQuizRate(studentId: string, unitId?: string): number | null {
-    const a = lastAttempt(studentId, unitId);
+  function lastQuizRate(studentId: string, topicId?: string): number | null {
+    const a = lastAttempt(studentId, topicId);
     return a ? a.correct / a.total : null;
-  }
-  /** 차이 신호: 스스로 '설명할 수 있다(3)'인데 60% 미만 → OVERCONFIDENT, 그 외 40% 미만 → LOW_SCORE */
-  function quizSignal(rate: number | null, understanding: number | null): UnitOverview["signal"] {
-    if (rate === null) return null;
-    if (understanding === 3 && rate < 0.6) return "OVERCONFIDENT";
-    if (rate < 0.4) return "LOW_SCORE";
-    return null;
   }
 
   function studentView(a: Assessment): Assessment {
@@ -515,12 +488,7 @@ export function createMockApi(opts: MockOptions): Api {
       run(() => {
         const u = me();
         if (u.role !== "student") throw new ApiError("FORBIDDEN");
-        if (!goal.subject || goal.activities.length === 0) throw new ApiError("VALIDATION");
-        if (goal.unitId) {
-          const unit = db.units.find((x) => x.id === goal.unitId);
-          // 자기 반 + 같은 과목 단원만
-          if (!unit || unit.classId !== u.classId || unit.subject !== goal.subject) throw new ApiError("VALIDATION");
-        }
+        if (!goal.subject.trim() || goal.subject.length > 200) throw new ApiError("VALIDATION"); // "오늘 할 것" 필수, 활동 체크는 선택
         if (db.sessions.some((s) => s.studentId === u.id && s.status === "ACTIVE")) {
           throw new ApiError("SESSION_ALREADY_ACTIVE");
         }
@@ -533,7 +501,6 @@ export function createMockApi(opts: MockOptions): Api {
             subject: goal.subject,
             activities: [...goal.activities],
             note: goal.note?.trim() || undefined,
-            unitId: goal.unitId || undefined,
           },
           startedAt: ev.verifiedAt,
           endedAt: null,
@@ -744,94 +711,53 @@ export function createMockApi(opts: MockOptions): Api {
         return result;
       }),
 
-    // ---------- 단원·문제 관리 ----------
-    listUnits: (classId) =>
+    // ---------- 주제 테스트 ----------
+    getQuiz: (sessionId, topicId) =>
       run(() => {
-        if (me().classId !== classId) throw new ApiError("NOT_FOUND");
-        return db.units.filter((u) => u.classId === classId).sort((a, b) => a.subject.localeCompare(b.subject) || a.order - b.order);
-      }),
-
-    listUnitQuestions: (unitId) =>
-      run(() => {
-        ownUnit(unitId);
-        return db.questions.filter((x) => x.unitId === unitId);
-      }),
-
-    draftQuestionsWithAi: (unitId) =>
-      run(() => {
-        const unit = ownUnit(unitId);
-        if (!unit.standard.trim()) throw new ApiError("VALIDATION", "성취기준이 없어 근거 없이 문제를 만들 수 없어요");
-        // 실서버: 성취기준·자료만 컨텍스트로 LLM 호출, 응답에 근거 문장 필수. 여기선 근거 기반 템플릿
-        const drafts = aiDraftTemplates(unit).map((d) => ({ ...d, id: id("q"), unitId, source: "AI" as const, status: "DRAFT" as const, evidence: unit.standard }));
-        db.questions.push(...drafts);
-        audit("AI_QUESTION_DRAFT", null);
-        return drafts;
-      }),
-
-    saveQuestion: (input) =>
-      run(() => {
-        ownUnit(input.unitId);
-        validateQuestion(input);
-        if (!input.id) {
-          const created: QuizQuestion = { ...input, id: id("q"), source: "TEACHER", prompt: input.prompt.trim(), explanation: input.explanation.trim() };
-          db.questions.push(created);
-          return created;
-        }
-        const existing = db.questions.find((x) => x.id === input.id);
-        if (!existing || existing.unitId !== input.unitId) throw new ApiError("NOT_FOUND");
-        Object.assign(existing, { type: input.type, prompt: input.prompt.trim(), choices: [...input.choices], answerIndex: input.answerIndex, explanation: input.explanation.trim(), status: input.status });
-        return existing;
-      }),
-
-    setQuestionStatus: (qid, status) =>
-      run(() => {
-        const existing = db.questions.find((x) => x.id === qid);
-        if (!existing) throw new ApiError("NOT_FOUND");
-        ownUnit(existing.unitId);
-        if (status === "APPROVED") validateQuestion(existing);
-        existing.status = status;
-        audit(status === "APPROVED" ? "QUESTION_APPROVE" : "QUESTION_UNAPPROVE", null);
-        return existing;
-      }),
-
-    deleteQuestion: (qid) =>
-      run(() => {
-        const existing = db.questions.find((x) => x.id === qid);
-        if (!existing) throw new ApiError("NOT_FOUND");
-        ownUnit(existing.unitId);
-        db.questions = db.questions.filter((x) => x.id !== qid);
-        audit("QUESTION_DELETE", null);
-      }),
-
-    // ---------- 단원 테스트 ----------
-    getQuiz: (sessionId) =>
-      run(() => {
-        const { unit, questions } = servedQuiz(sessionId);
-        // 정답·해설·근거는 내려주지 않는다 (채점은 서버)
+        const { topic, questions } = servedQuiz(sessionId, topicId);
+        // 정답·해설은 내려주지 않는다 (채점은 서버)
         const safe: StudentQuizQuestion[] = questions.map((x) => ({ id: x.id, type: x.type, prompt: x.prompt, choices: [...x.choices] }));
-        return { unit, questions: safe };
+        return { topic: { id: topic.id, name: topic.name }, questions: safe };
+      }),
+
+    reportQuestion: (sessionId, questionId, reason) =>
+      run(() => {
+        const s = ownSession(sessionId);
+        if (db.quizAttempts.some((a) => a.sessionId === sessionId)) throw new ApiError("QUIZ_ALREADY_TAKEN");
+        const serve = db.quizServes[sessionId];
+        const q = serve?.questions.find((x) => x.id === questionId);
+        if (!serve || !q) throw new ApiError("NOT_FOUND");
+        if (!["WRONG_ANSWER", "UNCLEAR", "UNRELATED"].includes(reason)) throw new ApiError("VALIDATION");
+        if (q.reported) return;
+        q.reported = true;
+        db.quizReports.push({ id: id("report"), sessionId, questionId, studentId: s.studentId, classId: me().classId, reason, status: "OPEN", createdAt: iso() });
       }),
 
     submitQuiz: (sessionId, answers) =>
       run(() => {
         if (db.quizAttempts.some((a) => a.sessionId === sessionId)) {
-          visibleSession(sessionId); // 남의 세션이면 NOT_FOUND가 먼저
+          ownSession(sessionId); // 남의 세션이면 NOT_FOUND가 먼저
           throw new ApiError("QUIZ_ALREADY_TAKEN");
         }
-        // 학생이 받은 출제 스냅샷 그대로 채점 (그 사이 교사가 문제를 바꿔도 영향 없음)
-        const { s, unit, questions } = servedQuiz(sessionId);
+        // 학생이 받은 출제 스냅샷 그대로 채점 (getQuiz 없이 제출하면 출제 대상 없음)
+        if (!db.quizServes[sessionId]) {
+          ownSession(sessionId);
+          throw new ApiError("QUIZ_NOT_AVAILABLE");
+        }
+        const { s, topic, questions } = servedQuiz(sessionId);
         const items = questions.map((x) => {
           const raw = answers[x.id];
           const chosen = Number.isInteger(raw) && (raw as number) >= 0 && (raw as number) < x.choices.length ? (raw as number) : null;
-          return { questionId: x.id, prompt: x.prompt, choices: [...x.choices], chosen, answerIndex: x.answerIndex, correct: chosen === x.answerIndex, explanation: x.explanation };
+          return { questionId: x.id, prompt: x.prompt, choices: [...x.choices], chosen, answerIndex: x.answerIndex, correct: chosen === x.answerIndex, explanation: x.explanation, reported: x.reported };
         });
+        const scored = items.filter((i) => !i.reported); // 신고 문항은 채점 제외
         const attempt: QuizAttempt = {
           id: id("quiz"),
           sessionId,
-          unitId: unit.id,
+          topicId: topic.id,
           studentId: s.studentId,
-          correct: items.filter((i) => i.correct).length,
-          total: items.length,
+          correct: scored.filter((i) => i.correct).length,
+          total: scored.length,
           createdAt: iso(),
           items,
         };
@@ -844,40 +770,6 @@ export function createMockApi(opts: MockOptions): Api {
         const s = visibleSession(sessionId);
         if (isTeacherView() && !sharedWithTeacher(s.studentId)) return null;
         return db.quizAttempts.find((a) => a.sessionId === sessionId) ?? null;
-      }),
-
-    getStudentOverview: (studentId) =>
-      run(() => {
-        const t = teacher();
-        if (userById(studentId)?.classId !== t.classId) throw new ApiError("NOT_FOUND");
-        audit("VIEW_STUDENT_OVERVIEW", studentId);
-        const shared = sharedWithTeacher(studentId);
-        const mine = db.sessions.filter((s) => s.studentId === studentId);
-        const minutesOf = (list: LearningSession[]) => list.reduce((n, s) => n + (s.durationMinutes ?? 0), 0);
-        const units: UnitOverview[] = db.units
-          .filter((u) => u.classId === t.classId)
-          .map((unit) => {
-            const list = mine.filter((s) => s.goal.unitId === unit.id);
-            const base = { unitId: unit.id, subject: unit.subject, title: unit.title, sessions: list.length, minutes: minutesOf(list) };
-            if (!shared) return { ...base, entries: null, questions: null, lastQuizRate: null, lastUnderstanding: null, signal: null };
-            const ents = list.flatMap((s) => teacherEntries(s));
-            const att = lastAttempt(studentId, unit.id);
-            const rate = att ? att.correct / att.total : null;
-            const lastEnded = [...list].filter((s) => s.status === "ENDED").sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
-            const und = lastEnded ? (db.reflections.find((r) => r.sessionId === lastEnded.id)?.understanding ?? null) : null;
-            // 신호는 같은 세션의 응시 결과와 이해도 짝으로만 판단 (다른 세션 값을 섞지 않음)
-            const pairedUnd = att ? (db.reflections.find((r) => r.sessionId === att.sessionId)?.understanding ?? null) : null;
-            return {
-              ...base,
-              entries: ents.length,
-              questions: ents.filter((e) => e.kind === "QUESTION").length,
-              lastQuizRate: rate,
-              lastUnderstanding: und,
-              signal: quizSignal(rate, pairedUnd),
-            };
-          });
-        const noUnit = mine.filter((s) => !s.goal.unitId);
-        return { studentId, shared, units, noUnit: { sessions: noUnit.length, minutes: minutesOf(noUnit) } };
       }),
 
     getRubric: (classId) =>

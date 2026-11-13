@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMockApi } from "./mockApi";
 import { createSeed } from "./mockData";
-import { SEED_UNITS } from "./mockQuizData";
+import { TOPIC_DICTIONARY } from "./mockTopicData";
 import { ApiError, type Api } from "./types";
 import type { SessionGoal } from "../types/domain";
 
@@ -321,283 +321,6 @@ describe("교차채점", () => {
   });
 });
 
-describe("단원 문제 관리", () => {
-  it("학생은 단원 문제(정답 포함)를 조회할 수 없다", async () => {
-    await api.login("s01");
-    await expectCode(api.listUnitQuestions("u-math-1"), "FORBIDDEN");
-  });
-
-  it("AI 초안은 성취기준을 근거로 DRAFT로 만들어진다", async () => {
-    await api.login("t1");
-    const unit = (await api.listUnits("c1")).find((u) => u.id === "u-math-2")!;
-    const drafts = await api.draftQuestionsWithAi("u-math-2");
-    expect(drafts.length).toBe(3);
-    for (const d of drafts) {
-      expect(d.status).toBe("DRAFT");
-      expect(d.source).toBe("AI");
-      expect(d.evidence).toBe(unit.standard);
-    }
-  });
-
-  it("성취기준이 없는 단원은 AI 초안을 만들 수 없다", async () => {
-    await api.login("t1");
-    await expectCode(api.draftQuestionsWithAi("u-sci-2"), "VALIDATION");
-  });
-
-  it("다른 반 단원 문제는 관리할 수 없다", async () => {
-    await api.login("t1");
-    await expectCode(api.listUnitQuestions("u-c2-1"), "NOT_FOUND");
-  });
-
-  it("OX 문제는 선택지가 O·X가 아니면 저장할 수 없다", async () => {
-    await api.login("t1");
-    await expectCode(
-      api.saveQuestion({ id: "", unitId: "u-math-1", type: "OX", prompt: "질문", choices: ["예", "아니오"], answerIndex: 0, explanation: "해설", source: "TEACHER", status: "DRAFT", evidence: "" }),
-      "VALIDATION",
-    );
-  });
-
-  it("정답 번호가 선택지 범위를 벗어나면 저장할 수 없다", async () => {
-    await api.login("t1");
-    await expectCode(
-      api.saveQuestion({ id: "", unitId: "u-math-1", type: "MCQ", prompt: "질문", choices: ["1", "2", "3"], answerIndex: 3, explanation: "해설", source: "TEACHER", status: "DRAFT", evidence: "" }),
-      "VALIDATION",
-    );
-  });
-
-  it("교사가 승인하면 문제 상태가 APPROVED가 된다", async () => {
-    await api.login("t1");
-    const [d] = await api.draftQuestionsWithAi("u-math-3");
-    const approved = await api.setQuestionStatus(d.id, "APPROVED");
-    expect(approved.status).toBe("APPROVED");
-  });
-});
-
-describe("단원 테스트", () => {
-  async function endedUnitSession(studentId: string, unitId: string | undefined) {
-    await api.login(studentId);
-    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
-    const subject = unitId ? SEED_UNITS.find((u) => u.id === unitId)!.subject : GOAL.subject;
-    const s = await api.startSession({ goal: { ...GOAL, subject, unitId }, authEventId: ev.id });
-    advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
-    return s;
-  }
-
-  it("퀴즈 응답에는 정답과 해설이 없다", async () => {
-    const s = await endedUnitSession("s01", "u-math-1");
-    const quiz = await api.getQuiz(s.id);
-    for (const q of quiz.questions) {
-      expect(q).not.toHaveProperty("answerIndex");
-      expect(q).not.toHaveProperty("explanation");
-    }
-  });
-
-  it("승인된 문제만 최대 5개 나온다", async () => {
-    const s = await endedUnitSession("s01", "u-math-1");
-    const quiz = await api.getQuiz(s.id);
-    expect(quiz.questions.length).toBe(5);
-    expect(quiz.questions.some((q) => q.prompt.startsWith("[초안]"))).toBe(false);
-  });
-
-  it("진행 중인 세션은 퀴즈를 받을 수 없다", async () => {
-    await api.login("s01");
-    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
-    const s = await api.startSession({ goal: { ...GOAL, unitId: "u-math-1" }, authEventId: ev.id });
-    await expectCode(api.getQuiz(s.id), "QUIZ_NOT_AVAILABLE");
-  });
-
-  it("단원 없는 세션은 퀴즈를 받을 수 없다", async () => {
-    const s = await endedUnitSession("s01", undefined);
-    await expectCode(api.getQuiz(s.id), "QUIZ_NOT_AVAILABLE");
-  });
-
-  it("미선택 문항은 오답으로 채점된다", async () => {
-    const s = await endedUnitSession("s01", "u-math-2");
-    const quiz = await api.getQuiz(s.id);
-    const result = await api.submitQuiz(s.id, Object.fromEntries(quiz.questions.map((q) => [q.id, null])));
-    expect(result.total).toBe(3);
-    expect(result.correct).toBe(0);
-    expect(result.items.every((i) => i.correct === false)).toBe(true);
-  });
-
-  it("정답을 고르면 정답으로 채점되고 해설을 받는다", async () => {
-    const s = await endedUnitSession("s01", "u-sci-1");
-    const quiz = await api.getQuiz(s.id);
-    await api.login("t1");
-    const key = new Map((await api.listUnitQuestions("u-sci-1")).map((q) => [q.id, q.choices[q.answerIndex]]));
-    await api.login("s01");
-    // 선택지가 섞여 나오므로 받은 선택지에서 정답 내용의 위치로 답한다
-    const answers = Object.fromEntries(quiz.questions.map((q) => [q.id, q.choices.indexOf(key.get(q.id)!)]));
-    const result = await api.submitQuiz(s.id, answers);
-    expect(result.correct).toBe(3);
-    expect(result.items[0].explanation.length).toBeGreaterThan(0);
-  });
-
-  it("같은 세션은 한 번만 제출할 수 있다", async () => {
-    const s = await endedUnitSession("s01", "u-math-2");
-    await api.submitQuiz(s.id, {});
-    await expectCode(api.submitQuiz(s.id, {}), "QUIZ_ALREADY_TAKEN");
-  });
-
-  it("승인 문제가 없는 단원은 빈 퀴즈다", async () => {
-    const s = await endedUnitSession("s01", "u-math-3");
-    const quiz = await api.getQuiz(s.id);
-    expect(quiz.questions).toEqual([]);
-  });
-
-  it("다른 학생의 세션 퀴즈는 받을 수 없다", async () => {
-    const s = await endedUnitSession("s01", "u-math-1");
-    await api.login("s02");
-    await expectCode(api.getQuiz(s.id), "NOT_FOUND");
-  });
-
-  it("기록 공유 미동의 학생의 결과는 교사에게 null이다", async () => {
-    const s = await endedUnitSession("s01", "u-math-2");
-    await api.submitQuiz(s.id, {});
-    await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
-      { kind: "AI", granted: true, byGuardian: false },
-      { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
-    ]);
-    await api.login("t1");
-    expect(await api.getQuizAttempt(s.id)).toBeNull();
-  });
-});
-
-describe("단원 선택 검증", () => {
-  it("다른 과목 단원으로는 시작할 수 없다", async () => {
-    await api.login("s01");
-    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
-    await expectCode(api.startSession({ goal: { ...GOAL, unitId: "u-eng-1" }, authEventId: ev.id }), "VALIDATION");
-  });
-
-  it("다른 반 단원으로는 시작할 수 없다", async () => {
-    await api.login("s01");
-    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
-    await expectCode(api.startSession({ goal: { ...GOAL, unitId: "u-c2-1" }, authEventId: ev.id }), "VALIDATION");
-  });
-});
-
-describe("종합 보드", () => {
-  // s01이 u-math-2(승인 3문항) 학습 → 전부 미선택 제출(0%) → 이해도 understanding 으로 성찰
-  async function quizThenReflect(understanding: 1 | 2 | 3) {
-    await api.login("s01");
-    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
-    const s = await api.startSession({ goal: { ...GOAL, subject: "수학", unitId: "u-math-2" }, authEventId: ev.id });
-    advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
-    await api.submitQuiz(s.id, {});
-    await api.saveReflection({ sessionId: s.id, checks: [], understanding, remainingQuestions: [] });
-    return s;
-  }
-  const row = (o: { units: Array<{ unitId: string }> }) => o.units.find((u) => u.unitId === "u-math-2") as never as {
-    sessions: number; minutes: number; entries: number | null; lastQuizRate: number | null; lastUnderstanding: number | null; signal: string | null;
-  };
-
-  it("이해도 3인데 정답률 60% 미만이면 OVERCONFIDENT", async () => {
-    await quizThenReflect(3);
-    await api.login("t1");
-    const r = row(await api.getStudentOverview("s01"));
-    expect(r.lastQuizRate).toBe(0);
-    expect(r.signal).toBe("OVERCONFIDENT");
-  });
-
-  it("정답률 40% 미만이면 LOW_SCORE", async () => {
-    await quizThenReflect(1);
-    await api.login("t1");
-    expect(row(await api.getStudentOverview("s01")).signal).toBe("LOW_SCORE");
-  });
-
-  it("공유 미동의면 시간·횟수만 보이고 나머지는 null", async () => {
-    await quizThenReflect(3);
-    await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
-      { kind: "AI", granted: true, byGuardian: false },
-      { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
-    ]);
-    await api.login("t1");
-    const o = await api.getStudentOverview("s01");
-    const r = row(o);
-    expect(o.shared).toBe(false);
-    expect(r.sessions).toBe(1);
-    expect(r.minutes).toBe(1);
-    expect([r.entries, r.lastQuizRate, r.lastUnderstanding, r.signal]).toEqual([null, null, null, null]);
-  });
-
-  it("학생은 종합 보드를 볼 수 없다", async () => {
-    await api.login("s01");
-    await expectCode(api.getStudentOverview("s01"), "FORBIDDEN");
-  });
-
-  it("반 대시보드에 최근 테스트 정답률이 나온다", async () => {
-    await quizThenReflect(2);
-    await api.login("t1");
-    const d = await api.getDashboard("c1");
-    expect(d.students.find((x) => x.studentId === "s01")!.lastQuizRate).toBe(0);
-  });
-});
-
-describe("최종 리뷰 수정", () => {
-  async function endedUnitSession(studentId: string, unitId: string) {
-    await api.login(studentId);
-    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
-    const subject = SEED_UNITS.find((u) => u.id === unitId)!.subject;
-    const s = await api.startSession({ goal: { ...GOAL, subject, unitId }, authEventId: ev.id });
-    advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
-    return s;
-  }
-
-  it("getQuiz 이후 승인 문제가 바뀌어도 학생이 받은 문제로 채점된다", async () => {
-    const s = await endedUnitSession("s01", "u-math-1");
-    const served = await api.getQuiz(s.id);
-    await api.login("t1");
-    const all = await api.listUnitQuestions("u-math-1");
-    for (const q of all) await api.setQuestionStatus(q.id, "DRAFT"); // 전부 출제 중지
-    const [extra] = await api.draftQuestionsWithAi("u-math-1");
-    await api.setQuestionStatus(extra.id, "APPROVED"); // 새 문제만 승인
-    await api.login("s01");
-    const result = await api.submitQuiz(s.id, {});
-    expect(result.items.map((i) => i.questionId)).toEqual(served.questions.map((q) => q.id));
-  });
-
-  it("객관식 선택지는 섞여 나오고 채점은 고른 선택지 내용 기준이다", async () => {
-    await api.login("t1");
-    const original = await api.listUnitQuestions("u-math-1");
-    const key = new Map(original.map((q) => [q.id, q.choices[q.answerIndex]]));
-    const order = new Map(original.map((q) => [q.id, q.choices.join("|")]));
-    let shuffledSeen = false;
-    for (let k = 0; k < 6; k++) {
-      const s = await endedUnitSession("s01", "u-math-1");
-      const quiz = await api.getQuiz(s.id);
-      const answers: Record<string, number> = {};
-      for (const q of quiz.questions) {
-        answers[q.id] = q.choices.indexOf(key.get(q.id)!);
-        if (q.type === "MCQ" && q.choices.join("|") !== order.get(q.id)) shuffledSeen = true;
-        if (q.type === "OX") expect(q.choices).toEqual(["O", "X"]); // O/X 순서는 고정
-      }
-      const r = await api.submitQuiz(s.id, answers);
-      expect(r.correct).toBe(r.total);
-      advance(60_000);
-    }
-    expect(shuffledSeen).toBe(true);
-  });
-
-  it("차이 신호는 같은 세션의 테스트와 이해도로 판단한다", async () => {
-    // A: 테스트 0% + 이해도 1 / B(나중): 테스트 안 봄 + 이해도 3 → OVERCONFIDENT가 아니라 LOW_SCORE
-    const a = await endedUnitSession("s01", "u-math-2");
-    await api.submitQuiz(a.id, {});
-    await api.saveReflection({ sessionId: a.id, checks: [], understanding: 1, remainingQuestions: [] });
-    advance(60_000);
-    const b = await endedUnitSession("s01", "u-math-2");
-    await api.saveReflection({ sessionId: b.id, checks: [], understanding: 3, remainingQuestions: [] });
-    await api.login("t1");
-    const row = (await api.getStudentOverview("s01")).units.find((u) => u.unitId === "u-math-2")!;
-    expect(row.signal).toBe("LOW_SCORE");
-  });
-});
-
 describe("주제 추출", () => {
   async function sessionWith(studentId: string, entries: Array<{ content: string; visibility?: "TEACHER" | "PRIVATE" }>, end = true) {
     await api.login(studentId);
@@ -661,5 +384,162 @@ describe("주제 추출", () => {
   it("진행 중인 세션은 주제를 뽑을 수 없다", async () => {
     const { s } = await sessionWith("s01", [{ content: "꼭짓점" }], false);
     await expectCode(api.extractTopics(s.id), "SESSION_NOT_ACTIVE");
+  });
+});
+
+describe("주제 테스트", () => {
+  /** 기록 하나로 끝낸 세션 → 주제 추출 → 첫 주제 */
+  async function topicSession(studentId: string, content: string) {
+    await api.login(studentId);
+    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const s = await api.startSession({ goal: { subject: "공부", activities: ["concept"] }, authEventId: ev.id });
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content, visibility: "TEACHER" });
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    const [topic] = await api.extractTopics(s.id);
+    advance(60_000);
+    return { s, topic };
+  }
+  /** 사전 문항 풀에서 정답 내용으로 답안 만들기 (받은 선택지 순서 기준) */
+  function correctAnswers(questions: Array<{ id: string; prompt: string; choices: string[] }>) {
+    const all = TOPIC_DICTIONARY.flatMap((d) => d.pool);
+    return Object.fromEntries(
+      questions.map((q) => {
+        const src = all.find((x) => x.prompt === q.prompt)!;
+        return [q.id, q.choices.indexOf(src.choices[src.answerIndex])];
+      }),
+    );
+  }
+
+  it("주제 테스트는 개념 3 + 적용 2, 5문항 고정이다", async () => {
+    const { s, topic } = await topicSession("s01", "꼭짓점 공부");
+    const quiz = await api.getQuiz(s.id, topic.topicId);
+    expect(quiz.questions.length).toBe(5);
+    const levels = quiz.questions.map((q) => TOPIC_DICTIONARY.flatMap((d) => d.pool).find((x) => x.prompt === q.prompt)!.level);
+    expect(levels.filter((l) => l === "CONCEPT").length).toBe(3);
+    expect(levels.filter((l) => l === "APPLY").length).toBe(2);
+  });
+
+  it("퀴즈 응답에는 정답과 해설이 없다", async () => {
+    const { s, topic } = await topicSession("s01", "꼭짓점");
+    const quiz = await api.getQuiz(s.id, topic.topicId);
+    for (const q of quiz.questions) {
+      expect(q).not.toHaveProperty("answerIndex");
+      expect(q).not.toHaveProperty("explanation");
+    }
+  });
+
+  it("같은 반 다른 학생도 같은 주제는 같은 문항 풀에서 나온다", async () => {
+    const a = await topicSession("s01", "부등식");
+    const qa = await api.getQuiz(a.s.id, a.topic.topicId);
+    const b = await topicSession("s02", "부등호 방향");
+    const qb = await api.getQuiz(b.s.id, b.topic.topicId);
+    expect(b.topic.topicId).toBe(a.topic.topicId);
+    expect(qb.questions.map((q) => q.id).sort()).toEqual(qa.questions.map((q) => q.id).sort());
+  });
+
+  it("이번 세션에서 추출된 주제만 응시할 수 있다", async () => {
+    const a = await topicSession("s01", "관계대명사");
+    const b = await topicSession("s01", "꼭짓점");
+    await expectCode(api.getQuiz(b.s.id, a.topic.topicId), "QUIZ_NOT_AVAILABLE");
+  });
+
+  it("다시 불러도 같은 문항·같은 선택지 순서다 (출제 스냅샷)", async () => {
+    const { s, topic } = await topicSession("s01", "꼭짓점");
+    const q1 = await api.getQuiz(s.id, topic.topicId);
+    const q2 = await api.getQuiz(s.id, topic.topicId);
+    expect(q2.questions).toEqual(q1.questions);
+  });
+
+  it("정답을 고르면 모두 맞고, 미선택은 오답이다", async () => {
+    const { s, topic } = await topicSession("s01", "질량 보존");
+    const quiz = await api.getQuiz(s.id, topic.topicId);
+    const ans = correctAnswers(quiz.questions);
+    ans[quiz.questions[0].id] = null as never;
+    const r = await api.submitQuiz(s.id, ans);
+    expect(r.total).toBe(5);
+    expect(r.correct).toBe(4);
+    expect(r.topicId).toBe(topic.topicId);
+  });
+
+  it("객관식 선택지는 세션마다 섞여 나온다", async () => {
+    const original = new Map(TOPIC_DICTIONARY.flatMap((d) => d.pool).map((x) => [x.prompt, x.choices.join("|")]));
+    let shuffled = false;
+    for (let k = 0; k < 5; k++) {
+      const { s, topic } = await topicSession("s01", "꼭짓점");
+      for (const q of (await api.getQuiz(s.id, topic.topicId)).questions) {
+        if (q.type === "OX") expect(q.choices).toEqual(["O", "X"]);
+        else if (q.choices.join("|") !== original.get(q.prompt)) shuffled = true;
+      }
+    }
+    expect(shuffled).toBe(true);
+  });
+
+  it("신고한 문항은 채점에서 빠진다", async () => {
+    const { s, topic } = await topicSession("s01", "꼭짓점");
+    const quiz = await api.getQuiz(s.id, topic.topicId);
+    await api.reportQuestion(s.id, quiz.questions[0].id, "WRONG_ANSWER");
+    const r = await api.submitQuiz(s.id, correctAnswers(quiz.questions));
+    expect(r.total).toBe(4);
+    expect(r.correct).toBe(4);
+    expect(r.items.find((i) => i.questionId === quiz.questions[0].id)?.reported).toBe(true);
+  });
+
+  it("전부 신고하면 채점 문항이 0개다", async () => {
+    const { s, topic } = await topicSession("s01", "꼭짓점");
+    const quiz = await api.getQuiz(s.id, topic.topicId);
+    for (const q of quiz.questions) await api.reportQuestion(s.id, q.id, "UNCLEAR");
+    const r = await api.submitQuiz(s.id, {});
+    expect(r.total).toBe(0);
+  });
+
+  it("제출 뒤에는 신고할 수 없다", async () => {
+    const { s, topic } = await topicSession("s01", "꼭짓점");
+    const quiz = await api.getQuiz(s.id, topic.topicId);
+    await api.submitQuiz(s.id, {});
+    await expectCode(api.reportQuestion(s.id, quiz.questions[0].id, "WRONG_ANSWER"), "QUIZ_ALREADY_TAKEN");
+  });
+
+  it("다른 학생 세션의 퀴즈·신고는 할 수 없다", async () => {
+    const { s, topic } = await topicSession("s01", "꼭짓점");
+    const quiz = await api.getQuiz(s.id, topic.topicId);
+    await api.login("s02");
+    await expectCode(api.getQuiz(s.id, topic.topicId), "NOT_FOUND");
+    await expectCode(api.reportQuestion(s.id, quiz.questions[0].id, "WRONG_ANSWER"), "NOT_FOUND");
+  });
+
+  it("같은 세션은 한 번만 제출할 수 있다", async () => {
+    const { s, topic } = await topicSession("s01", "꼭짓점");
+    await api.getQuiz(s.id, topic.topicId);
+    await api.submitQuiz(s.id, {});
+    await expectCode(api.submitQuiz(s.id, {}), "QUIZ_ALREADY_TAKEN");
+  });
+
+  it("기록 공유 미동의 학생의 결과는 교사에게 null이다", async () => {
+    const { s, topic } = await topicSession("s01", "꼭짓점");
+    await api.getQuiz(s.id, topic.topicId);
+    await api.submitQuiz(s.id, {});
+    await api.saveConsents([
+      { kind: "FACEPASS", granted: true, byGuardian: false },
+      { kind: "AI", granted: true, byGuardian: false },
+      { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
+    ]);
+    await api.login("t1");
+    expect(await api.getQuizAttempt(s.id)).toBeNull();
+  });
+});
+
+describe("자유 입력 목표", () => {
+  it("활동 체크 없이 '오늘 할 것'만으로 시작할 수 있다", async () => {
+    await api.login("s01");
+    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const s = await api.startSession({ goal: { subject: "이차함수 꼭짓점 복습", activities: [] }, authEventId: ev.id });
+    expect(s.goal.subject).toBe("이차함수 꼭짓점 복습");
+  });
+
+  it("'오늘 할 것'이 비어 있으면 시작할 수 없다", async () => {
+    await api.login("s01");
+    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
+    await expectCode(api.startSession({ goal: { subject: "   ", activities: [] }, authEventId: ev.id }), "VALIDATION");
   });
 });
