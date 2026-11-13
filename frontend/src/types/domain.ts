@@ -218,6 +218,8 @@ export type DashboardRow = {
   openQuestionCount: number;
   lastSessionAt: string | null;
   needsAttention: boolean;
+  /** 기간 안에 돌아보기를 남겼는데 아직 피드백이 없는 기록이 있음 (기록 공유 미동의면 false) */
+  hasReflectionWithoutFeedback: boolean;
   activeNow: boolean;
   pendingAssessment: number;
   lastQuizRate: number | null; // 최근 단원 테스트 정답률 (공유 동의 없으면 null)

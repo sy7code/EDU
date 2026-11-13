@@ -102,6 +102,7 @@ export function mapDashboard(
     openQuestionCount: s.openQuestionCount ?? 0,
     lastSessionAt: s.lastSessionAt ?? null,
     needsAttention: !!s.needsAttention,
+    hasReflectionWithoutFeedback: !!s.hasReflectionWithoutFeedback,
     activeNow: activeStudentIds.has(s.studentId),
     pendingAssessment: 0,
     lastQuizRate: typeof s.lastQuizRate === "number" ? s.lastQuizRate : null,

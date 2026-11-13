@@ -19,7 +19,26 @@ button.stat-card:focus-visible {
 .teacher-stats .stat-card .stat-value {
   font-size: 24px;
 }
+/* 상태 카드 5개(채점 확정 대기 포함, mock 전용) */
+.teacher-stats.five {
+  grid-template-columns: repeat(5, 1fr);
+}
+@media (max-width: 1100px) {
+  /* 3열이면 3+2 → 마지막(반 전체)을 두 칸으로 채운다 */
+  .teacher-stats.five {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .teacher-stats.five .stat-card:last-child {
+    grid-column: span 2;
+  }
+}
 @media (max-width: 760px) {
+  .teacher-stats.five {
+    grid-template-columns: 1fr 1fr;
+  }
+  .teacher-stats.five .stat-card:last-child {
+    grid-column: 1 / -1;
+  }
   .teacher-stats.four .stat-card:last-child {
     grid-column: auto;
   }

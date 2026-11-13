@@ -10,6 +10,7 @@ import { paginate } from "../../lib/paginate";
 import { Pager } from "../../components/Pager";
 import { SearchBox } from "../../components/SearchBox";
 import { matchStudent } from "../../lib/studentSearch";
+import { matchesFilter, type DashboardFilter } from "../../lib/dashboardFilter";
 
 export function ClassDashboard() {
   const me = useMe();
@@ -20,7 +21,7 @@ export function ClassDashboard() {
     enabled: !!classId,
     refetchInterval: 5000, // 실서비스: Realtime 구독
   });
-  const [filter, setFilter] = useState<"all" | "attention" | "active" | "pending">("all");
+  const [filter, setFilter] = useState<DashboardFilter>("all");
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   useEffect(() => setPage(1), [filter, query]);
@@ -47,10 +48,7 @@ export function ClassDashboard() {
   // 쿼리가 꺼진 순간(반 정보가 잠깐 비는 로그인·로그아웃 전환)에는 isLoading이 false라 data로 판단한다
   if (!dash.data) return <Spinner />;
   const rows = dash.data.students;
-  const shown = rows.filter((r) =>
-    (filter === "attention" ? r.needsAttention : filter === "active" ? r.activeNow : filter === "pending" ? r.pendingAssessment > 0 : true) &&
-      matchStudent(r, query),
-  );
+  const shown = rows.filter((r) => matchesFilter(r, filter) && matchStudent(r, query));
 
   const paged = paginate(shown, page, 10);
 
@@ -74,9 +72,10 @@ export function ClassDashboard() {
     <div className="teacher-page">
       <PageTitle sub="최근 7일 · 오늘 챙길 학생을 찾는 화면이에요. 공부 방식과 분포는 '반 분석'에서 봐요">2학년 3반 자기주도학습</PageTitle>
 
-      <div className={`teacher-stats ${FEATURES.assessment ? "four" : ""}`}>
+      <div className={`teacher-stats ${FEATURES.assessment ? "five" : "four"}`}>
         {stat("지금 학습 중", rows.filter((r) => r.activeNow).length, "active", "clock")}
         {stat("이야기 나눠 볼 학생", rows.filter((r) => r.needsAttention).length, "attention", "message", "orange-tone")}
+        {stat("피드백 기다림", rows.filter((r) => r.hasReflectionWithoutFeedback).length, "feedback", "pen")}
         {FEATURES.assessment && stat("채점 확정 대기", rows.reduce((n, r) => n + r.pendingAssessment, 0), "pending", "check")}
         {stat("반 전체", `${rows.length}명`, "all", "users", "blue-tone")}
       </div>
@@ -134,6 +133,7 @@ export function ClassDashboard() {
                   {r.needsAttention && (
                     <Badge tone="amber">{r.sessionCount === 0 ? "최근 기록 없음" : "질문이 쌓임"}</Badge>
                   )}
+                  {r.hasReflectionWithoutFeedback && <Badge tone="sky">피드백 기다림</Badge>}
                   {r.pendingAssessment > 0 && <Badge tone="sky">확정 {r.pendingAssessment}</Badge>}
                 </td>
                 {FEATURES.manualAuth && <td className="cell-right">

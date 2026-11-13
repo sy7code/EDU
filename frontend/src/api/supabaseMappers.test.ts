@@ -73,6 +73,15 @@ describe("대시보드 변환", () => {
     );
     expect(d.students[0]).toMatchObject({ studentId: "a", activeNow: true, pendingAssessment: 0, lastQuizRate: null, sessionCount: 2 });
   });
+
+  it("피드백 기다리는 돌아보기 여부를 넘기고, 값이 없으면 false", () => {
+    const base = { studentId: "a", name: "학생01", number: 1, sessionCount: 1, totalMinutes: 30, openQuestionCount: 0, lastSessionAt: null, needsAttention: false };
+    const d = mapDashboard(
+      { classId: "c", from: "f", to: "t", students: [{ ...base, hasReflectionWithoutFeedback: true }, { ...base, studentId: "b" }] },
+      new Set(),
+    );
+    expect(d.students.map((s) => s.hasReflectionWithoutFeedback)).toEqual([true, false]);
+  });
 });
 
 describe("에러 변환", () => {

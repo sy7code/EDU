@@ -758,6 +758,57 @@ describe("미룬 항목 수정", () => {
     expect((await api.getDashboard("c1")).students.find((x) => x.studentId === "s07")!.lastQuizRate).toBeNull();
   });
 
+  const noReflectionApi = () => {
+    const seed = createSeed(clock);
+    seed.reflections = []; // 시드 돌아보기를 비워 다른 기록 때문에 플래그가 켜져 있지 않게 한다
+    return createMockApi({ seed, now: () => clock, latencyMs: 0, storage: null });
+  };
+  const s07Flag = async () => (await api.getDashboard("c1")).students.find((x) => x.studentId === "s07")!.hasReflectionWithoutFeedback;
+  async function endWithReflection(studentId: string) {
+    const s = await startAs(studentId);
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    await api.saveReflection({ sessionId: s.id, checks: [], understanding: 2, remainingQuestions: [] });
+    return s;
+  }
+
+  it("돌아보기에 피드백이 없으면 '피드백 기다림', 피드백을 보내거나 공유를 철회하면 해제", async () => {
+    api = noReflectionApi();
+    const flag = s07Flag;
+    await api.login("t1");
+    expect(await flag()).toBe(false);
+    const s = await startAs("s07");
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s07", true)).id);
+    await api.saveReflection({ sessionId: s.id, checks: [], understanding: 2, remainingQuestions: [] });
+    await api.login("t1");
+    expect(await flag()).toBe(true);
+    await api.addFeedback(s.id, "잘했어요");
+    expect(await flag()).toBe(false);
+    await api.login("s07");
+    const s2 = await api.startSession({ goal: GOAL, authEventId: (await api.simulateFaceAuth(DEVICE, "s07", true)).id });
+    advance(60_000);
+    await api.endSession(s2.id, (await api.simulateFaceAuth(DEVICE, "s07", true)).id);
+    await api.saveReflection({ sessionId: s2.id, checks: [], understanding: 3, remainingQuestions: [] });
+    await api.saveConsents([
+      { kind: "FACEPASS", granted: true, byGuardian: false },
+      { kind: "AI", granted: true, byGuardian: false },
+      { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
+    ]);
+    await api.login("t1");
+    expect(await flag()).toBe(false);
+  });
+
+  it("'피드백 기다림'은 최근 7일 안의 돌아보기만 센다", async () => {
+    api = noReflectionApi();
+    await endWithReflection("s07");
+    advance(6 * 86400000);
+    await api.login("t1");
+    expect(await s07Flag()).toBe(true);
+    advance(2 * 86400000);
+    expect(await s07Flag()).toBe(false);
+  });
+
   it("기록 공유를 철회하면 대시보드 최근 테스트 정답률도 숨긴다", async () => {
     const { s } = await topicQuiz("s07", "꼭짓점");
     await api.login("s07");

@@ -747,6 +747,12 @@ export function createMockApi(opts: MockOptions): Api {
               openQuestionCount: openQ,
               lastSessionAt: last?.startedAt ?? null,
               needsAttention: openQ >= 3 || inRange.length === 0,
+              // 공유 동의가 있을 때만: 기간 안 돌아보기 중 피드백이 하나도 없는 것이 있으면 true
+              hasReflectionWithoutFeedback:
+                sharedWithTeacher(u.id) &&
+                inRange.some(
+                  (s) => db.reflections.some((r) => r.sessionId === s.id) && !db.feedback.some((f) => f.sessionId === s.id),
+                ),
               activeNow: mine.some((s) => s.status === "ACTIVE"),
               pendingAssessment: pending,
               lastQuizRate: sharedWithTeacher(u.id) ? lastQuizRate(u.id) : null,
