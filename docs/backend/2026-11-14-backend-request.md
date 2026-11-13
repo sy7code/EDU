@@ -273,3 +273,15 @@ grant select on v_topics, v_session_topics, v_quiz_attempts to authenticated;
 | 4-7 | 낮음 | (가능하면) `v_me.under14` + `consents.by_guardian` 저장, 서버 check: under14 && granted && !by_guardian → 거부 | 만 14세 미만 보호자 동의. 이번에 어렵다면 **발표 자료에 한계로 명시** |
 | 4-9 | 낮음 | `POST /sessions/:id/quiz` 응답 문항에 `reported: boolean` 추가 (출제 스냅샷 기준) | 새로고침하면 프론트가 신고 상태를 잃어 같은 문항을 다시 신고 → `unique(session_id, question_id)` 오류 가능 |
 | 4-8 | 검토 | 문항 풀을 수준별 2배 이상으로 키우고, 같은 학생이 같은 주제에서 본 문항은 다시 내지 않기 | 같은 5문항 반복 + 제출 후 정답 공개 → 두 번째 응시 상승이 실력보다 암기일 수 있음 |
+
+---
+
+## 5. 추가 요청 v0.6 (교사 반 분석, 2026-11-14) — 백엔드 반영됨
+
+| # | 요청 | 상태 |
+|---|---|---|
+| 5-1 | `class_dashboard` 학생 행에 `shared: boolean` | 반영. 프론트는 `shared === true`만 공유로 봄 |
+| 5-2 | `ai_messages.question_type`(CONCEPT·CHECK·ANSWER·OTHER), `v_ai_messages.questionType` | 반영. null이면 프론트 규칙 분류 |
+| 5-3 | 429·첫 출제 시간 측정 | 11번째 호출 429, 첫 출제 12.9초(재요청 0.3초) |
+| 5-4 | 운영에서 `/dev/facepass/simulate` 404 | 끄면 404 확인, 데모용으로 켜 둠(운영 전 꺼야 함) |
+
