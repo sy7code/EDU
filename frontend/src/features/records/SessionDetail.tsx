@@ -4,6 +4,8 @@ import { Badge, Card, ErrorState, METHOD_LABEL, Spinner } from "../../components
 import { activityLabel, reflectionLabel, UNDERSTANDING_LABELS } from "../../lib/checklists";
 import { formatDateTime, formatDuration, formatTime } from "../../lib/time";
 import type { LearningSession } from "../../types/domain";
+import { useMe } from "../../auth/session";
+import { QuizResult } from "../session/UnitQuiz";
 
 type Item =
   | { at: string; id: string; type: "entry"; kind: string; content: string; isPrivate: boolean }
@@ -17,6 +19,14 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
   const ai = useQuery({ queryKey: ["ai", session.id], queryFn: () => api.listAiMessages(session.id) });
   const refl = useQuery({ queryKey: ["reflection", session.id], queryFn: () => api.getReflection(session.id) });
   const fb = useQuery({ queryKey: ["feedback", session.id], queryFn: () => api.listFeedback(session.id) });
+  const me = useMe();
+  const units = useQuery({ queryKey: ["units", me.data?.classId], queryFn: () => api.listUnits(me.data!.classId), enabled: !!me.data });
+  const quiz = useQuery({
+    queryKey: ["quiz-attempt", session.id],
+    queryFn: () => api.getQuizAttempt(session.id),
+    enabled: !!session.goal.unitId && session.status === "ENDED",
+  });
+  const unitTitle = units.data?.find((u) => u.id === session.goal.unitId)?.title;
 
   if (entries.isLoading || ai.isLoading) return <Spinner />;
   if (entries.error) return <ErrorState error={entries.error} />;
@@ -43,6 +53,7 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
         <p className={`mt-1 text-lg font-semibold ${hl.has("goal") ? "rounded bg-amber-100 px-1" : ""}`}>
           {session.goal.subject} · {session.goal.activities.map(activityLabel).join(", ")}
         </p>
+        {unitTitle && <p className="text-sm font-medium text-brand-700">단원: {unitTitle}</p>}
         {session.goal.note && <p className="text-sm text-stone-600">{session.goal.note}</p>}
         <div className="mt-2 flex flex-wrap gap-2 text-xs">
           <Badge tone="brand">{session.status === "ACTIVE" ? "학습 중" : formatDuration(session.durationMinutes ?? 0)}</Badge>
@@ -112,6 +123,11 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
           </div>
         )}
       </Card>
+
+      {quiz.data && <QuizResult attempt={quiz.data} />}
+      {session.goal.unitId && session.status === "ENDED" && quiz.isSuccess && !quiz.data && (
+        <Card className="text-sm text-stone-500">단원 테스트: 아직 보지 않았어요</Card>
+      )}
 
       <Card>
         <h3 className="font-semibold">선생님 피드백</h3>

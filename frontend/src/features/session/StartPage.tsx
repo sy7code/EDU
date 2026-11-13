@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { api } from "../../api";
+import { useMe } from "../../auth/session";
 import { Button, Card, CheckChip, ErrorState, PageTitle } from "../../components/ui";
 import { GOAL_ACTIVITIES, SUBJECTS } from "../../lib/checklists";
 import type { AuthEvent, SessionGoal } from "../../types/domain";
@@ -11,13 +12,22 @@ export function StartPage() {
   const [subject, setSubject] = useState<string>("");
   const [activities, setActivities] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  const [unitId, setUnitId] = useState<string>("");
   const [step, setStep] = useState<"goal" | "auth">("goal");
   const qc = useQueryClient();
   const nav = useNavigate();
+  const me = useMe();
+  const units = useQuery({
+    queryKey: ["units", me.data?.classId],
+    queryFn: () => api.listUnits(me.data!.classId),
+    enabled: !!me.data,
+  });
+  const subjectUnits = (units.data ?? []).filter((u) => u.subject === subject);
+  const unitTitle = subjectUnits.find((u) => u.id === unitId)?.title;
 
   const start = useMutation({
     mutationFn: (ev: AuthEvent) => {
-      const goal: SessionGoal = { subject, activities, note: note.trim() || undefined };
+      const goal: SessionGoal = { subject, activities, note: note.trim() || undefined, unitId: unitId || undefined };
       return api.startSession({ goal, authEventId: ev.id });
     },
     onSuccess: async (s) => {
@@ -39,7 +49,7 @@ export function StartPage() {
   if (step === "auth") {
     return (
       <div className="mx-auto max-w-xl">
-        <PageTitle sub={`${subject} · 목표 ${activities.length}개`}>학습 시작 인증</PageTitle>
+        <PageTitle sub={`${subject}${unitTitle ? ` · ${unitTitle}` : ""} · 목표 ${activities.length}개`}>학습 시작 인증</PageTitle>
         {start.error ? (
           <ErrorState error={start.error} onRetry={() => start.reset()} />
         ) : (
@@ -63,13 +73,37 @@ export function StartPage() {
               key={s}
               role="radio"
               aria-checked={subject === s}
-              onClick={() => setSubject(s)}
+              onClick={() => {
+                setSubject(s);
+                setUnitId(""); // 과목이 바뀌면 단원 선택 초기화
+              }}
               className={`rounded-lg border px-4 py-2 text-sm ${subject === s ? "border-brand-500 bg-brand-50 font-semibold text-brand-700" : "border-stone-300"}`}
             >
               {s}
             </button>
           ))}
         </div>
+
+        {subjectUnits.length > 0 && (
+          <>
+            <h2 className="mt-5 text-sm font-semibold">
+              단원 <span className="font-normal text-stone-400">(고르면 마칠 때 단원 테스트를 볼 수 있어요)</span>
+            </h2>
+            <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="단원">
+              {[{ id: "", title: "단원 없이" }, ...subjectUnits].map((u) => (
+                <button
+                  key={u.id || "none"}
+                  role="radio"
+                  aria-checked={unitId === u.id}
+                  onClick={() => setUnitId(u.id)}
+                  className={`rounded-lg border px-3 py-2 text-sm ${unitId === u.id ? "border-brand-500 bg-brand-50 font-semibold text-brand-700" : "border-stone-300"}`}
+                >
+                  {u.title}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         <h2 className="mt-5 text-sm font-semibold">무엇을 할까요? (여러 개 가능)</h2>
         <div className="mt-2 grid grid-cols-2 gap-2">

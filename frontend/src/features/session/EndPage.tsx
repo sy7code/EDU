@@ -7,6 +7,7 @@ import { REFLECTION_ITEMS, UNDERSTANDING_LABELS } from "../../lib/checklists";
 import { formatDuration, formatTime } from "../../lib/time";
 import type { AuthEvent, GroundedItem, LearningSession } from "../../types/domain";
 import { AuthWait } from "./AuthWait";
+import { UnitQuiz } from "./UnitQuiz";
 
 export function EndPage() {
   const { id = "" } = useParams();
@@ -40,7 +41,31 @@ export function EndPage() {
       </div>
     );
   }
-  return <Wrapup session={s} />;
+  return <AfterEnd session={s} />;
+}
+
+/** 종료 후: 단원이 있으면 단원 테스트(이미 봤으면 생략) → 돌아보기 */
+function AfterEnd({ session }: { session: LearningSession }) {
+  const [quizDone, setQuizDone] = useState(false);
+  const attempt = useQuery({
+    queryKey: ["quiz-attempt", session.id],
+    queryFn: () => api.getQuizAttempt(session.id),
+    enabled: !!session.goal.unitId,
+  });
+  if (session.goal.unitId && !quizDone) {
+    if (attempt.isLoading) return <Spinner />;
+    if (!attempt.data) {
+      return (
+        <div className="mx-auto max-w-2xl space-y-4">
+          <PageTitle sub={`${formatTime(session.startedAt)} ~ ${formatTime(session.endedAt!)}`}>
+            오늘 {formatDuration(session.durationMinutes ?? 0)} 공부했어요
+          </PageTitle>
+          <UnitQuiz sessionId={session.id} onDone={() => setQuizDone(true)} />
+        </div>
+      );
+    }
+  }
+  return <Wrapup session={session} />;
 }
 
 function Wrapup({ session }: { session: LearningSession }) {
