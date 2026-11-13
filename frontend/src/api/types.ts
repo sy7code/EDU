@@ -6,6 +6,7 @@ import type {
   QuizAttempt,
   QuizQuestion,
   Rubric,
+  StudentOverview,
   StudentQuizQuestion,
   Unit,
   SessionGoal,
@@ -124,6 +125,8 @@ export interface Api {
 
   // 교사
   getDashboard(classId: string): Promise<Dashboard>;
+  /** 학생 종합 보드: 단원별 학습량·테스트·이해도·신호 (교사만, 자기 반) */
+  getStudentOverview(studentId: string): Promise<StudentOverview>;
 
   // 단원·문제 관리 (교사)
   listUnits(classId: string): Promise<Unit[]>;

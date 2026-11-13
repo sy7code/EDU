@@ -115,6 +115,8 @@ export function createSeed(now: Date): Db {
   const sessions: LearningSession[] = [];
   const entries: LearningEntry[] = [];
   const reflections: Reflection[] = [];
+  const quizAttempts: QuizAttempt[] = [];
+  const qr = rng(4242);
   let seq = 0;
   const nextId = (p: string) => `${p}-seed-${++seq}`;
 
@@ -129,10 +131,13 @@ export function createSeed(now: Date): Db {
       const end = new Date(start.getTime() + minutes * 60000);
       const sid = nextId("sess");
       const subject = ["수학", "영어", "국어", "과학"][Math.floor(r() * 4)];
+      // 단원 테스트 데모용: 별도 난수로 단원을 붙인다 (기존 시드 값은 그대로 유지)
+      const subjectUnits = SEED_UNITS.filter((x) => x.classId === "c1" && x.subject === subject && x.standard);
+      const unit = qr() < 0.8 ? subjectUnits[Math.floor(qr() * subjectUnits.length)] : undefined;
       sessions.push({
         id: sid,
         studentId: u.id,
-        goal: { subject, activities: [["concept", "problem", "review", "summary"][Math.floor(r() * 4)]] },
+        goal: { subject, activities: [["concept", "problem", "review", "summary"][Math.floor(r() * 4)]], unitId: unit?.id },
         startedAt: iso(start),
         endedAt: iso(end),
         startAuth: u.id === "s03" ? "QR" : "FACEPASS",
@@ -157,13 +162,35 @@ export function createSeed(now: Date): Db {
         });
       }
       const rq = u.id === "s05" ? 2 : r() < 0.4 ? 1 : 0;
+      const understanding = (1 + Math.floor(r() * 3)) as 1 | 2 | 3;
       reflections.push({
         sessionId: sid,
         checks: ["goal_done", "new_learned", "asked", "next_plan"].filter(() => r() < 0.6),
-        understanding: (1 + Math.floor(r() * 3)) as 1 | 2 | 3,
+        understanding,
         remainingQuestions: SAMPLE_QUESTIONS.slice(0, rq),
         updatedAt: iso(end),
       });
+      // 단원 테스트 결과 (s09는 '이해했다는데 점수 낮음' 데모)
+      const qs = unit ? SEED_QUESTIONS.filter((x) => x.unitId === unit.id && x.status === "APPROVED").slice(0, 5) : [];
+      if (qs.length > 0 && qr() < 0.85) {
+        const pCorrect = u.id === "s09" ? 0.2 : 0.35 + understanding * 0.18;
+        const items = qs.map((x) => {
+          const ok = qr() < pCorrect;
+          const chosen = ok ? x.answerIndex : (x.answerIndex + 1) % x.choices.length;
+          return { questionId: x.id, prompt: x.prompt, choices: [...x.choices], chosen, answerIndex: x.answerIndex, correct: ok, explanation: x.explanation };
+        });
+        if (u.id === "s09") reflections[reflections.length - 1].understanding = 3;
+        quizAttempts.push({
+          id: nextId("quiz"),
+          sessionId: sid,
+          unitId: unit!.id,
+          studentId: u.id,
+          correct: items.filter((i) => i.correct).length,
+          total: items.length,
+          createdAt: iso(end),
+          items,
+        });
+      }
     }
   }
 
@@ -204,6 +231,6 @@ export function createSeed(now: Date): Db {
     auditLogs: [],
     units: structuredClone(SEED_UNITS),
     questions: structuredClone(SEED_QUESTIONS),
-    quizAttempts: [],
+    quizAttempts,
   };
 }

@@ -476,3 +476,62 @@ describe("단원 선택 검증", () => {
     await expectCode(api.startSession({ goal: { ...GOAL, unitId: "u-c2-1" }, authEventId: ev.id }), "VALIDATION");
   });
 });
+
+describe("종합 보드", () => {
+  // s01이 u-math-2(승인 3문항) 학습 → 전부 미선택 제출(0%) → 이해도 understanding 으로 성찰
+  async function quizThenReflect(understanding: 1 | 2 | 3) {
+    await api.login("s01");
+    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const s = await api.startSession({ goal: { ...GOAL, subject: "수학", unitId: "u-math-2" }, authEventId: ev.id });
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    await api.submitQuiz(s.id, {});
+    await api.saveReflection({ sessionId: s.id, checks: [], understanding, remainingQuestions: [] });
+    return s;
+  }
+  const row = (o: { units: Array<{ unitId: string }> }) => o.units.find((u) => u.unitId === "u-math-2") as never as {
+    sessions: number; minutes: number; entries: number | null; lastQuizRate: number | null; lastUnderstanding: number | null; signal: string | null;
+  };
+
+  it("이해도 3인데 정답률 60% 미만이면 OVERCONFIDENT", async () => {
+    await quizThenReflect(3);
+    await api.login("t1");
+    const r = row(await api.getStudentOverview("s01"));
+    expect(r.lastQuizRate).toBe(0);
+    expect(r.signal).toBe("OVERCONFIDENT");
+  });
+
+  it("정답률 40% 미만이면 LOW_SCORE", async () => {
+    await quizThenReflect(1);
+    await api.login("t1");
+    expect(row(await api.getStudentOverview("s01")).signal).toBe("LOW_SCORE");
+  });
+
+  it("공유 미동의면 시간·횟수만 보이고 나머지는 null", async () => {
+    await quizThenReflect(3);
+    await api.saveConsents([
+      { kind: "FACEPASS", granted: true, byGuardian: false },
+      { kind: "AI", granted: true, byGuardian: false },
+      { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
+    ]);
+    await api.login("t1");
+    const o = await api.getStudentOverview("s01");
+    const r = row(o);
+    expect(o.shared).toBe(false);
+    expect(r.sessions).toBe(1);
+    expect(r.minutes).toBe(1);
+    expect([r.entries, r.lastQuizRate, r.lastUnderstanding, r.signal]).toEqual([null, null, null, null]);
+  });
+
+  it("학생은 종합 보드를 볼 수 없다", async () => {
+    await api.login("s01");
+    await expectCode(api.getStudentOverview("s01"), "FORBIDDEN");
+  });
+
+  it("반 대시보드에 최근 테스트 정답률이 나온다", async () => {
+    await quizThenReflect(2);
+    await api.login("t1");
+    const d = await api.getDashboard("c1");
+    expect(d.students.find((x) => x.studentId === "s01")!.lastQuizRate).toBe(0);
+  });
+});

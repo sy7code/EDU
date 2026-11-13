@@ -87,6 +87,27 @@ export type QuizResultItem = {
   explanation: string;
 };
 
+/** 교사 종합 보드의 단원별 행. 기록 공유 동의가 없으면 횟수·시간 외에는 null */
+export type UnitOverview = {
+  unitId: string;
+  subject: string;
+  title: string;
+  sessions: number;
+  minutes: number;
+  entries: number | null;
+  questions: number | null;
+  lastQuizRate: number | null;
+  lastUnderstanding: 1 | 2 | 3 | null;
+  signal: "OVERCONFIDENT" | "LOW_SCORE" | null;
+};
+
+export type StudentOverview = {
+  studentId: string;
+  shared: boolean;
+  units: UnitOverview[];
+  noUnit: { sessions: number; minutes: number };
+};
+
 export type QuizAttempt = {
   id: string;
   sessionId: string;
@@ -196,6 +217,7 @@ export type DashboardRow = {
   needsAttention: boolean;
   activeNow: boolean;
   pendingAssessment: number;
+  lastQuizRate: number | null; // 최근 단원 테스트 정답률 (공유 동의 없으면 null)
 };
 
 export type Dashboard = {

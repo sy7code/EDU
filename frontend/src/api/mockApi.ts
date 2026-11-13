@@ -18,6 +18,7 @@ import type {
   QuizAttempt,
   QuizQuestion,
   StudentQuizQuestion,
+  UnitOverview,
   User,
 } from "../types/domain";
 import type { Db } from "./mockData";
@@ -314,6 +315,21 @@ export function createMockApi(opts: MockOptions): Api {
       .sort((a, b) => hash(sessionId + a.id) - hash(sessionId + b.id))
       .slice(0, QUIZ_MAX);
     return { s, unit, questions };
+  }
+
+  /** 학생의 최근 테스트 정답률 (unitId 없으면 전체 단원 중 최근) */
+  function lastQuizRate(studentId: string, unitId?: string): number | null {
+    const list = db.quizAttempts
+      .filter((a) => a.studentId === studentId && (!unitId || a.unitId === unitId) && a.total > 0)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return list[0] ? list[0].correct / list[0].total : null;
+  }
+  /** 차이 신호: 스스로 '설명할 수 있다(3)'인데 60% 미만 → OVERCONFIDENT, 그 외 40% 미만 → LOW_SCORE */
+  function quizSignal(rate: number | null, understanding: number | null): UnitOverview["signal"] {
+    if (rate === null) return null;
+    if (understanding === 3 && rate < 0.6) return "OVERCONFIDENT";
+    if (rate < 0.4) return "LOW_SCORE";
+    return null;
   }
 
   function studentView(a: Assessment): Assessment {
@@ -650,6 +666,7 @@ export function createMockApi(opts: MockOptions): Api {
               needsAttention: openQ >= 3 || inRange.length === 0,
               activeNow: mine.some((s) => s.status === "ACTIVE"),
               pendingAssessment: pending,
+              lastQuizRate: sharedWithTeacher(u.id) ? lastQuizRate(u.id) : null,
             };
           })
           .sort((a, b) => a.number - b.number);
@@ -752,6 +769,37 @@ export function createMockApi(opts: MockOptions): Api {
         const s = visibleSession(sessionId);
         if (isTeacherView() && !sharedWithTeacher(s.studentId)) return null;
         return db.quizAttempts.find((a) => a.sessionId === sessionId) ?? null;
+      }),
+
+    getStudentOverview: (studentId) =>
+      run(() => {
+        const t = teacher();
+        if (userById(studentId)?.classId !== t.classId) throw new ApiError("NOT_FOUND");
+        audit("VIEW_STUDENT_OVERVIEW", studentId);
+        const shared = sharedWithTeacher(studentId);
+        const mine = db.sessions.filter((s) => s.studentId === studentId);
+        const minutesOf = (list: LearningSession[]) => list.reduce((n, s) => n + (s.durationMinutes ?? 0), 0);
+        const units: UnitOverview[] = db.units
+          .filter((u) => u.classId === t.classId)
+          .map((unit) => {
+            const list = mine.filter((s) => s.goal.unitId === unit.id);
+            const base = { unitId: unit.id, subject: unit.subject, title: unit.title, sessions: list.length, minutes: minutesOf(list) };
+            if (!shared) return { ...base, entries: null, questions: null, lastQuizRate: null, lastUnderstanding: null, signal: null };
+            const ents = list.flatMap((s) => teacherEntries(s));
+            const rate = lastQuizRate(studentId, unit.id);
+            const lastEnded = [...list].filter((s) => s.status === "ENDED").sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+            const und = lastEnded ? (db.reflections.find((r) => r.sessionId === lastEnded.id)?.understanding ?? null) : null;
+            return {
+              ...base,
+              entries: ents.length,
+              questions: ents.filter((e) => e.kind === "QUESTION").length,
+              lastQuizRate: rate,
+              lastUnderstanding: und,
+              signal: quizSignal(rate, und),
+            };
+          });
+        const noUnit = mine.filter((s) => !s.goal.unitId);
+        return { studentId, shared, units, noUnit: { sessions: noUnit.length, minutes: minutesOf(noUnit) } };
       }),
 
     getRubric: (classId) =>
