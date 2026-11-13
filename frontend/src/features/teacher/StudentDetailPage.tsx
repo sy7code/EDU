@@ -8,7 +8,11 @@ import { formatDateTime, formatDuration } from "../../lib/time";
 import { SessionDetail } from "../records/SessionDetail";
 import { TopicGrowthView } from "../records/TopicGrowthView";
 import { AssessmentPanel } from "./AssessmentPanel";
-import { StudentProfile, useQuestionCountBySession } from "./StudentProfile";
+import { ProfileSummary, QuestionList, useQuestionCountBySession } from "./StudentProfile";
+import { parseTab } from "../../lib/tabs";
+
+const TABS = ["summary", "records", "questions"] as const;
+const TAB_LABEL: Record<(typeof TABS)[number], string> = { summary: "요약", records: "학습 기록", questions: "AI 질문" };
 
 export function StudentDetailPage() {
   const { studentId = "" } = useParams();
@@ -22,6 +26,9 @@ export function StudentDetailPage() {
   } });
 
   const qCount = useQuestionCountBySession(studentId);
+  // ?session= 만 붙은 예전 링크는 학습 기록 탭으로
+  const tab = parseTab(params.get("tab"), TABS, params.get("session") ? "records" : "summary");
+  const go = (next: Record<string, string>) => setParams({ tab, ...(params.get("session") ? { session: params.get("session")! } : {}), ...next });
   const selectedId = params.get("session") ?? sessions.data?.[0]?.id;
   const selected = sessions.data?.find((s) => s.id === selectedId);
 
@@ -38,43 +45,65 @@ export function StudentDetailPage() {
       <PageTitle sub={`학생이 '교사 공개'로 남긴 기록만 보여요${FEATURES.audit ? " · 열람 기록이 남아요" : ""}`}>
         {dash.data ? `${dash.data.number}번 ${dash.data.name}` : "학생 기록"}
       </PageTitle>
-      <StudentProfile studentId={studentId} />
-      {FEATURES.quiz && <TopicGrowthView studentId={studentId} viewer="teacher" />}
-      {sessions.isLoading && <Spinner />}
-      {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
-      {sessions.data?.length === 0 && <EmptyState title="학습 기록이 없어요">먼저 학생과 학습 계획을 이야기해 보세요.</EmptyState>}
+      <div className="mb-4 flex gap-1 border-b border-stone-200" role="tablist" aria-label="학생 정보">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => go({ tab: t })}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm ${tab === t ? "border-brand-500 font-semibold text-brand-700" : "border-transparent text-stone-500 hover:text-stone-700"}`}
+          >
+            {TAB_LABEL[t]}
+          </button>
+        ))}
+      </div>
 
-      {sessions.data && sessions.data.length > 0 && (
-        <div className="grid gap-5 lg:grid-cols-[240px_1fr_380px]">
-          <ul className="space-y-1.5">
-            {sessions.data.map((s) => (
-              <li key={s.id}>
-                <button
-                  onClick={() => setParams({ session: s.id })}
-                  className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-                    s.id === selectedId ? "border-brand-500 bg-brand-50" : "border-stone-200 bg-white hover:bg-stone-50"
-                  }`}
-                >
-                  <p className="text-xs text-stone-500">{formatDateTime(s.startedAt)}</p>
-                  <p className="font-medium">{goalLabel(s.goal)}</p>
-                  <p className="text-xs text-brand-700">
-                    {s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}
-                    {qCount.get(s.id) ? <span className="text-stone-500"> · AI 질문 {qCount.get(s.id)}회</span> : null}
-                  </p>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {selected && (
-            <>
-              <SessionDetail session={selected} highlight={highlight} />
-              <div className="space-y-4">
-                {FEATURES.assessment && <AssessmentPanel session={selected} onEvidence={setHighlight} />}
-                <FeedbackForm sessionId={selected.id} />
-              </div>
-            </>
+      {tab === "summary" && (
+        <>
+          <ProfileSummary studentId={studentId} />
+          {FEATURES.quiz && <TopicGrowthView studentId={studentId} viewer="teacher" />}
+        </>
+      )}
+
+      {tab === "questions" && <QuestionList studentId={studentId} />}
+
+      {tab === "records" && (
+        <>
+          {sessions.isLoading && <Spinner />}
+          {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
+          {sessions.data?.length === 0 && <EmptyState title="학습 기록이 없어요">먼저 학생과 학습 계획을 이야기해 보세요.</EmptyState>}
+          {sessions.data && sessions.data.length > 0 && (
+            <div className="grid gap-5 md:grid-cols-[200px_1fr] lg:grid-cols-[240px_1fr]">
+              <ul className="space-y-1.5 md:sticky md:top-4 md:max-h-[80vh] md:overflow-y-auto">
+                {sessions.data.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      onClick={() => go({ session: s.id })}
+                      className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
+                        s.id === selectedId ? "border-brand-500 bg-brand-50" : "border-stone-200 bg-white hover:bg-stone-50"
+                      }`}
+                    >
+                      <p className="text-xs text-stone-500">{formatDateTime(s.startedAt)}</p>
+                      <p className="font-medium">{goalLabel(s.goal)}</p>
+                      <p className="text-xs text-brand-700">
+                        {s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}
+                        {qCount.get(s.id) ? <span className="text-stone-500"> · AI 질문 {qCount.get(s.id)}회</span> : null}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {selected && (
+                <div className="min-w-0 space-y-4">
+                  <FeedbackForm sessionId={selected.id} />
+                  <SessionDetail session={selected} highlight={highlight} />
+                  {FEATURES.assessment && <AssessmentPanel session={selected} onEvidence={setHighlight} />}
+                </div>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

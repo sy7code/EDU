@@ -21,22 +21,14 @@ function Compare({ label, value, avg, format }: { label: string; value: number |
   );
 }
 
-/** 교사 학생 상세 위쪽: 최근 4주 종합 (반 평균과 비교, AI 질문 유형·원문) */
-export function StudentProfile({ studentId }: { studentId: string }) {
+/** 교사 학생 상세 '요약' 탭: 최근 4주 숫자(반 평균 비교) + 질문 유형 비율 */
+export function ProfileSummary({ studentId }: { studentId: string }) {
   const q = useClassAnalytics("4w");
-  const [shown, setShown] = useState(PAGE);
   if (q.isLoading) return <Spinner label="종합 정보를 모으는 중" />;
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
-  if (!q.data) return null;
-  const { raw, summary } = q.data;
-  const st = summary.students.find((s) => s.studentId === studentId);
-  if (!st) return null;
-
-  const goalOf = new Map(raw.sessions.map((s) => [s.id, goalLabel(s.goal)]));
-  const questions = raw.questions
-    .filter((x) => x.studentId === studentId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-
+  const summary = q.data?.summary;
+  const st = summary?.students.find((s) => s.studentId === studentId);
+  if (!summary || !st) return null;
   return (
     <Card className="mb-5">
       <h2 className="font-semibold">최근 4주 종합</h2>
@@ -46,36 +38,57 @@ export function StudentProfile({ studentId }: { studentId: string }) {
         {st.shared && <Compare label="확인 테스트 정답률" value={st.quizRate} avg={summary.quizRate.mean} format={pct} />}
         {st.shared && <Compare label="AI 질문 수" value={st.questionCount} avg={summary.questions.mean} format={countText} />}
       </div>
-
       {!st.shared ? (
         <p className="mt-4 text-sm text-stone-500">기록 공유에 동의하지 않아 질문·정답률은 보이지 않아요.</p>
       ) : (
         <>
           <h3 className="mt-5 text-sm font-semibold">AI에 어떻게 물었나</h3>
           <div className="mt-2">{st.types && <TypeBar types={st.types} />}</div>
-          {questions.length > 0 && (
-            <>
-              <h3 className="mt-5 text-sm font-semibold">AI에 한 질문 ({questions.length}개, 최근 순)</h3>
-              <ul className="mt-2 divide-y divide-stone-100">
-                {questions.slice(0, shown).map((x) => {
-                  const t = x.questionType ?? classifyQuestion(x.content);
-                  return (
-                    <li key={x.id} className="flex flex-wrap items-start gap-2 py-2 text-sm">
-                      <Badge tone={t === "ANSWER" ? "amber" : t === "CHECK" ? "sky" : t === "CONCEPT" ? "brand" : "stone"}>{QUESTION_TYPE_LABEL[t]}</Badge>
-                      <span className="min-w-0 flex-1 break-words">{x.content}</span>
-                      <span className="text-xs text-stone-400">
-                        {goalOf.get(x.sessionId) ?? ""} · {formatDateTime(x.createdAt)}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-              {questions.length > shown && (
-                <button className="mt-2 text-sm text-brand-700 hover:underline" onClick={() => setShown((n) => n + PAGE)}>
-                  더 보기 ({questions.length - shown}개 남음)
-                </button>
-              )}
-            </>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/** 교사 학생 상세 'AI 질문' 탭: 최근 4주 질문 원문 (최근 순, 유형 배지) */
+export function QuestionList({ studentId }: { studentId: string }) {
+  const q = useClassAnalytics("4w");
+  const [shown, setShown] = useState(PAGE);
+  if (q.isLoading) return <Spinner />;
+  if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
+  if (!q.data) return null;
+  const { raw, summary } = q.data;
+  const st = summary.students.find((s) => s.studentId === studentId);
+  if (!st) return null;
+  if (!st.shared) return <Card><p className="text-sm text-stone-500">기록 공유에 동의하지 않아 질문은 보이지 않아요.</p></Card>;
+  const goalOf = new Map(raw.sessions.map((s) => [s.id, goalLabel(s.goal)]));
+  const questions = raw.questions.filter((x) => x.studentId === studentId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return (
+    <Card>
+      <h2 className="font-semibold">AI에 한 질문 (최근 4주 {questions.length}개, 최근 순)</h2>
+      <p className="text-[11px] text-stone-400">유형은 자동 분류 · 참고용</p>
+      {questions.length === 0 ? (
+        <p className="mt-3 text-sm text-stone-500">AI에 한 질문이 없어요</p>
+      ) : (
+        <>
+          <ul className="mt-2 divide-y divide-stone-100">
+            {questions.slice(0, shown).map((x) => {
+              const t = x.questionType ?? classifyQuestion(x.content);
+              return (
+                <li key={x.id} className="flex flex-wrap items-start gap-2 py-2 text-sm">
+                  <Badge tone={t === "ANSWER" ? "amber" : t === "CHECK" ? "sky" : t === "CONCEPT" ? "brand" : "stone"}>{QUESTION_TYPE_LABEL[t]}</Badge>
+                  <span className="min-w-0 flex-1 break-words">{x.content}</span>
+                  <span className="text-xs text-stone-400">
+                    {goalOf.get(x.sessionId) ?? ""} · {formatDateTime(x.createdAt)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {questions.length > shown && (
+            <button className="mt-2 text-sm text-brand-700 hover:underline" onClick={() => setShown((n) => n + PAGE)}>
+              더 보기 ({questions.length - shown}개 남음)
+            </button>
           )}
         </>
       )}

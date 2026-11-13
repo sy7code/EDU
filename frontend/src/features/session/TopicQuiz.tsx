@@ -202,13 +202,10 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
   );
 }
 
-export function QuizResult({ attempt, onNext }: { attempt: QuizAttempt; onNext?: () => void }) {
-  return (
-    <Card>
-      <h2 className="font-semibold">
-        확인 테스트 결과: {attempt.total === 0 ? "채점할 문항이 없어요" : `${attempt.correct} / ${attempt.total}`}
-      </h2>
-      <p className="text-xs text-stone-500">틀린 문제는 해설을 보고 다음 학습 때 다시 살펴봐요. {QUIZ_NOTICE}</p>
+/** collapsed: 기록 화면에서는 점수만 보이고 문항은 눌러서 펼친다 */
+export function QuizResult({ attempt, onNext, collapsed = false }: { attempt: QuizAttempt; onNext?: () => void; collapsed?: boolean }) {
+  const title = `확인 테스트 결과: ${attempt.total === 0 ? "채점할 문항이 없어요" : `${attempt.correct} / ${attempt.total}`}`;
+  const list = (
       <ol className="mt-4 space-y-3">
         {attempt.items.map((it, i) => (
           <li
@@ -226,6 +223,23 @@ export function QuizResult({ attempt, onNext }: { attempt: QuizAttempt; onNext?:
           </li>
         ))}
       </ol>
+  );
+  return (
+    <Card>
+      {collapsed ? (
+        <details>
+          <summary className="cursor-pointer font-semibold">
+            {title} <span className="text-xs font-normal text-stone-500">· 문항 보기</span>
+          </summary>
+          {list}
+        </details>
+      ) : (
+        <>
+          <h2 className="font-semibold">{title}</h2>
+          <p className="text-xs text-stone-500">틀린 문제는 해설을 보고 다음 학습 때 다시 살펴봐요. {QUIZ_NOTICE}</p>
+          {list}
+        </>
+      )}
       {onNext && (
         <Button className="mt-4 w-full" onClick={onNext}>
           돌아보기로 넘어가기

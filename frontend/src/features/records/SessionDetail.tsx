@@ -123,7 +123,7 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
         )}
       </Card>
 
-      {quiz.data && <QuizResult attempt={quiz.data} />}
+      {quiz.data && <QuizResult attempt={quiz.data} collapsed />}
 
       <Card>
         <h3 className="font-semibold">선생님 피드백</h3>
