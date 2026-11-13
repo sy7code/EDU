@@ -11,6 +11,7 @@ import { EndPage } from "./features/session/EndPage";
 import { MyRecordsPage } from "./features/records/MyRecordsPage";
 import { ClassDashboard } from "./features/teacher/ClassDashboard";
 import { StudentDetailPage } from "./features/teacher/StudentDetailPage";
+import { ReportsPage } from "./features/teacher/ReportsPage";
 
 export const router = createBrowserRouter([
   { path: "/kiosk", element: <KioskPage /> },
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <ClassDashboard /> },
           { path: "students/:studentId", element: <StudentDetailPage /> },
+          { path: "reports", element: <ReportsPage /> },
         ],
       },
     ],
