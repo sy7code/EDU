@@ -8,7 +8,8 @@ import { summarizeClass, type Distribution } from "../../lib/analytics";
 import { QUESTION_TYPE_LABEL, type QuestionType } from "../../lib/questionType";
 import { formatDuration } from "../../lib/time";
 import { paginate } from "../../lib/paginate";
-import { Pager } from "../../components/Pager";
+import { Pager, SearchBox } from "../../components/Pager";
+import { matchStudent } from "../../lib/studentSearch";
 
 export type AnalyticsRange = "7d" | "4w";
 const RANGE_DAYS: Record<AnalyticsRange, number> = { "7d": 7, "4w": 28 };
@@ -104,13 +105,15 @@ export function TypeBar({ types }: { types: Record<QuestionType, number> }) {
 export function AnalyticsPage() {
   const [range, setRange] = useState<AnalyticsRange>("4w");
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
   const q = useClassAnalytics(range);
   const nav = useNavigate();
-  const paged = paginate(q.data?.summary.students ?? [], page, 10);
+  const found = (q.data?.summary.students ?? []).filter((s) => matchStudent(s, query));
+  const paged = paginate(found, page, 10);
 
   return (
     <div>
-      <PageTitle sub="반 전체의 흐름을 보는 화면이에요. 순위가 아니라 대화를 시작할 단서로 써 주세요.">반 분석</PageTitle>
+      <PageTitle sub="반 전체의 공부 방식과 분포를 보는 화면이에요. 순위가 아니라 대화를 시작할 단서로 써 주세요.">반 분석</PageTitle>
       <div className="mb-4 flex gap-2" role="radiogroup" aria-label="기간">
         {(["7d", "4w"] as const).map((r) => (
           <button
@@ -176,8 +179,15 @@ export function AnalyticsPage() {
             </Card>
           </div>
 
+          <SearchBox
+            value={query}
+            onChange={(v) => {
+              setQuery(v);
+              setPage(1);
+            }}
+          />
           <Card className="overflow-x-auto p-0">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full whitespace-nowrap text-sm">
               <thead className="border-b border-stone-200 bg-stone-50 text-left text-xs text-stone-500">
                 <tr>
                   <th className="px-4 py-2.5">번호</th>
@@ -185,7 +195,7 @@ export function AnalyticsPage() {
                   <th className="px-4 py-2.5">학습 시간</th>
                   <th className="px-4 py-2.5">정답률</th>
                   <th className="px-4 py-2.5">AI 질문</th>
-                  <th className="px-4 py-2.5">주로 한 질문</th>
+                  <th className="hidden px-4 py-2.5 md:table-cell">주로 한 질문</th>
                 </tr>
               </thead>
               <tbody>
@@ -206,7 +216,7 @@ export function AnalyticsPage() {
                       <>
                         <td className="px-4 py-2.5 tabular-nums">{pct(s.quizRate)}</td>
                         <td className="px-4 py-2.5 tabular-nums">{s.questionCount}회</td>
-                        <td className="px-4 py-2.5">
+                        <td className="hidden px-4 py-2.5 md:table-cell">
                           {s.mainType ? <Badge tone={s.mainType === "ANSWER" ? "amber" : "stone"}>{QUESTION_TYPE_LABEL[s.mainType]}</Badge> : "-"}
                         </td>
                       </>
@@ -219,6 +229,7 @@ export function AnalyticsPage() {
                 ))}
               </tbody>
             </table>
+            {found.length === 0 && <p className="px-4 py-6 text-center text-sm text-stone-500">조건에 맞는 학생이 없어요</p>}
           </Card>
           <Pager page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
         </div>

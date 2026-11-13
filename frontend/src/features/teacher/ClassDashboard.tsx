@@ -6,7 +6,8 @@ import { useMe } from "../../auth/session";
 import { Badge, Button, Card, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import { formatDateTime, formatDuration } from "../../lib/time";
 import { paginate } from "../../lib/paginate";
-import { Pager } from "../../components/Pager";
+import { Pager, SearchBox } from "../../components/Pager";
+import { matchStudent } from "../../lib/studentSearch";
 
 export function ClassDashboard() {
   const me = useMe();
@@ -19,7 +20,8 @@ export function ClassDashboard() {
   });
   const [filter, setFilter] = useState<"all" | "attention" | "active" | "pending">("all");
   const [page, setPage] = useState(1);
-  useEffect(() => setPage(1), [filter]);
+  const [query, setQuery] = useState("");
+  useEffect(() => setPage(1), [filter, query]);
   const [manualMsg, setManualMsg] = useState<string | null>(null);
   const [confirmedId, setConfirmedId] = useState<string | null>(null);
   const manual = useMutation({
@@ -44,7 +46,8 @@ export function ClassDashboard() {
   if (!dash.data) return <Spinner />;
   const rows = dash.data.students;
   const shown = rows.filter((r) =>
-    filter === "attention" ? r.needsAttention : filter === "active" ? r.activeNow : filter === "pending" ? r.pendingAssessment > 0 : true,
+    (filter === "attention" ? r.needsAttention : filter === "active" ? r.activeNow : filter === "pending" ? r.pendingAssessment > 0 : true) &&
+      matchStudent(r, query),
   );
 
   const paged = paginate(shown, page, 10);
@@ -61,7 +64,7 @@ export function ClassDashboard() {
 
   return (
     <div>
-      <PageTitle sub="최근 7일 · 기록 시간은 평가 점수가 아니라 대화의 출발점이에요">2학년 3반 자기주도학습</PageTitle>
+      <PageTitle sub="최근 7일 · 오늘 챙길 학생을 찾는 화면이에요. 공부 방식과 분포는 '반 분석'에서 봐요">2학년 3반 자기주도학습</PageTitle>
 
       <div className={`mb-5 grid grid-cols-2 gap-3 ${FEATURES.assessment ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
         {stat("지금 학습 중", rows.filter((r) => r.activeNow).length, "active")}
@@ -79,17 +82,18 @@ export function ClassDashboard() {
         </div>
       )}
 
+      <SearchBox value={query} onChange={setQuery} />
       <Card className="overflow-x-auto p-0">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full whitespace-nowrap text-sm">
           <thead className="border-b border-stone-200 bg-stone-50 text-left text-xs text-stone-500">
             <tr>
               <th className="px-4 py-2.5">번호</th>
               <th className="px-4 py-2.5">이름</th>
               <th className="px-4 py-2.5">학습</th>
               <th className="px-4 py-2.5">시간</th>
-              <th className="px-4 py-2.5">남은 질문</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">남은 질문</th>
               {FEATURES.dashboardQuizRate && <th className="px-4 py-2.5">최근 테스트</th>}
-              <th className="px-4 py-2.5">최근</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">최근</th>
               <th className="px-4 py-2.5">상태</th>
               {FEATURES.manualAuth && <th className="px-4 py-2.5" />}
             </tr>
@@ -105,13 +109,13 @@ export function ClassDashboard() {
                 </td>
                 <td className="px-4 py-2.5 tabular-nums">{r.sessionCount}회</td>
                 <td className="px-4 py-2.5 tabular-nums">{formatDuration(r.totalMinutes)}</td>
-                <td className="px-4 py-2.5 tabular-nums">{r.openQuestionCount}</td>
+                <td className="hidden px-4 py-2.5 tabular-nums md:table-cell">{r.openQuestionCount}</td>
                 {FEATURES.dashboardQuizRate && (
                   <td className={`px-4 py-2.5 tabular-nums ${r.lastQuizRate !== null && r.lastQuizRate < 0.4 ? "font-semibold text-amber-700" : ""}`}>
                     {r.lastQuizRate === null ? "-" : `${Math.round(r.lastQuizRate * 100)}%`}
                   </td>
                 )}
-                <td className="px-4 py-2.5 text-xs text-stone-500">{r.lastSessionAt ? formatDateTime(r.lastSessionAt) : "-"}</td>
+                <td className="hidden px-4 py-2.5 text-xs text-stone-500 md:table-cell">{r.lastSessionAt ? formatDateTime(r.lastSessionAt) : "-"}</td>
                 <td className="space-x-1 px-4 py-2.5">
                   {r.activeNow && <Badge tone="brand">학습 중</Badge>}
                   {r.needsAttention && (
@@ -138,6 +142,7 @@ export function ClassDashboard() {
             ))}
           </tbody>
         </table>
+        {shown.length === 0 && <p className="px-4 py-6 text-center text-sm text-stone-500">조건에 맞는 학생이 없어요</p>}
       </Card>
       <Pager page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
       <p className={`mt-2 text-xs text-stone-400 ${FEATURES.manualAuth ? "" : "hidden"}`}>
