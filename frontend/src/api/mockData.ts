@@ -35,6 +35,17 @@ export type Db = {
   units: Unit[];
   questions: QuizQuestion[];
   quizAttempts: QuizAttempt[];
+  /** 세션별 출제 스냅샷 (섞인 선택지·맞춘 정답 번호). 채점은 이것으로 */
+  quizServes: Record<string, ServedQuestion[]>;
+};
+
+export type ServedQuestion = {
+  id: string;
+  type: "MCQ" | "OX";
+  prompt: string;
+  choices: string[];
+  answerIndex: number;
+  explanation: string;
 };
 
 const SURNAMES = ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임"];
@@ -232,5 +243,6 @@ export function createSeed(now: Date): Db {
     units: structuredClone(SEED_UNITS),
     questions: structuredClone(SEED_QUESTIONS),
     quizAttempts,
+    quizServes: {},
   };
 }

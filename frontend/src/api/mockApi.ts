@@ -21,7 +21,7 @@ import type {
   UnitOverview,
   User,
 } from "../types/domain";
-import type { Db } from "./mockData";
+import type { Db, ServedQuestion } from "./mockData";
 import { ApiError, type Api } from "./types";
 
 export type MockOptions = {
@@ -32,7 +32,7 @@ export type MockOptions = {
   onAiPayload?: (payload: string) => void;
 };
 
-export const STORAGE_KEY = "growth-pace-mock-db-v4"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
+export const STORAGE_KEY = "growth-pace-mock-db-v5"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
 export const SESSION_USER_KEY = "growth-pace-mock-user";
 const AUTH_EVENT_TTL_MS = 120_000;
 const QR_TTL_MS = 60_000;
@@ -317,12 +317,37 @@ export function createMockApi(opts: MockOptions): Api {
     return { s, unit, questions };
   }
 
-  /** 학생의 최근 테스트 정답률 (unitId 없으면 전체 단원 중 최근) */
-  function lastQuizRate(studentId: string, unitId?: string): number | null {
+  /** 처음 출제할 때 문항을 스냅샷으로 고정한다. 객관식은 선택지를 세션 기준으로 섞고 정답 번호를 맞춘다. */
+  function servedQuiz(sessionId: string) {
+    const { s, unit, questions } = quizFor(sessionId);
+    const existing = db.quizServes[sessionId];
+    if (existing) return { s, unit, questions: existing };
+    const snap: ServedQuestion[] = questions.map((x) => {
+      if (x.type === "OX") return { id: x.id, type: x.type, prompt: x.prompt, choices: [...x.choices], answerIndex: x.answerIndex, explanation: x.explanation };
+      const order = x.choices.map((_, i) => i).sort((a, b) => hash(`${sessionId}:${x.id}:${a}`) - hash(`${sessionId}:${x.id}:${b}`));
+      return {
+        id: x.id,
+        type: x.type,
+        prompt: x.prompt,
+        choices: order.map((i) => x.choices[i]),
+        answerIndex: order.indexOf(x.answerIndex),
+        explanation: x.explanation,
+      };
+    });
+    db.quizServes[sessionId] = snap;
+    return { s, unit, questions: snap };
+  }
+
+  /** 학생의 최근 응시 (unitId 없으면 전체 단원 중 최근) */
+  function lastAttempt(studentId: string, unitId?: string): QuizAttempt | null {
     const list = db.quizAttempts
       .filter((a) => a.studentId === studentId && (!unitId || a.unitId === unitId) && a.total > 0)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return list[0] ? list[0].correct / list[0].total : null;
+    return list[0] ?? null;
+  }
+  function lastQuizRate(studentId: string, unitId?: string): number | null {
+    const a = lastAttempt(studentId, unitId);
+    return a ? a.correct / a.total : null;
   }
   /** 차이 신호: 스스로 '설명할 수 있다(3)'인데 60% 미만 → OVERCONFIDENT, 그 외 40% 미만 → LOW_SCORE */
   function quizSignal(rate: number | null, understanding: number | null): UnitOverview["signal"] {
@@ -735,7 +760,7 @@ export function createMockApi(opts: MockOptions): Api {
     // ---------- 단원 테스트 ----------
     getQuiz: (sessionId) =>
       run(() => {
-        const { unit, questions } = quizFor(sessionId);
+        const { unit, questions } = servedQuiz(sessionId);
         // 정답·해설·근거는 내려주지 않는다 (채점은 서버)
         const safe: StudentQuizQuestion[] = questions.map((x) => ({ id: x.id, type: x.type, prompt: x.prompt, choices: [...x.choices] }));
         return { unit, questions: safe };
@@ -743,8 +768,12 @@ export function createMockApi(opts: MockOptions): Api {
 
     submitQuiz: (sessionId, answers) =>
       run(() => {
-        const { s, unit, questions } = quizFor(sessionId);
-        if (db.quizAttempts.some((a) => a.sessionId === sessionId)) throw new ApiError("QUIZ_ALREADY_TAKEN");
+        if (db.quizAttempts.some((a) => a.sessionId === sessionId)) {
+          visibleSession(sessionId); // 남의 세션이면 NOT_FOUND가 먼저
+          throw new ApiError("QUIZ_ALREADY_TAKEN");
+        }
+        // 학생이 받은 출제 스냅샷 그대로 채점 (그 사이 교사가 문제를 바꿔도 영향 없음)
+        const { s, unit, questions } = servedQuiz(sessionId);
         const items = questions.map((x) => {
           const raw = answers[x.id];
           const chosen = Number.isInteger(raw) && (raw as number) >= 0 && (raw as number) < x.choices.length ? (raw as number) : null;
@@ -786,16 +815,19 @@ export function createMockApi(opts: MockOptions): Api {
             const base = { unitId: unit.id, subject: unit.subject, title: unit.title, sessions: list.length, minutes: minutesOf(list) };
             if (!shared) return { ...base, entries: null, questions: null, lastQuizRate: null, lastUnderstanding: null, signal: null };
             const ents = list.flatMap((s) => teacherEntries(s));
-            const rate = lastQuizRate(studentId, unit.id);
+            const att = lastAttempt(studentId, unit.id);
+            const rate = att ? att.correct / att.total : null;
             const lastEnded = [...list].filter((s) => s.status === "ENDED").sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
             const und = lastEnded ? (db.reflections.find((r) => r.sessionId === lastEnded.id)?.understanding ?? null) : null;
+            // 신호는 같은 세션의 응시 결과와 이해도 짝으로만 판단 (다른 세션 값을 섞지 않음)
+            const pairedUnd = att ? (db.reflections.find((r) => r.sessionId === att.sessionId)?.understanding ?? null) : null;
             return {
               ...base,
               entries: ents.length,
               questions: ents.filter((e) => e.kind === "QUESTION").length,
               lastQuizRate: rate,
               lastUnderstanding: und,
-              signal: quizSignal(rate, und),
+              signal: quizSignal(rate, pairedUnd),
             };
           });
         const noUnit = mine.filter((s) => !s.goal.unitId);

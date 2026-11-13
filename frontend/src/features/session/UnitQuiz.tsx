@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../../api";
+import { api, ApiError } from "../../api";
 import { Badge, Button, Card, CheckChip, ErrorState, Spinner } from "../../components/ui";
 import type { QuizAttempt } from "../../types/domain";
 
@@ -21,7 +21,22 @@ export function UnitQuiz({ sessionId, onDone }: { sessionId: string; onDone: () 
     onDone();
   };
 
+  // 다른 탭·재시도로 이미 제출된 경우: 막히지 않게 제출된 결과를 불러와 보여 준다
+  const alreadyTaken = submit.error instanceof ApiError && submit.error.code === "QUIZ_ALREADY_TAKEN";
+  const taken = useQuery({ queryKey: ["quiz-attempt-taken", sessionId], queryFn: () => api.getQuizAttempt(sessionId), enabled: alreadyTaken });
+
   if (submit.data) return <QuizResult attempt={submit.data} onNext={finish} />;
+  if (alreadyTaken) {
+    if (taken.data) return <QuizResult attempt={taken.data} onNext={finish} />;
+    return (
+      <Card>
+        <p className="text-sm">이번 학습의 단원 테스트는 이미 제출했어요.</p>
+        <Button className="mt-4" onClick={finish}>
+          돌아보기로 넘어가기
+        </Button>
+      </Card>
+    );
+  }
 
   if (stage === "confirm") {
     return (

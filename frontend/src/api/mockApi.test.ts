@@ -423,11 +423,13 @@ describe("단원 테스트", () => {
 
   it("정답을 고르면 정답으로 채점되고 해설을 받는다", async () => {
     const s = await endedUnitSession("s01", "u-sci-1");
-    await api.getQuiz(s.id);
+    const quiz = await api.getQuiz(s.id);
     await api.login("t1");
-    const key = await api.listUnitQuestions("u-sci-1");
+    const key = new Map((await api.listUnitQuestions("u-sci-1")).map((q) => [q.id, q.choices[q.answerIndex]]));
     await api.login("s01");
-    const result = await api.submitQuiz(s.id, Object.fromEntries(key.map((q) => [q.id, q.answerIndex])));
+    // 선택지가 섞여 나오므로 받은 선택지에서 정답 내용의 위치로 답한다
+    const answers = Object.fromEntries(quiz.questions.map((q) => [q.id, q.choices.indexOf(key.get(q.id)!)]));
+    const result = await api.submitQuiz(s.id, answers);
     expect(result.correct).toBe(3);
     expect(result.items[0].explanation.length).toBeGreaterThan(0);
   });
@@ -533,5 +535,65 @@ describe("종합 보드", () => {
     await api.login("t1");
     const d = await api.getDashboard("c1");
     expect(d.students.find((x) => x.studentId === "s01")!.lastQuizRate).toBe(0);
+  });
+});
+
+describe("최종 리뷰 수정", () => {
+  async function endedUnitSession(studentId: string, unitId: string) {
+    await api.login(studentId);
+    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const subject = SEED_UNITS.find((u) => u.id === unitId)!.subject;
+    const s = await api.startSession({ goal: { ...GOAL, subject, unitId }, authEventId: ev.id });
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    return s;
+  }
+
+  it("getQuiz 이후 승인 문제가 바뀌어도 학생이 받은 문제로 채점된다", async () => {
+    const s = await endedUnitSession("s01", "u-math-1");
+    const served = await api.getQuiz(s.id);
+    await api.login("t1");
+    const all = await api.listUnitQuestions("u-math-1");
+    for (const q of all) await api.setQuestionStatus(q.id, "DRAFT"); // 전부 출제 중지
+    const [extra] = await api.draftQuestionsWithAi("u-math-1");
+    await api.setQuestionStatus(extra.id, "APPROVED"); // 새 문제만 승인
+    await api.login("s01");
+    const result = await api.submitQuiz(s.id, {});
+    expect(result.items.map((i) => i.questionId)).toEqual(served.questions.map((q) => q.id));
+  });
+
+  it("객관식 선택지는 섞여 나오고 채점은 고른 선택지 내용 기준이다", async () => {
+    await api.login("t1");
+    const original = await api.listUnitQuestions("u-math-1");
+    const key = new Map(original.map((q) => [q.id, q.choices[q.answerIndex]]));
+    const order = new Map(original.map((q) => [q.id, q.choices.join("|")]));
+    let shuffledSeen = false;
+    for (let k = 0; k < 6; k++) {
+      const s = await endedUnitSession("s01", "u-math-1");
+      const quiz = await api.getQuiz(s.id);
+      const answers: Record<string, number> = {};
+      for (const q of quiz.questions) {
+        answers[q.id] = q.choices.indexOf(key.get(q.id)!);
+        if (q.type === "MCQ" && q.choices.join("|") !== order.get(q.id)) shuffledSeen = true;
+        if (q.type === "OX") expect(q.choices).toEqual(["O", "X"]); // O/X 순서는 고정
+      }
+      const r = await api.submitQuiz(s.id, answers);
+      expect(r.correct).toBe(r.total);
+      advance(60_000);
+    }
+    expect(shuffledSeen).toBe(true);
+  });
+
+  it("차이 신호는 같은 세션의 테스트와 이해도로 판단한다", async () => {
+    // A: 테스트 0% + 이해도 1 / B(나중): 테스트 안 봄 + 이해도 3 → OVERCONFIDENT가 아니라 LOW_SCORE
+    const a = await endedUnitSession("s01", "u-math-2");
+    await api.submitQuiz(a.id, {});
+    await api.saveReflection({ sessionId: a.id, checks: [], understanding: 1, remainingQuestions: [] });
+    advance(60_000);
+    const b = await endedUnitSession("s01", "u-math-2");
+    await api.saveReflection({ sessionId: b.id, checks: [], understanding: 3, remainingQuestions: [] });
+    await api.login("t1");
+    const row = (await api.getStudentOverview("s01")).units.find((u) => u.unitId === "u-math-2")!;
+    expect(row.signal).toBe("LOW_SCORE");
   });
 });
