@@ -47,6 +47,31 @@ export type SessionGoal = {
   subject: string;
   activities: string[];
   note?: string;
+  unitId?: string; // 단원 테스트 대상 단원 (선택)
+};
+
+// ---------- 단원 테스트 ----------
+export type Unit = {
+  id: string;
+  classId: string;
+  subject: string;
+  order: number;
+  title: string;
+  standard: string; // 성취기준 문장 (AI 초안의 근거)
+  material?: string;
+};
+
+export type QuizQuestion = {
+  id: string;
+  unitId: string;
+  type: "MCQ" | "OX";
+  prompt: string;
+  choices: string[];
+  answerIndex: number;
+  explanation: string;
+  source: "AI" | "TEACHER";
+  status: "DRAFT" | "APPROVED";
+  evidence: string; // 근거 문장 (성취기준·자료)
 };
 
 export type LearningSession = {

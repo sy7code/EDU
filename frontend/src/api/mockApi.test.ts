@@ -319,3 +319,55 @@ describe("교차채점", () => {
     await expectCode(api.requestAiAssessment(s.id), "FORBIDDEN");
   });
 });
+
+describe("단원 문제 관리", () => {
+  it("학생은 단원 문제(정답 포함)를 조회할 수 없다", async () => {
+    await api.login("s01");
+    await expectCode(api.listUnitQuestions("u-math-1"), "FORBIDDEN");
+  });
+
+  it("AI 초안은 성취기준을 근거로 DRAFT로 만들어진다", async () => {
+    await api.login("t1");
+    const unit = (await api.listUnits("c1")).find((u) => u.id === "u-math-2")!;
+    const drafts = await api.draftQuestionsWithAi("u-math-2");
+    expect(drafts.length).toBe(3);
+    for (const d of drafts) {
+      expect(d.status).toBe("DRAFT");
+      expect(d.source).toBe("AI");
+      expect(d.evidence).toBe(unit.standard);
+    }
+  });
+
+  it("성취기준이 없는 단원은 AI 초안을 만들 수 없다", async () => {
+    await api.login("t1");
+    await expectCode(api.draftQuestionsWithAi("u-sci-2"), "VALIDATION");
+  });
+
+  it("다른 반 단원 문제는 관리할 수 없다", async () => {
+    await api.login("t1");
+    await expectCode(api.listUnitQuestions("u-c2-1"), "NOT_FOUND");
+  });
+
+  it("OX 문제는 선택지가 O·X가 아니면 저장할 수 없다", async () => {
+    await api.login("t1");
+    await expectCode(
+      api.saveQuestion({ id: "", unitId: "u-math-1", type: "OX", prompt: "질문", choices: ["예", "아니오"], answerIndex: 0, explanation: "해설", source: "TEACHER", status: "DRAFT", evidence: "" }),
+      "VALIDATION",
+    );
+  });
+
+  it("정답 번호가 선택지 범위를 벗어나면 저장할 수 없다", async () => {
+    await api.login("t1");
+    await expectCode(
+      api.saveQuestion({ id: "", unitId: "u-math-1", type: "MCQ", prompt: "질문", choices: ["1", "2", "3"], answerIndex: 3, explanation: "해설", source: "TEACHER", status: "DRAFT", evidence: "" }),
+      "VALIDATION",
+    );
+  });
+
+  it("교사가 승인하면 문제 상태가 APPROVED가 된다", async () => {
+    await api.login("t1");
+    const [d] = await api.draftQuestionsWithAi("u-math-3");
+    const approved = await api.setQuestionStatus(d.id, "APPROVED");
+    expect(approved.status).toBe("APPROVED");
+  });
+});

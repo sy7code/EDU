@@ -15,6 +15,7 @@ import type {
   GroundedItem,
   LearningEntry,
   LearningSession,
+  QuizQuestion,
   User,
 } from "../types/domain";
 import type { Db } from "./mockData";
@@ -28,7 +29,7 @@ export type MockOptions = {
   onAiPayload?: (payload: string) => void;
 };
 
-export const STORAGE_KEY = "growth-pace-mock-db-v3"; // 가짜 데이터만 저장
+export const STORAGE_KEY = "growth-pace-mock-db-v4"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
 export const SESSION_USER_KEY = "growth-pace-mock-user";
 const AUTH_EVENT_TTL_MS = 120_000;
 const QR_TTL_MS = 60_000;
@@ -267,6 +268,34 @@ export function createMockApi(opts: MockOptions): Api {
             reason: `AI에 ${msgs.length}번 질문${refl?.checks.includes("ai_checked") ? ", AI 답을 확인했다고 체크" : ""}`,
             evidenceIds: msgs.map((m) => m.id),
           },
+    ];
+  }
+
+  // ---------- 단원·문제 ----------
+  /** 교사 본인 반 단원만. 학생은 FORBIDDEN, 다른 반은 NOT_FOUND */
+  function ownUnit(unitId: string) {
+    const t = teacher();
+    const unit = db.units.find((u) => u.id === unitId);
+    if (!unit || unit.classId !== t.classId) throw new ApiError("NOT_FOUND");
+    return unit;
+  }
+  function validateQuestion(q: Pick<QuizQuestion, "type" | "prompt" | "choices" | "answerIndex" | "explanation">) {
+    const prompt = q.prompt.trim();
+    const okLen = prompt.length > 0 && prompt.length <= 300 && q.explanation.trim().length <= 500;
+    const okChoices =
+      q.type === "OX"
+        ? q.choices.length === 2 && q.choices[0] === "O" && q.choices[1] === "X"
+        : q.choices.length >= 2 && q.choices.length <= 5 && q.choices.every((c) => c.trim().length > 0 && c.length <= 100);
+    const okAnswer = Number.isInteger(q.answerIndex) && q.answerIndex >= 0 && q.answerIndex < q.choices.length;
+    if (!okLen || !okChoices || !okAnswer) throw new ApiError("VALIDATION");
+  }
+  /** mock AI: 성취기준 문장에서 핵심어를 뽑아 확인 문제 초안을 만든다 (근거 밖 내용 생성 안 함) */
+  function aiDraftTemplates(unit: { title: string; standard: string }) {
+    const goal = unit.standard.replace(/\s*수 있다\.?$/, "").trim();
+    return [
+      { type: "OX" as const, prompt: `[${unit.title}] 다음은 이 단원의 학습 목표이다: "${unit.standard}"`, choices: ["O", "X"], answerIndex: 0, explanation: "성취기준 문장 그대로예요. 선생님이 단원 내용에 맞게 문항을 다듬어 주세요." },
+      { type: "MCQ" as const, prompt: `[${unit.title}] 이 단원에서 할 수 있어야 하는 것은?`, choices: [goal, "단원과 관계없는 내용 암기", "결과만 외우기", "문제 풀이 생략"], answerIndex: 0, explanation: `성취기준: ${unit.standard}` },
+      { type: "OX" as const, prompt: `[${unit.title}] 이 단원의 개념을 내 말로 설명할 수 있으면 목표를 이룬 것이다.`, choices: ["O", "X"], answerIndex: 0, explanation: "선생님이 실제 개념 문항으로 바꿔 주세요 (AI 초안)." },
     ];
   }
 
@@ -598,6 +627,65 @@ export function createMockApi(opts: MockOptions): Api {
           })
           .sort((a, b) => a.number - b.number);
         return { classId, from: from.toISOString(), to: to.toISOString(), students: rows };
+      }),
+
+    // ---------- 단원·문제 관리 ----------
+    listUnits: (classId) =>
+      run(() => {
+        if (me().classId !== classId) throw new ApiError("NOT_FOUND");
+        return db.units.filter((u) => u.classId === classId).sort((a, b) => a.subject.localeCompare(b.subject) || a.order - b.order);
+      }),
+
+    listUnitQuestions: (unitId) =>
+      run(() => {
+        ownUnit(unitId);
+        return db.questions.filter((x) => x.unitId === unitId);
+      }),
+
+    draftQuestionsWithAi: (unitId) =>
+      run(() => {
+        const unit = ownUnit(unitId);
+        if (!unit.standard.trim()) throw new ApiError("VALIDATION", "성취기준이 없어 근거 없이 문제를 만들 수 없어요");
+        // 실서버: 성취기준·자료만 컨텍스트로 LLM 호출, 응답에 근거 문장 필수. 여기선 근거 기반 템플릿
+        const drafts = aiDraftTemplates(unit).map((d) => ({ ...d, id: id("q"), unitId, source: "AI" as const, status: "DRAFT" as const, evidence: unit.standard }));
+        db.questions.push(...drafts);
+        audit("AI_QUESTION_DRAFT", null);
+        return drafts;
+      }),
+
+    saveQuestion: (input) =>
+      run(() => {
+        ownUnit(input.unitId);
+        validateQuestion(input);
+        if (!input.id) {
+          const created: QuizQuestion = { ...input, id: id("q"), source: "TEACHER", prompt: input.prompt.trim(), explanation: input.explanation.trim() };
+          db.questions.push(created);
+          return created;
+        }
+        const existing = db.questions.find((x) => x.id === input.id);
+        if (!existing || existing.unitId !== input.unitId) throw new ApiError("NOT_FOUND");
+        Object.assign(existing, { type: input.type, prompt: input.prompt.trim(), choices: [...input.choices], answerIndex: input.answerIndex, explanation: input.explanation.trim(), status: input.status });
+        return existing;
+      }),
+
+    setQuestionStatus: (qid, status) =>
+      run(() => {
+        const existing = db.questions.find((x) => x.id === qid);
+        if (!existing) throw new ApiError("NOT_FOUND");
+        ownUnit(existing.unitId);
+        if (status === "APPROVED") validateQuestion(existing);
+        existing.status = status;
+        audit(status === "APPROVED" ? "QUESTION_APPROVE" : "QUESTION_UNAPPROVE", null);
+        return existing;
+      }),
+
+    deleteQuestion: (qid) =>
+      run(() => {
+        const existing = db.questions.find((x) => x.id === qid);
+        if (!existing) throw new ApiError("NOT_FOUND");
+        ownUnit(existing.unitId);
+        db.questions = db.questions.filter((x) => x.id !== qid);
+        audit("QUESTION_DELETE", null);
       }),
 
     getRubric: (classId) =>

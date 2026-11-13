@@ -3,7 +3,9 @@ import type {
   Assessment,
   AuthEvent,
   CriterionScore,
+  QuizQuestion,
   Rubric,
+  Unit,
   SessionGoal,
   Consent,
   ConsentKind,
@@ -116,6 +118,16 @@ export interface Api {
 
   // 교사
   getDashboard(classId: string): Promise<Dashboard>;
+
+  // 단원·문제 관리 (교사)
+  listUnits(classId: string): Promise<Unit[]>;
+  listUnitQuestions(unitId: string): Promise<QuizQuestion[]>;
+  /** 성취기준을 근거로 DRAFT 문제 3개 생성. 근거가 없으면 VALIDATION */
+  draftQuestionsWithAi(unitId: string): Promise<QuizQuestion[]>;
+  /** id가 빈 문자열이면 새로 만든다 */
+  saveQuestion(q: QuizQuestion): Promise<QuizQuestion>;
+  setQuestionStatus(id: string, status: "DRAFT" | "APPROVED"): Promise<QuizQuestion>;
+  deleteQuestion(id: string): Promise<void>;
 
   // 교차채점 (AI 제안 → 교사 확정)
   getRubric(classId: string): Promise<Rubric>;
