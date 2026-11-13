@@ -6,7 +6,6 @@ import type {
   AiMessage,
   AuthEvent,
   Consent,
-  Feedback,
   LearningEntry,
   LearningSession,
   GrowthReport,
@@ -17,7 +16,7 @@ import type {
   Student,
   User,
 } from "../types/domain";
-import { buildAnalyticsRaw, chunk, consentRows, fetchAllPages, isShared, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
+import { buildAnalyticsRaw, chunk, rowToAuditLog, rowToFeedback, consentRows, fetchAllPages, isShared, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
 
 const POLICY_VERSION = "2026-11-v1";
 import { ApiError, type Api } from "./types";
@@ -117,7 +116,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     logout: async () => {
       meCache = null;
-      await sb.auth.signOut();
+      // local: 같은 데모 계정으로 다른 곳(백엔드 테스트 등)에 로그인한 세션은 끊지 않는다 (기본값 global)
+      await sb.auth.signOut({ scope: "local" });
     },
     me: async () => {
       const { data } = await sb.auth.getSession();
@@ -244,14 +244,25 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     listFeedback: async (sessionId) => {
       const rows = ok(await sb.from("v_feedback").select().eq("sessionId", sessionId).order("createdAt")) as Row[];
-      return rows.map((r): Feedback => ({ id: String(r.id), sessionId: String(r.sessionId), teacherId: String(r.teacherId), content: String(r.content), createdAt: String(r.createdAt) }));
+      return rows.map(rowToFeedback);
     },
     addFeedback: async (sessionId, content) => {
       const u = await requireMe();
       const id = crypto.randomUUID();
       const text = content.trim();
       ok(await sb.from("feedback").insert({ id, session_id: sessionId, teacher_id: u.id, content: text }));
-      return { id, sessionId, teacherId: u.id, content: text, createdAt: new Date().toISOString() };
+      return { id, sessionId, teacherId: u.id, content: text, createdAt: new Date().toISOString(), readAt: null };
+    },
+    markFeedbackRead: async (feedbackId) => {
+      // 학생 본인 것만, read_at만 바뀜(서버 RLS). 이미 읽은 것은 다시 쓰지 않음
+      ok(await sb.from("feedback").update({ read_at: new Date().toISOString() }).eq("id", feedbackId).is("read_at", null));
+    },
+    logStudentView: async (studentId) => {
+      ok(await sb.rpc("log_student_view", { p_student_id: studentId }));
+    },
+    listAuditLogs: async () => {
+      const rows = ok(await sb.from("v_audit_logs").select().order("createdAt", { ascending: false }).limit(50)) as Row[];
+      return rows.map(rowToAuditLog);
     },
 
     // ---------- 교사 ----------

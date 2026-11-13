@@ -2,7 +2,6 @@
 import { byNewest, seoulDaysStart } from "./dates";
 import type { Feedback, LearningSession, QuizAttempt } from "../types/domain";
 
-const WEEK = 7 * 86400000;
 
 /** 최근 7일(오늘 포함 서울 날짜, 대시보드와 같은 정의) 안에 시작한 학습 횟수·시간 (진행 중은 0분) */
 export function summarizeWeek(sessions: LearningSession[], now: Date): { count: number; minutes: number } {
@@ -20,10 +19,8 @@ export function latestAttempt(attempts: Array<QuizAttempt | null | undefined>): 
   return scored.sort(byNewest)[0] ?? null;
 }
 
-/** 최근 7일 선생님 피드백 개수와 가장 최근 한 개 */
-export function recentFeedback(feedback: Feedback[], now: Date): { count: number; latest: Feedback | null } {
-  const recent = feedback
-    .filter((f) => now.getTime() - new Date(f.createdAt).getTime() < WEEK)
-    .sort(byNewest);
-  return { count: recent.length, latest: recent[0] ?? null };
+/** 안 읽은 피드백 개수와 가장 최근 한 개 */
+export function unreadFeedback(feedback: Feedback[]): { count: number; latest: Feedback | null } {
+  const unread = feedback.filter((f) => !f.readAt).sort(byNewest);
+  return { count: unread.length, latest: unread[0] ?? null };
 }

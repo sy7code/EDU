@@ -24,6 +24,7 @@ export function MyRecordsPage() {
     queries: fbSessions.map((s) => ({ queryKey: ["feedback", s.id], queryFn: () => api.listFeedback(s.id), staleTime: 60_000 })),
   });
   const hasFeedback = new Set(fbSessions.filter((_, i) => (fbQueries[i]?.data?.length ?? 0) > 0).map((s) => s.id));
+  const hasUnread = new Set(fbSessions.filter((_, i) => fbQueries[i]?.data?.some((f) => !f.readAt)).map((s) => s.id));
   const choose = (id: string) => {
     setParams({ session: id });
     // 좁은 화면에서는 목록 아래에 상세가 있어 골라도 반응이 없어 보이므로 상세로 내려간다
@@ -60,7 +61,7 @@ export function MyRecordsPage() {
                     {s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}
                     {hasFeedback.has(s.id) && (
                       <span className="ml-1">
-                        <Badge tone="brand">선생님 피드백</Badge>
+                        <Badge tone={hasUnread.has(s.id) ? "brand" : "stone"}>{hasUnread.has(s.id) ? "새 피드백" : "피드백"}</Badge>
                       </span>
                     )}
                   </p>

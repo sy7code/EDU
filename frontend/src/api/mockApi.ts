@@ -159,7 +159,7 @@ export function createMockApi(opts: MockOptions): Api {
     return sharedWithTeacher(s.studentId) ? publicEntries(s.id) : [];
   }
   function audit(action: string, targetStudentId: string | null) {
-    db.auditLogs.push({ actorId: me().id, action, targetStudentId, at: iso() });
+    db.auditLogs.push({ id: id("audit"), actorId: me().id, action, targetStudentId, at: iso() });
   }
 
   // ---------- 인증 이벤트 ----------
@@ -562,7 +562,6 @@ export function createMockApi(opts: MockOptions): Api {
         if (!target) throw new ApiError("VALIDATION");
         if (u.role === "teacher") {
           if (userById(target)?.classId !== u.classId) throw new ApiError("NOT_FOUND");
-          audit("VIEW_STUDENT_DETAIL", target);
         }
         return db.sessions
           .filter((s) => s.studentId === target)
@@ -661,9 +660,33 @@ export function createMockApi(opts: MockOptions): Api {
         visibleSession(sessionId);
         const text = content.trim();
         if (!text || text.length > MAX_ENTRY) throw new ApiError("VALIDATION");
-        const f = { id: id("fb"), sessionId, teacherId: t.id, content: text, createdAt: iso() };
+        const f = { id: id("fb"), sessionId, teacherId: t.id, content: text, createdAt: iso(), readAt: null };
         db.feedback.push(f);
         return f;
+      }),
+
+    markFeedbackRead: (feedbackId) =>
+      run(() => {
+        const u = me();
+        if (u.role !== "student") throw new ApiError("FORBIDDEN");
+        const f = db.feedback.find((x) => x.id === feedbackId);
+        // 남의 피드백은 존재를 숨긴다 (서버는 0건 처리)
+        if (!f || db.sessions.find((s) => s.id === f.sessionId)?.studentId !== u.id) throw new ApiError("NOT_FOUND");
+        if (!f.readAt) f.readAt = iso();
+      }),
+    logStudentView: (studentId) =>
+      run(() => {
+        const t = teacher();
+        if (userById(studentId)?.classId !== t.classId) throw new ApiError("NOT_FOUND");
+        audit("VIEW_STUDENT_DETAIL", studentId);
+      }),
+    listAuditLogs: () =>
+      run(() => {
+        const u = me();
+        return db.auditLogs
+          .filter((l) => l.action === "VIEW_STUDENT_DETAIL" && (u.role === "student" ? l.targetStudentId === u.id : l.actorId === u.id))
+          .map((l, i) => ({ id: l.id ?? `audit-${i}`, actorId: l.actorId, actorName: userById(l.actorId)?.name ?? "", action: l.action, studentId: l.targetStudentId, createdAt: l.at }))
+          .reverse();
       }),
 
     getClassAnalytics: (classId, from, to) =>

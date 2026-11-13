@@ -824,3 +824,43 @@ describe("반 분석 원자료", () => {
   });
 });
 
+describe("피드백 읽음·교사 열람 기록", () => {
+  async function feedbackFor(studentId: string) {
+    await api.login("t1");
+    const ss = await api.listSessions({ studentId });
+    return api.addFeedback(ss[0].id, "잘했어요");
+  }
+
+  it("학생이 자기 피드백을 읽음으로 하면 readAt이 생긴다", async () => {
+    const f = await feedbackFor("s02");
+    expect(f.readAt).toBeNull();
+    await api.login("s02");
+    await api.markFeedbackRead(f.id);
+    expect((await api.listFeedback(f.sessionId)).find((x) => x.id === f.id)?.readAt).not.toBeNull();
+  });
+
+  it("남의 피드백은 읽음으로 할 수 없다", async () => {
+    const f = await feedbackFor("s02");
+    await api.login("s01");
+    await expectCode(api.markFeedbackRead(f.id), "NOT_FOUND");
+    await api.login("t1");
+    await expectCode(api.markFeedbackRead(f.id), "FORBIDDEN");
+  });
+
+  it("교사가 학생 상세를 열면 그 학생의 열람 기록에 남는다", async () => {
+    await api.login("t1");
+    await api.logStudentView("s02");
+    await api.login("s02");
+    const logs = await api.listAuditLogs();
+    expect(logs.length).toBe(1);
+    expect(logs[0]).toMatchObject({ action: "VIEW_STUDENT_DETAIL", actorName: "한담임", studentId: "s02" });
+    await api.login("s01");
+    expect(await api.listAuditLogs()).toEqual([]);
+  });
+
+  it("다른 반 학생 열람 기록은 남길 수 없다", async () => {
+    await api.login("t2");
+    await expectCode(api.logStudentView("s02"), "NOT_FOUND");
+  });
+});
+

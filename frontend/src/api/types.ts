@@ -1,4 +1,5 @@
 import type {
+  AuditLog,
   ClassAnalyticsRaw,
   AiMessage,
   Assessment,
@@ -130,6 +131,12 @@ export interface Api {
   saveReflection(r: Reflection): Promise<Reflection>;
   listFeedback(sessionId: string): Promise<Feedback[]>;
   addFeedback(sessionId: string, content: string): Promise<Feedback>;
+  /** 학생 본인 피드백을 읽음으로 (이미 읽었으면 그대로) */
+  markFeedbackRead(feedbackId: string): Promise<void>;
+  /** 교사가 학생 상세를 열 때 열람 기록 (자기 반만) */
+  logStudentView(studentId: string): Promise<void>;
+  /** 학생: 내 기록 열람 기록 / 교사: 내가 연 기록. 최근 순 */
+  listAuditLogs(): Promise<AuditLog[]>;
 
   // 교사
   getDashboard(classId: string): Promise<Dashboard>;

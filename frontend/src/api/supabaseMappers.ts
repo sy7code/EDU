@@ -1,6 +1,6 @@
 // 프론트 형식 ↔ 백엔드(Supabase) 형식 변환. 순수 함수만 둔다.
 import { GOAL_ACTIVITIES, REFLECTION_ITEMS } from "../lib/checklists";
-import type { ClassAnalyticsRaw, Consent, ConsentKind, LearningSession, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion, User } from "../types/domain";
+import type { AuditLog, ClassAnalyticsRaw, Feedback, Consent, ConsentKind, LearningSession, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion, User } from "../types/domain";
 import { ApiError, type ApiErrorCode } from "./types";
 
 const SEP = " | ";
@@ -276,4 +276,21 @@ export async function fetchAllPages<T>(page: (from: number, to: number) => Promi
     out.push(...rows);
     if (rows.length < pageSize) return out;
   }
+}
+
+/** v_feedback 행 → Feedback */
+export function rowToFeedback(r: Record<string, unknown>): Feedback {
+  return { id: String(r.id), sessionId: String(r.sessionId), teacherId: String(r.teacherId), content: String(r.content), createdAt: String(r.createdAt), readAt: typeof r.readAt === "string" ? r.readAt : null };
+}
+
+/** v_audit_logs 행 → AuditLog */
+export function rowToAuditLog(r: Record<string, unknown>): AuditLog {
+  return {
+    id: String(r.id),
+    actorId: String(r.actorId ?? ""),
+    actorName: String(r.actorName ?? ""),
+    action: String(r.action ?? ""),
+    studentId: r.studentId == null ? null : String(r.studentId),
+    createdAt: String(r.createdAt ?? ""),
+  };
 }

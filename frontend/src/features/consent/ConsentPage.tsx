@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { api, FEATURES } from "../../api";
 import { useConsents, useMe } from "../../auth/session";
 import { Button, Card, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import type { ConsentKind } from "../../types/domain";
+import { formatDateTime } from "../../lib/time";
 
 const ITEMS: Array<{ kind: ConsentKind; title: string; body: string; ifNo: string }> = [
   {
@@ -106,6 +107,29 @@ export function ConsentPage() {
       <Button className="mt-5 w-full" disabled={!allDecided || (needGuardian && anyGranted && !guardian) || save.isPending} onClick={() => save.mutate()}>
         저장하고 시작하기
       </Button>
+      {FEATURES.audit && consents.data && consents.data.length > 0 && <ViewLog />}
     </div>
+  );
+}
+
+/** 누가 언제 내 기록을 열어 봤는지 (교사 열람 기록) */
+function ViewLog() {
+  const logs = useQuery({ queryKey: ["audit-logs"], queryFn: () => api.listAuditLogs() });
+  return (
+    <Card className="mt-8">
+      <h2 className="font-semibold">내 기록을 본 사람</h2>
+      <p className="text-xs text-stone-500">선생님이 내 학습 기록을 열면 여기에 남아요 (최근 10개)</p>
+      {logs.isLoading && <Spinner />}
+      {logs.error && <ErrorState error={logs.error} onRetry={() => logs.refetch()} />}
+      {logs.data?.length === 0 && <p className="mt-2 text-sm text-stone-500">아직 없어요</p>}
+      <ul className="mt-2 divide-y divide-stone-100 text-sm">
+        {logs.data?.slice(0, 10).map((l) => (
+          <li key={l.id} className="flex justify-between gap-2 py-2">
+            <span>{l.actorName || "선생님"} 선생님이 내 기록을 봤어요</span>
+            <span className="text-xs text-stone-500">{formatDateTime(l.createdAt)}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

@@ -32,6 +32,13 @@ export function StudentDetailPage() {
   const go = (next: Record<string, string>) =>
     setParams({ tab, ...(params.get("session") ? { session: params.get("session")! } : {}), ...(fromAnalytics ? { from: "analytics" } : {}), ...next });
   const detailRef = useRef<HTMLDivElement>(null);
+  // 학생 상세를 열면 열람 기록을 남긴다 (학생이 '동의 설정'에서 볼 수 있음). 같은 학생은 한 번만
+  const logged = useRef<string | null>(null);
+  useEffect(() => {
+    if (!FEATURES.audit || logged.current === studentId) return;
+    logged.current = studentId;
+    api.logStudentView(studentId).catch(() => undefined);
+  }, [studentId]);
   const chooseSession = (id: string) => {
     go({ session: id });
     // 좁은 화면에서는 목록 아래에 상세가 있어 골라도 반응이 없어 보이므로 상세로 내려간다

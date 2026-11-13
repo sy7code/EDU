@@ -1,4 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMe } from "../../auth/session";
 import { api, FEATURES } from "../../api";
 import { Badge, Card, ErrorState, METHOD_LABEL, Spinner } from "../../components/ui";
 import { goalLabel, reflectionLabel, UNDERSTANDING_LABELS } from "../../lib/checklists";
@@ -18,6 +20,20 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
   const ai = useQuery({ queryKey: ["ai", session.id], queryFn: () => api.listAiMessages(session.id) });
   const refl = useQuery({ queryKey: ["reflection", session.id], queryFn: () => api.getReflection(session.id) });
   const fb = useQuery({ queryKey: ["feedback", session.id], queryFn: () => api.listFeedback(session.id) });
+  const me = useMe();
+  const qc = useQueryClient();
+  // 학생이 이 기록을 열면 안 읽은 피드백을 읽음으로. 이번에 처음 본 것은 '새' 표시를 남겨 둔다
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+  useEffect(() => setNewIds(new Set()), [session.id]);
+  useEffect(() => {
+    if (me.data?.role !== "student" || !fb.data) return;
+    const unread = fb.data.filter((f) => !f.readAt);
+    if (unread.length === 0) return;
+    setNewIds((prev) => new Set([...prev, ...unread.map((f) => f.id)]));
+    Promise.all(unread.map((f) => api.markFeedbackRead(f.id)))
+      .then(() => qc.invalidateQueries({ queryKey: ["feedback", session.id] }))
+      .catch(() => undefined); // 읽음 기록 실패는 화면을 막지 않는다 (다음에 열 때 다시 시도)
+  }, [fb.data, me.data?.role, session.id, qc]);
   const quiz = useQuery({
     queryKey: ["quiz-attempt", session.id],
     queryFn: () => api.getQuizAttempt(session.id),
@@ -131,6 +147,7 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
         <ul className="mt-2 space-y-2">
           {fb.data?.map((f) => (
             <li key={f.id} className="rounded-lg bg-brand-50 p-3 text-sm">
+              {newIds.has(f.id) && <Badge tone="brand">새 피드백</Badge>}
               <p className="whitespace-pre-wrap">{f.content}</p>
               <p className="mt-1 text-xs text-stone-500">{formatDateTime(f.createdAt)}</p>
             </li>

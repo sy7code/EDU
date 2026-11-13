@@ -5,7 +5,7 @@ import { useMe } from "../../auth/session";
 import { Badge, ButtonLink, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import { activityLabel, goalLabel } from "../../lib/checklists";
 import { elapsedLabel, formatDateTime, formatDuration } from "../../lib/time";
-import { latestAttempt, recentFeedback, summarizeWeek } from "../../lib/studentHome";
+import { latestAttempt, summarizeWeek, unreadFeedback } from "../../lib/studentHome";
 import { FEATURES } from "../../api";
 
 export function StudentHome() {
@@ -37,7 +37,7 @@ export function StudentHome() {
   const week = summarizeWeek(sessions.data ?? [], new Date());
   const lastQuiz = latestAttempt(quizQueries.map((q) => q.data));
   const lastQuizName = growth.data?.topics.find((t) => t.topicId === lastQuiz?.topicId)?.name;
-  const fb = recentFeedback(fbQueries.flatMap((q) => q.data ?? []), new Date());
+  const fb = unreadFeedback(fbQueries.flatMap((q) => q.data ?? []));
 
   return (
     <div>
@@ -111,7 +111,7 @@ export function StudentHome() {
             <Link to={`/student/records?session=${fb.latest.sessionId}`} className="block">
               <Card className="h-full border-brand-500 hover:bg-brand-50">
                 <p className="text-xs text-stone-500">
-                  선생님 피드백 <Badge tone="brand">최근 7일 {fb.count}개</Badge>
+                  선생님 피드백 <Badge tone="brand">새 피드백 {fb.count}개</Badge>
                 </p>
                 <p className="mt-2 line-clamp-2 text-sm">{fb.latest.content}</p>
                 <p className="mt-1 text-xs text-brand-700">기록에서 보기 →</p>
@@ -120,7 +120,7 @@ export function StudentHome() {
           ) : (
             <Card>
               <p className="text-xs text-stone-500">선생님 피드백</p>
-              <p className="mt-1 text-sm text-stone-600">최근 학습 5개에 최근 7일 새 피드백이 없어요</p>
+              <p className="mt-1 text-sm text-stone-600">최근 학습 5개에 새 피드백이 없어요</p>
             </Card>
           )}
         </div>

@@ -32,7 +32,7 @@ export type Db = {
   feedback: Feedback[];
   rubrics: Rubric[];
   assessments: Assessment[];
-  auditLogs: Array<{ actorId: string; action: string; targetStudentId: string | null; at: string }>;
+  auditLogs: Array<{ id?: string; actorId: string; action: string; targetStudentId: string | null; at: string }>;
   /** 반 단위 주제별 문항 풀 (정답 포함 → 학생에게 직접 노출 금지) */
   topicQuestions: TopicQuestion[];
   quizReports: QuizReport[];

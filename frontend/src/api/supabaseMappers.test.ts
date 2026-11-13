@@ -17,6 +17,8 @@ import {
   isShared,
   chunk,
   fetchAllPages,
+  rowToFeedback,
+  rowToAuditLog,
 } from "./supabaseMappers";
 
 describe("목표 ↔ 텍스트", () => {
@@ -251,6 +253,18 @@ describe("반 분석 최종 리뷰 수정", () => {
     }, 1000);
     expect(got.length).toBe(2500);
     expect(calls).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
+  });
+});
+
+describe("피드백 읽음·열람 기록 변환", () => {
+  it("v_feedback의 readAt을 읽고 없으면 null", () => {
+    expect(rowToFeedback({ id: "f", sessionId: "s", teacherId: "t", content: "c", createdAt: "x", readAt: "2026-11-14T00:00:00Z" }).readAt).toBe("2026-11-14T00:00:00Z");
+    expect(rowToFeedback({ id: "f", sessionId: "s", teacherId: "t", content: "c", createdAt: "x", readAt: null }).readAt).toBeNull();
+  });
+  it("v_audit_logs 행을 그대로 옮긴다", () => {
+    expect(rowToAuditLog({ id: "a", actorId: "t", actorName: "김교사", action: "VIEW_STUDENT_DETAIL", studentId: "s", createdAt: "x" })).toEqual({
+      id: "a", actorId: "t", actorName: "김교사", action: "VIEW_STUDENT_DETAIL", studentId: "s", createdAt: "x",
+    });
   });
 });
 
