@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, FEATURES } from "../../api";
@@ -28,7 +28,17 @@ export function StudentDetailPage() {
   const qCount = useQuestionCountBySession(studentId);
   // ?session= 만 붙은 예전 링크는 학습 기록 탭으로, 잘못된 tab 값은 요약 탭으로
   const tab = studentDetailTab(params.get("tab"), params.get("session"));
-  const go = (next: Record<string, string>) => setParams({ tab, ...(params.get("session") ? { session: params.get("session")! } : {}), ...next });
+  const fromAnalytics = params.get("from") === "analytics";
+  const go = (next: Record<string, string>) =>
+    setParams({ tab, ...(params.get("session") ? { session: params.get("session")! } : {}), ...(fromAnalytics ? { from: "analytics" } : {}), ...next });
+  const detailRef = useRef<HTMLDivElement>(null);
+  const chooseSession = (id: string) => {
+    go({ session: id });
+    // 좁은 화면에서는 목록 아래에 상세가 있어 골라도 반응이 없어 보이므로 상세로 내려간다
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  };
   const selectedId = params.get("session") ?? sessions.data?.[0]?.id;
   const selected = sessions.data?.find((s) => s.id === selectedId);
 
@@ -39,8 +49,8 @@ export function StudentDetailPage() {
 
   return (
     <div>
-      <Link to="/teacher" className="text-sm text-stone-500 hover:underline">
-        ← 반 대시보드
+      <Link to={fromAnalytics ? "/teacher/analytics" : "/teacher"} className="text-sm text-stone-500 hover:underline">
+        ← {fromAnalytics ? "반 분석" : "반 대시보드"}
       </Link>
       <PageTitle sub={`학생이 '교사 공개'로 남긴 기록만 보여요${FEATURES.audit ? " · 열람 기록이 남아요" : ""}`}>
         {dash.data ? `${dash.data.number}번 ${dash.data.name}` : "학생 기록"}
@@ -77,11 +87,13 @@ export function StudentDetailPage() {
           {sessions.data?.length === 0 && <EmptyState title="학습 기록이 없어요">먼저 학생과 학습 계획을 이야기해 보세요.</EmptyState>}
           {sessions.data && sessions.data.length > 0 && (
             <div className="grid gap-5 md:grid-cols-[200px_1fr] lg:grid-cols-[240px_1fr]">
-              <ul className="space-y-1.5 md:sticky md:top-4 md:max-h-[80vh] md:overflow-y-auto">
+              <div className="md:sticky md:top-4">
+              <p className="mb-1.5 text-[11px] text-stone-400">AI 질문 수는 최근 4주 학습에만 표시돼요</p>
+              <ul className="space-y-1.5 md:max-h-[78vh] md:overflow-y-auto">
                 {sessions.data.map((s) => (
                   <li key={s.id}>
                     <button
-                      onClick={() => go({ session: s.id })}
+                      onClick={() => chooseSession(s.id)}
                       className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
                         s.id === selectedId ? "border-brand-500 bg-brand-50" : "border-stone-200 bg-white hover:bg-stone-50"
                       }`}
@@ -96,8 +108,9 @@ export function StudentDetailPage() {
                   </li>
                 ))}
               </ul>
+              </div>
               {selected && (
-                <div className="min-w-0 space-y-4">
+                <div ref={detailRef} className="min-w-0 scroll-mt-4 space-y-4">
                   <FeedbackForm sessionId={selected.id} />
                   <SessionDetail session={selected} highlight={highlight} />
                   {FEATURES.assessment && <AssessmentPanel session={selected} onEvidence={setHighlight} />}

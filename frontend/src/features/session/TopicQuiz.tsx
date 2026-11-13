@@ -231,6 +231,7 @@ export function QuizResult({ attempt, onNext, collapsed = false }: { attempt: Qu
           <summary className="cursor-pointer font-semibold">
             {title} <span className="text-xs font-normal text-stone-500">· 문항 보기</span>
           </summary>
+          <p className="mt-2 text-xs text-stone-500">틀린 문제는 해설을 보고 다음 학습 때 다시 살펴봐요. {QUIZ_NOTICE}</p>
           {list}
         </details>
       ) : (

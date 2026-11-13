@@ -3,6 +3,7 @@ import { Badge, Card, ErrorState, Spinner } from "../../components/ui";
 import { goalLabel } from "../../lib/checklists";
 import { classifyQuestion, QUESTION_TYPE_LABEL } from "../../lib/questionType";
 import { formatDateTime } from "../../lib/time";
+import { byNewest } from "../../lib/dates";
 import { countText, minutesText, pct, TypeBar, useClassAnalytics } from "./AnalyticsPage";
 
 const PAGE = 20;
@@ -62,7 +63,7 @@ export function QuestionList({ studentId }: { studentId: string }) {
   if (!st) return null;
   if (!st.shared) return <Card><p className="text-sm text-stone-500">기록 공유에 동의하지 않아 질문은 보이지 않아요.</p></Card>;
   const goalOf = new Map(raw.sessions.map((s) => [s.id, goalLabel(s.goal)]));
-  const questions = raw.questions.filter((x) => x.studentId === studentId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const questions = raw.questions.filter((x) => x.studentId === studentId).sort(byNewest);
   return (
     <Card>
       <h2 className="font-semibold">AI에 한 질문 (최근 4주 {questions.length}개, 최근 순)</h2>

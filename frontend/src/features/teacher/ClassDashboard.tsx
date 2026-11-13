@@ -6,7 +6,8 @@ import { useMe } from "../../auth/session";
 import { Badge, Button, Card, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import { formatDateTime, formatDuration } from "../../lib/time";
 import { paginate } from "../../lib/paginate";
-import { Pager, SearchBox } from "../../components/Pager";
+import { Pager } from "../../components/Pager";
+import { SearchBox } from "../../components/SearchBox";
 import { matchStudent } from "../../lib/studentSearch";
 
 export function ClassDashboard() {
@@ -93,7 +94,7 @@ export function ClassDashboard() {
               <th className="px-4 py-2.5">시간</th>
               <th className="hidden px-4 py-2.5 md:table-cell">남은 질문</th>
               {FEATURES.dashboardQuizRate && <th className="px-4 py-2.5">최근 테스트</th>}
-              <th className="hidden px-4 py-2.5 md:table-cell">최근</th>
+              <th className="px-4 py-2.5">최근</th>
               <th className="px-4 py-2.5">상태</th>
               {FEATURES.manualAuth && <th className="px-4 py-2.5" />}
             </tr>
@@ -115,7 +116,7 @@ export function ClassDashboard() {
                     {r.lastQuizRate === null ? "-" : `${Math.round(r.lastQuizRate * 100)}%`}
                   </td>
                 )}
-                <td className="hidden px-4 py-2.5 text-xs text-stone-500 md:table-cell">{r.lastSessionAt ? formatDateTime(r.lastSessionAt) : "-"}</td>
+                <td className="px-4 py-2.5 text-xs text-stone-500">{r.lastSessionAt ? formatDateTime(r.lastSessionAt) : "-"}</td>
                 <td className="space-x-1 px-4 py-2.5">
                   {r.activeNow && <Badge tone="brand">학습 중</Badge>}
                   {r.needsAttention && (
@@ -142,7 +143,11 @@ export function ClassDashboard() {
             ))}
           </tbody>
         </table>
-        {shown.length === 0 && <p className="px-4 py-6 text-center text-sm text-stone-500">조건에 맞는 학생이 없어요</p>}
+        {shown.length === 0 && (
+          <p className="px-4 py-6 text-center text-sm text-stone-500">
+            {rows.length === 0 ? "반 학생이 없어요" : query.trim() ? "검색 결과가 없어요" : "이 조건에 맞는 학생이 없어요"}
+          </p>
+        )}
       </Card>
       <Pager page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
       <p className={`mt-2 text-xs text-stone-400 ${FEATURES.manualAuth ? "" : "hidden"}`}>

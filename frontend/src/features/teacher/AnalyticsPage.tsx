@@ -7,8 +7,10 @@ import { Badge, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../c
 import { summarizeClass, type Distribution } from "../../lib/analytics";
 import { QUESTION_TYPE_LABEL, type QuestionType } from "../../lib/questionType";
 import { formatDuration } from "../../lib/time";
+import { seoulDaysStart } from "../../lib/dates";
 import { paginate } from "../../lib/paginate";
-import { Pager, SearchBox } from "../../components/Pager";
+import { Pager } from "../../components/Pager";
+import { SearchBox } from "../../components/SearchBox";
 import { matchStudent } from "../../lib/studentSearch";
 
 export type AnalyticsRange = "7d" | "4w";
@@ -31,8 +33,9 @@ export function useClassAnalytics(range: AnalyticsRange) {
     // 학생 상세를 오갈 때마다 반 전체를 다시 부르지 않게 5분 동안 재사용
     staleTime: 5 * 60_000,
     queryFn: async () => {
+      // 대시보드와 같은 정의: 오늘을 포함한 서울 날짜 7일/28일
       const to = new Date();
-      const from = new Date(to.getTime() - RANGE_DAYS[range] * 86400000);
+      const from = seoulDaysStart(to, RANGE_DAYS[range]);
       const raw = await api.getClassAnalytics(classId!, from, to);
       return { raw, summary: summarizeClass(raw) };
     },
@@ -114,12 +117,11 @@ export function AnalyticsPage() {
   return (
     <div>
       <PageTitle sub="반 전체의 공부 방식과 분포를 보는 화면이에요. 순위가 아니라 대화를 시작할 단서로 써 주세요.">반 분석</PageTitle>
-      <div className="mb-4 flex gap-2" role="radiogroup" aria-label="기간">
+      <div className="mb-4 flex gap-2" role="group" aria-label="기간">
         {(["7d", "4w"] as const).map((r) => (
           <button
             key={r}
-            role="radio"
-            aria-checked={range === r}
+            aria-pressed={range === r}
             onClick={() => {
               setRange(r);
               setPage(1);
@@ -133,7 +135,7 @@ export function AnalyticsPage() {
 
       {q.isLoading && <Spinner label="반 기록을 모으는 중" />}
       {q.error && <ErrorState error={q.error} onRetry={() => q.refetch()} />}
-      {q.data && q.data.raw.sessions.length === 0 && <EmptyState title="이 기간에 학습 기록이 없어요">기간을 늘려 보세요.</EmptyState>}
+      {q.data && q.data.raw.sessions.length === 0 && <EmptyState title="이 기간에 학습 기록이 없어요">{range === "7d" ? "최근 4주로 바꿔 보세요." : "학생들이 학습을 마치면 여기에 모여요."}</EmptyState>}
       {q.data && q.data.raw.sessions.length > 0 && (
         <div className="space-y-4">
           {q.data.summary.excludedCount > 0 && (
@@ -202,12 +204,12 @@ export function AnalyticsPage() {
                 {paged.items.map((s) => (
                   <tr
                     key={s.studentId}
-                    onClick={() => nav(`/teacher/students/${s.studentId}`)}
+                    onClick={() => nav(`/teacher/students/${s.studentId}?from=analytics`)}
                     className="cursor-pointer border-b border-stone-100 last:border-0 hover:bg-stone-50"
                   >
                     <td className="px-4 py-2.5 text-stone-500">{s.number}</td>
                     <td className="px-4 py-2.5 font-medium">
-                      <Link to={`/teacher/students/${s.studentId}`} className="hover:text-brand-700 hover:underline" onClick={(e) => e.stopPropagation()}>
+                      <Link to={`/teacher/students/${s.studentId}?from=analytics`} className="hover:text-brand-700 hover:underline" onClick={(e) => e.stopPropagation()}>
                         {s.name}
                       </Link>
                     </td>
@@ -221,15 +223,18 @@ export function AnalyticsPage() {
                         </td>
                       </>
                     ) : (
-                      <td className="px-4 py-2.5 text-stone-400" colSpan={3}>
-                        기록 비공개
-                      </td>
+                      <>
+                        <td className="px-4 py-2.5 text-stone-400" colSpan={2}>
+                          기록 비공개
+                        </td>
+                        <td className="hidden px-4 py-2.5 md:table-cell" />
+                      </>
                     )}
                   </tr>
                 ))}
               </tbody>
             </table>
-            {found.length === 0 && <p className="px-4 py-6 text-center text-sm text-stone-500">조건에 맞는 학생이 없어요</p>}
+            {found.length === 0 && <p className="px-4 py-6 text-center text-sm text-stone-500">{query.trim() ? "검색 결과가 없어요" : "반 학생이 없어요"}</p>}
           </Card>
           <Pager page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
         </div>
