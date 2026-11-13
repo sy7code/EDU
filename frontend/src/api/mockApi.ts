@@ -15,7 +15,9 @@ import type {
   GroundedItem,
   LearningEntry,
   LearningSession,
+  QuizAttempt,
   QuizQuestion,
+  StudentQuizQuestion,
   User,
 } from "../types/domain";
 import type { Db } from "./mockData";
@@ -34,6 +36,7 @@ export const SESSION_USER_KEY = "growth-pace-mock-user";
 const AUTH_EVENT_TTL_MS = 120_000;
 const QR_TTL_MS = 60_000;
 const CODE_PER_MINUTE = 20;
+const QUIZ_MAX = 5;
 const MAX_ENTRY = 2000;
 const MAX_AI_INPUT = 1000;
 const AI_PER_MINUTE = 10;
@@ -299,6 +302,20 @@ export function createMockApi(opts: MockOptions): Api {
     ];
   }
 
+  /** 학생 본인 + ENDED + 단원 있는 세션의 출제 문항. 승인 문제만, 세션 ID 기반으로 섞어 최대 5개 (새로고침해도 같음) */
+  function quizFor(sessionId: string) {
+    const u = me();
+    const s = visibleSession(sessionId);
+    if (u.role !== "student" || s.studentId !== u.id) throw new ApiError("FORBIDDEN");
+    const unit = s.goal.unitId ? db.units.find((x) => x.id === s.goal.unitId) : undefined;
+    if (s.status !== "ENDED" || !unit) throw new ApiError("QUIZ_NOT_AVAILABLE");
+    const questions = db.questions
+      .filter((x) => x.unitId === unit.id && x.status === "APPROVED")
+      .sort((a, b) => hash(sessionId + a.id) - hash(sessionId + b.id))
+      .slice(0, QUIZ_MAX);
+    return { s, unit, questions };
+  }
+
   function studentView(a: Assessment): Assessment {
     // 학생은 교사 확정본만 본다
     return a.teacher ? { ...a, ai: null } : { ...a, ai: null, teacher: null };
@@ -439,6 +456,11 @@ export function createMockApi(opts: MockOptions): Api {
         const u = me();
         if (u.role !== "student") throw new ApiError("FORBIDDEN");
         if (!goal.subject || goal.activities.length === 0) throw new ApiError("VALIDATION");
+        if (goal.unitId) {
+          const unit = db.units.find((x) => x.id === goal.unitId);
+          // 자기 반 + 같은 과목 단원만
+          if (!unit || unit.classId !== u.classId || unit.subject !== goal.subject) throw new ApiError("VALIDATION");
+        }
         if (db.sessions.some((s) => s.studentId === u.id && s.status === "ACTIVE")) {
           throw new ApiError("SESSION_ALREADY_ACTIVE");
         }
@@ -447,7 +469,12 @@ export function createMockApi(opts: MockOptions): Api {
         const s: LearningSession = {
           id: id("sess"),
           studentId: u.id,
-          goal: { subject: goal.subject, activities: [...goal.activities], note: goal.note?.trim() || undefined },
+          goal: {
+            subject: goal.subject,
+            activities: [...goal.activities],
+            note: goal.note?.trim() || undefined,
+            unitId: goal.unitId || undefined,
+          },
           startedAt: ev.verifiedAt,
           endedAt: null,
           startAuth: ev.method,
@@ -688,6 +715,45 @@ export function createMockApi(opts: MockOptions): Api {
         audit("QUESTION_DELETE", null);
       }),
 
+    // ---------- 단원 테스트 ----------
+    getQuiz: (sessionId) =>
+      run(() => {
+        const { unit, questions } = quizFor(sessionId);
+        // 정답·해설·근거는 내려주지 않는다 (채점은 서버)
+        const safe: StudentQuizQuestion[] = questions.map((x) => ({ id: x.id, type: x.type, prompt: x.prompt, choices: [...x.choices] }));
+        return { unit, questions: safe };
+      }),
+
+    submitQuiz: (sessionId, answers) =>
+      run(() => {
+        const { s, unit, questions } = quizFor(sessionId);
+        if (db.quizAttempts.some((a) => a.sessionId === sessionId)) throw new ApiError("QUIZ_ALREADY_TAKEN");
+        const items = questions.map((x) => {
+          const raw = answers[x.id];
+          const chosen = Number.isInteger(raw) && (raw as number) >= 0 && (raw as number) < x.choices.length ? (raw as number) : null;
+          return { questionId: x.id, prompt: x.prompt, choices: [...x.choices], chosen, answerIndex: x.answerIndex, correct: chosen === x.answerIndex, explanation: x.explanation };
+        });
+        const attempt: QuizAttempt = {
+          id: id("quiz"),
+          sessionId,
+          unitId: unit.id,
+          studentId: s.studentId,
+          correct: items.filter((i) => i.correct).length,
+          total: items.length,
+          createdAt: iso(),
+          items,
+        };
+        db.quizAttempts.push(attempt);
+        return attempt;
+      }),
+
+    getQuizAttempt: (sessionId) =>
+      run(() => {
+        const s = visibleSession(sessionId);
+        if (isTeacherView() && !sharedWithTeacher(s.studentId)) return null;
+        return db.quizAttempts.find((a) => a.sessionId === sessionId) ?? null;
+      }),
+
     getRubric: (classId) =>
       run(() => {
         const u = me();
@@ -749,6 +815,16 @@ export function createMockApi(opts: MockOptions): Api {
   };
 
   return api;
+}
+
+/** 문자열 → 32bit 정수 (FNV-1a). 출제 순서 섞기용, 보안 용도 아님 */
+function hash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
 }
 
 function randomToken(): string {

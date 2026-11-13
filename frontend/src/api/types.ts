@@ -3,8 +3,10 @@ import type {
   Assessment,
   AuthEvent,
   CriterionScore,
+  QuizAttempt,
   QuizQuestion,
   Rubric,
+  StudentQuizQuestion,
   Unit,
   SessionGoal,
   Consent,
@@ -35,6 +37,8 @@ export type ApiErrorCode =
   | "VALIDATION"
   | "RATE_LIMITED"
   | "AI_TIMEOUT"
+  | "QUIZ_ALREADY_TAKEN"
+  | "QUIZ_NOT_AVAILABLE"
   | "UNKNOWN";
 
 export class ApiError extends Error {
@@ -62,6 +66,8 @@ export function errorMessage(err: unknown): string {
     VALIDATION: "입력 내용을 확인해 주세요.",
     RATE_LIMITED: "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.",
     AI_TIMEOUT: "AI 응답이 늦어지고 있어요. 다시 시도해 주세요.",
+    QUIZ_ALREADY_TAKEN: "이번 학습의 단원 테스트는 이미 제출했어요.",
+    QUIZ_NOT_AVAILABLE: "단원을 고르고 학습을 마친 뒤에 테스트를 볼 수 있어요.",
     UNKNOWN: "문제가 생겼어요. 잠시 후 다시 시도해 주세요.",
   };
   return map[code];
@@ -128,6 +134,14 @@ export interface Api {
   saveQuestion(q: QuizQuestion): Promise<QuizQuestion>;
   setQuestionStatus(id: string, status: "DRAFT" | "APPROVED"): Promise<QuizQuestion>;
   deleteQuestion(id: string): Promise<void>;
+
+  // 단원 테스트 (학생)
+  /** 본인 ENDED 세션 + 단원 있음. 승인 문제 최대 5개, 정답·해설 없음 */
+  getQuiz(sessionId: string): Promise<{ unit: Unit; questions: StudentQuizQuestion[] }>;
+  /** 세션당 1회. 채점 결과(정답·해설 포함)를 돌려준다 */
+  submitQuiz(sessionId: string, answers: Record<string, number | null>): Promise<QuizAttempt>;
+  /** 학생 본인 / 교사(기록 공유 동의 시) */
+  getQuizAttempt(sessionId: string): Promise<QuizAttempt | null>;
 
   // 교차채점 (AI 제안 → 교사 확정)
   getRubric(classId: string): Promise<Rubric>;

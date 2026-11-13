@@ -74,6 +74,30 @@ export type QuizQuestion = {
   evidence: string; // 근거 문장 (성취기준·자료)
 };
 
+/** 학생에게 내려가는 문항: 정답·해설 없음 */
+export type StudentQuizQuestion = { id: string; type: "MCQ" | "OX"; prompt: string; choices: string[] };
+
+export type QuizResultItem = {
+  questionId: string;
+  prompt: string;
+  choices: string[];
+  chosen: number | null;
+  answerIndex: number;
+  correct: boolean;
+  explanation: string;
+};
+
+export type QuizAttempt = {
+  id: string;
+  sessionId: string;
+  unitId: string;
+  studentId: string;
+  correct: number;
+  total: number;
+  createdAt: string;
+  items: QuizResultItem[];
+};
+
 export type LearningSession = {
   id: string;
   studentId: string;

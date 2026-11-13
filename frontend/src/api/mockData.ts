@@ -8,6 +8,7 @@ import type {
   Feedback,
   LearningEntry,
   LearningSession,
+  QuizAttempt,
   QuizQuestion,
   Reflection,
   Rubric,
@@ -33,6 +34,7 @@ export type Db = {
   auditLogs: Array<{ actorId: string; action: string; targetStudentId: string | null; at: string }>;
   units: Unit[];
   questions: QuizQuestion[];
+  quizAttempts: QuizAttempt[];
 };
 
 const SURNAMES = ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임"];
@@ -202,5 +204,6 @@ export function createSeed(now: Date): Db {
     auditLogs: [],
     units: structuredClone(SEED_UNITS),
     questions: structuredClone(SEED_QUESTIONS),
+    quizAttempts: [],
   };
 }
