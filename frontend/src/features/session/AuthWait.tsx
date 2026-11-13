@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { api, USE_MOCK } from "../../api";
+import { api, FEATURES, USE_MOCK } from "../../api";
 import { useHasConsent, useMe } from "../../auth/session";
 import { Button, Card, ErrorState, METHOD_LABEL } from "../../components/ui";
 import type { AuthEvent } from "../../types/domain";
@@ -50,31 +50,34 @@ export function AuthWait({ purpose, onAuth }: { purpose: "start" | "end"; onAuth
       </p>
       <p className="mt-1 text-xs text-stone-400">기기를 쓰기 어렵다면 선생님께 확인을 요청할 수 있어요.</p>
 
-      <div className="mt-4">
-        {qr ? (
-          <QrBox token={qr.token} expiresAt={qr.expiresAt} onExpired={clearQr} />
-        ) : (
-          <Button variant="secondary" onClick={() => issueQr.mutate()} disabled={issueQr.isPending}>
-            단말기에 보여줄 QR 만들기
-          </Button>
-        )}
-        {issueQr.error && <div className="mt-2"><ErrorState error={issueQr.error} /></div>}
-      </div>
-
-      {pending.error && <div className="mt-3"><ErrorState error={pending.error} /></div>}
-      {USE_MOCK && (
-        <div className="mt-5 flex flex-wrap justify-center gap-2 border-t border-dashed border-stone-200 pt-4">
-          <span className="w-full text-xs text-stone-400">데모 전용 버튼</span>
-          {faceOk && (
-            <Button variant="secondary" onClick={() => simulate.mutate("face")} disabled={simulate.isPending}>
-              단말기 얼굴 인증 흉내
+      {FEATURES.codeAuth && (
+        <div className="mt-4">
+          {qr ? (
+            <QrBox token={qr.token} expiresAt={qr.expiresAt} onExpired={clearQr} />
+          ) : (
+            <Button variant="secondary" onClick={() => issueQr.mutate()} disabled={issueQr.isPending}>
+              단말기에 보여줄 QR 만들기
             </Button>
           )}
+          {issueQr.error && <div className="mt-2"><ErrorState error={issueQr.error} /></div>}
+        </div>
+      )}
+
+      {pending.error && <div className="mt-3"><ErrorState error={pending.error} /></div>}
+      {/* 데모 인증: mock·실제 백엔드(/dev/facepass/simulate) 모두 지원 */}
+      <div className="mt-5 flex flex-wrap justify-center gap-2 border-t border-dashed border-stone-200 pt-4">
+        <span className="w-full text-xs text-stone-400">데모 전용 버튼{USE_MOCK ? "" : " (실제 단말기 연동 전)"}</span>
+        {faceOk && (
+          <Button variant="secondary" onClick={() => simulate.mutate("face")} disabled={simulate.isPending}>
+            단말기 얼굴 인증 흉내
+          </Button>
+        )}
+        {FEATURES.codeAuth && (
           <Button variant="secondary" onClick={() => simulate.mutate("qr")} disabled={simulate.isPending}>
             단말기 QR 스캔 흉내
           </Button>
-        </div>
-      )}
+        )}
+      </div>
       {simulate.error && <div className="mt-2"><ErrorState error={simulate.error} /></div>}
     </Card>
   );

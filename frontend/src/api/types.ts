@@ -78,6 +78,8 @@ export interface Api {
   // 계정 (데모: 로그인 대신 사용자 선택)
   listDemoUsers(): Promise<User[]>;
   login(userId: string): Promise<User>;
+  /** 실제 백엔드 로그인 (Supabase Auth). mock에선 지원 안 함 */
+  signIn(email: string, password: string): Promise<User>;
   logout(): Promise<void>;
   me(): Promise<User | null>;
 

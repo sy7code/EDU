@@ -100,11 +100,15 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
         {!refl.isLoading && !r && <p className="mt-2 text-sm text-stone-400">아직 돌아보기를 하지 않았어요</p>}
         {r && (
           <div className="mt-2 space-y-2 text-sm">
-            <p>
-              이해도: <strong>{UNDERSTANDING_LABELS[r.understanding]}</strong>
-            </p>
+            {r.understanding ? (
+              <p>
+                이해도: <strong>{UNDERSTANDING_LABELS[r.understanding]}</strong>
+              </p>
+            ) : (
+              r.legacyText && <p className="whitespace-pre-wrap rounded bg-stone-50 p-2">{r.legacyText}</p>
+            )}
             <div className="flex flex-wrap gap-1.5">
-              {r.checks.length === 0 && <span className="text-stone-400">체크한 항목 없음</span>}
+              {r.checks.length === 0 && r.understanding && <span className="text-stone-400">체크한 항목 없음</span>}
               {r.checks.map((c) => (
                 <Badge key={c} tone="brand">✓ {reflectionLabel(c)}</Badge>
               ))}

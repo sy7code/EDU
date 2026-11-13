@@ -163,7 +163,8 @@ export type SessionSummary = {
 export type Reflection = {
   sessionId: string;
   checks: string[];          // 체크한 항목 ID (lib/checklists.ts)
-  understanding: 1 | 2 | 3;  // 1: 아직 어려움, 2: 조금 이해, 3: 설명할 수 있음
+  understanding: 1 | 2 | 3 | null;  // 1: 아직 어려움, 2: 조금 이해, 3: 설명할 수 있음 / null: 예전 주관식 성찰
+  legacyText?: string;       // 백엔드의 예전 주관식 성찰 원문 (체크리스트 형식이 아닐 때)
   remainingQuestions: string[];
   note?: string;
   updatedAt?: string;

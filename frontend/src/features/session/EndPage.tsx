@@ -108,7 +108,7 @@ function Wrapup({ session }: { session: LearningSession }) {
                 <h3 className="mt-4 text-sm font-semibold">남긴 질문 — 아직 궁금한 것을 골라 주세요</h3>
                 <div className="mt-2 space-y-1.5">
                   {summary.data.remainingQuestions.map((q) => (
-                    <CheckChip key={q.evidenceIds[0]} checked={questions.includes(q.text)} onChange={(v) => toggleQ(q.text, v)}>
+                    <CheckChip key={q.text} checked={questions.includes(q.text)} onChange={(v) => toggleQ(q.text, v)}>
                       {q.text}
                     </CheckChip>
                   ))}
@@ -200,8 +200,8 @@ export function GroundedList({ items, empty }: { items: GroundedItem[]; empty: s
   if (items.length === 0) return <p className="mt-2 text-sm text-stone-400">{empty}</p>;
   return (
     <ul className="mt-2 space-y-1 text-sm">
-      {items.map((i) => (
-        <li key={i.evidenceIds.join()} className="flex gap-2">
+      {items.map((i, idx) => (
+        <li key={`${idx}-${i.text}`} className="flex gap-2">
           <span className="text-brand-600">•</span>
           <span>{i.text}</span>
         </li>

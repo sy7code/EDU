@@ -1,11 +1,63 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useNavigate } from "react-router";
-import { api } from "../../api";
+import { api, USE_MOCK } from "../../api";
 import { useMe } from "../../auth/session";
 import { Button, ButtonLink, Card, ErrorState, PageTitle, Spinner } from "../../components/ui";
 
-// 데모용 로그인: 실제 서비스에서는 Supabase Auth(학교 계정)로 바뀐다.
+/** 실제 백엔드 모드: 이메일·비밀번호 로그인 (Supabase Auth). 비밀번호는 사용자가 직접 입력 */
+function RealLogin() {
+  const qc = useQueryClient();
+  const nav = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const login = useMutation({
+    mutationFn: () => api.signIn(email, password),
+    onSuccess: async (u) => {
+      setPassword("");
+      qc.clear();
+      await qc.invalidateQueries();
+      nav(u.role === "teacher" ? "/teacher" : "/student");
+    },
+  });
+  return (
+    <div className="mx-auto max-w-sm">
+      <PageTitle sub="학교 계정으로 로그인하세요">성장 페이스</PageTitle>
+      <Card>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            login.mutate();
+          }}
+          className="space-y-3"
+        >
+          <div>
+            <label htmlFor="email" className="text-sm font-semibold">이메일</label>
+            <input id="email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label htmlFor="password" className="text-sm font-semibold">비밀번호</label>
+            <input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm" />
+          </div>
+          {login.error && <p className="text-sm text-red-700" role="alert">이메일이나 비밀번호를 확인해 주세요.</p>}
+          <Button type="submit" className="w-full" disabled={!email || !password || login.isPending}>
+            {login.isPending ? "로그인 중…" : "로그인"}
+          </Button>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+// 데모용 로그인: 실제 백엔드 모드에서는 RealLogin
 export function LoginPage() {
+  const me = useMe();
+  if (me.data) return <Navigate to={me.data.role === "teacher" ? "/teacher" : "/student"} replace />;
+  if (!USE_MOCK) return me.isLoading ? <Spinner /> : <RealLogin />;
+  return <DemoLogin />;
+}
+
+function DemoLogin() {
   const me = useMe();
   const qc = useQueryClient();
   const nav = useNavigate();

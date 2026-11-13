@@ -376,6 +376,11 @@ export function createMockApi(opts: MockOptions): Api {
         return u;
       }),
 
+    signIn: () =>
+      run(() => {
+        throw new ApiError("FORBIDDEN", "데모 모드에서는 계정을 골라 들어가요");
+      }),
+
     logout: () =>
       run(() => {
         currentUserId = null;

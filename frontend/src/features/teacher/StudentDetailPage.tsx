@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router";
-import { api } from "../../api";
+import { api, FEATURES } from "../../api";
 import { Button, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import { activityLabel } from "../../lib/checklists";
 import { formatDateTime, formatDuration } from "../../lib/time";
@@ -36,7 +36,7 @@ export function StudentDetailPage() {
       <PageTitle sub="학생이 '교사 공개'로 남긴 기록만 보여요 · 열람 기록이 남아요">
         {dash.data ? `${dash.data.number}번 ${dash.data.name}` : "학생 기록"}
       </PageTitle>
-      <StudentOverviewBoard studentId={studentId} />
+      {FEATURES.quiz && <StudentOverviewBoard studentId={studentId} />}
       {sessions.isLoading && <Spinner />}
       {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
       {sessions.data?.length === 0 && <EmptyState title="학습 기록이 없어요">먼저 학생과 학습 계획을 이야기해 보세요.</EmptyState>}
@@ -63,7 +63,7 @@ export function StudentDetailPage() {
             <>
               <SessionDetail session={selected} highlight={highlight} />
               <div className="space-y-4">
-                <AssessmentPanel session={selected} onEvidence={setHighlight} />
+                {FEATURES.assessment && <AssessmentPanel session={selected} onEvidence={setHighlight} />}
                 <FeedbackForm sessionId={selected.id} />
               </div>
             </>

@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router";
 import { useLogout, useMe } from "../auth/session";
-import { resetMockData, USE_MOCK } from "../api";
+import { FEATURES, resetMockData, USE_MOCK } from "../api";
 
 export function AppLayout() {
   const { data: me } = useMe();
@@ -11,13 +11,13 @@ export function AppLayout() {
     me?.role === "teacher"
       ? [
           { to: "/teacher", label: "반 대시보드" },
-          { to: "/teacher/units", label: "단원 문제" },
+          ...(FEATURES.quiz ? [{ to: "/teacher/units", label: "단원 문제" }] : []),
         ]
       : me?.role === "student"
         ? [
             { to: "/student", label: "홈" },
             { to: "/student/records", label: "내 기록" },
-            { to: "/student/consent", label: "동의 설정" },
+            ...(FEATURES.consent ? [{ to: "/student/consent", label: "동의 설정" }] : []),
           ]
         : [];
 
