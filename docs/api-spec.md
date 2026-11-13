@@ -1,9 +1,67 @@
 # 성장 페이스 — API 명세 (프론트 ↔ 백엔드)
 
-> 작성: 프론트 담당 / v0.3 (2026-11-13)
+> 작성: 프론트 담당 / v0.4 (2026-11-14)
 > 프론트는 이 명세대로 mock을 먼저 만들어 개발합니다. 이름·구조를 바꾸고 싶으면 **구현 전에** 말해 주세요.
 > 프론트 타입 원본: `frontend/src/types/domain.ts`, 함수 목록: `frontend/src/api/types.ts`
 > 규칙 검증 테스트: `frontend/src/api/mockApi.test.ts` — **백엔드도 같은 시나리오로 확인해 주세요.**
+
+---
+
+## v0.4 단원 테스트 + 교사 종합 보드 (추가)
+
+설계: `docs/01-mvp.md`. 문제는 **AI 초안 → 교사 승인**만 출제. 채점은 서버.
+
+### 엔드포인트
+
+| Method | Path | 권한 | 설명 |
+|---|---|---|---|
+| GET | `/classes/:classId/units` | 학생·교사(자기 반) | 단원 목록 |
+| GET | `/units/:unitId/questions` | 교사(자기 반) | 문제 전체 (정답 포함) — 학생 `403` |
+| POST | `/units/:unitId/questions/ai-draft` | 교사 | 성취기준 근거로 DRAFT 3개. `standard` 비면 `400 VALIDATION` |
+| POST / PUT | `/questions` · `/questions/:id` | 교사 | 저장. 검증: OX는 `["O","X"]`, MCQ 2~5개, 정답 인덱스 범위, 문제 ≤300자, 해설 ≤500자 |
+| PATCH | `/questions/:id/status` | 교사 | `{ status: "DRAFT" \| "APPROVED" }` |
+| DELETE | `/questions/:id` | 교사 | 삭제 (audit) |
+| GET | `/sessions/:id/quiz` | 학생 본인 | **ENDED + 단원 있음**만, 승인 문제 최대 5개, **정답·해설·근거 제외**. 아니면 `409 QUIZ_NOT_AVAILABLE` |
+| POST | `/sessions/:id/quiz` | 학생 본인 | `{ answers: { [questionId]: number \| null } }` → 채점 결과(정답·해설 포함). 세션당 1회, 두 번째 `409 QUIZ_ALREADY_TAKEN` |
+| GET | `/sessions/:id/quiz` (결과) | 학생 본인·교사 | 교사는 **기록 공유 동의 없으면 null** |
+| GET | `/students/:id/overview` | 교사(자기 반) | 종합 보드 (아래) |
+
+### 규칙
+- 학습 시작 `goal.unitId`는 **자기 반 + 같은 과목** 단원만, 아니면 `400 VALIDATION`
+- 출제 순서는 세션마다 고정(새로고침해도 같음), 제출 채점은 **같은 출제 집합**으로
+- 미선택(`null`)·범위 밖 답은 오답
+- 종합 보드 신호: 그 단원 최근 세션 이해도 `=== 3` && 최근 정답률 `< 0.6` → `OVERCONFIDENT`, 그 외 `< 0.4` → `LOW_SCORE`
+- 기록 공유 동의 없으면 종합 보드는 `sessions`·`minutes`만, 나머지 `null`. 대시보드 `lastQuizRate`도 `null`
+- 화면 고정 문구: "테스트는 공부 확인용이에요. 성적에 들어가지 않아요."
+
+```sql
+create table units (
+  id text primary key, class_id uuid references classes(id),
+  subject text not null, "order" int not null, title text not null,
+  standard text not null default '', material text
+);
+create table quiz_questions (
+  id uuid primary key default gen_random_uuid(),
+  unit_id text not null references units(id) on delete cascade,
+  type text not null check (type in ('MCQ','OX')),
+  prompt text not null check (char_length(prompt) <= 300),
+  choices text[] not null, answer_index int not null,
+  explanation text not null default '' check (char_length(explanation) <= 500),
+  source text not null check (source in ('AI','TEACHER')),
+  status text not null default 'DRAFT' check (status in ('DRAFT','APPROVED')),
+  evidence text not null default ''
+);
+create table quiz_attempts (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null unique references sessions(id) on delete cascade,  -- 세션당 1회
+  unit_id text not null references units(id),
+  student_id uuid not null references users(id),
+  correct int not null, total int not null,
+  items jsonb not null, created_at timestamptz not null default now()
+);
+alter table sessions add column goal_unit_id text references units(id);
+-- RLS: quiz_questions 는 학생 SELECT 금지 (출제는 서버 함수가 정답 제외해 반환)
+```
 
 ---
 
