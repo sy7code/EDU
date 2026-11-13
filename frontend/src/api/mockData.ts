@@ -10,6 +10,8 @@ import type {
   LearningSession,
   QuizAttempt,
   QuizReportReason,
+  QuizAiReview,
+  QuizReportOutcome,
   Reflection,
   Rubric,
   SessionTopic,
@@ -64,7 +66,8 @@ export type QuizReport = {
   studentId: string;
   classId: string;
   reason: QuizReportReason;
-  status: "OPEN" | "KEEP_EXCLUDED" | "DISMISSED";
+  status: "OPEN" | "KEEP_EXCLUDED" | "DISMISSED" | "AI_CLEARED";
+  aiReview: QuizAiReview | null;
   createdAt: string;
 };
 
@@ -77,6 +80,8 @@ export type ServedQuestion = {
   explanation: string;
   reported: boolean;
   excluded?: boolean;
+  /** 이 출제에서 학생이 이미 신고했다면 그 결과 (같은 문항 재신고는 이 값을 그대로 돌려줌) */
+  reportOutcome?: QuizReportOutcome;
 };
 
 const SURNAMES = ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임"];

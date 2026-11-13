@@ -238,3 +238,14 @@
   margin: 2px 0 0;
   font-size: 13px;
 }
+
+/* 신고된 문제: 학생별 신고 수 */
+.report-counts {
+  padding: 22px;
+  margin-top: 18px;
+  overflow-x: auto;
+}
+.report-counts p {
+  color: var(--muted);
+  font-size: 13px;
+}

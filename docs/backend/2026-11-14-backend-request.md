@@ -298,3 +298,29 @@ grant select on v_topics, v_session_topics, v_quiz_attempts to authenticated;
 | 6-2 | 조회 기간(`p_from`~`p_to`) 안 세션의 돌아보기만 센다 | 최근 7일 안 세션만 |
 | 6-3 | 내용이 빈 돌아보기(체크·남은 질문 없음)도 센다 | 센다 (돌아보기 행이 있으면) |
 | 6-4 | 세션에 피드백이 하나라도 있으면 그 세션은 제외 | 제외 |
+
+---
+
+## 7. 추가 요청 (내 정리 탭 · 신고 AI 1차 검토, 2026-11-14)
+
+### 7-1. [확인] 학생 '내 정리' 조회
+프론트 `listMyNotes()`는 학생 본인 세션 ID를 100개씩 나눠 `v_entries`·`v_reflections`를 `.in("sessionId", ids)`로 읽는다(페이지 정렬 `sessionId`, `id`/`updatedAt`).
+- 학생 본인에게는 `PRIVATE` 기록도 `v_entries`에서 보여야 함 (RLS 확인 부탁)
+- `v_reflections`에 `updatedAt` 컬럼이 있어야 함 (정렬용)
+
+### 7-2. [새 기능] 신고 AI 1차 검토 — `POST /sessions/:id/quiz/report`
+사용자 결정: **같은 문항 기준**으로 첫 신고는 AI가 검토하고, 같은 문항이 다시 신고되면 교사에게. AI가 걸러 낸 신고도 학생별 신고 수에 센다.
+
+| 경우 | 처리 | 응답 `review` |
+|---|---|---|
+| 같은 반에서 이 문항의 첫 신고 | LLM에 **문항만**(문제·선택지·정답·해설·신고 이유) 보내 검토. 학생 기록·이름은 보내지 않음 | AI 판단에 따라 |
+| ↳ AI: 문제 없음 | 신고 행 `status='AI_CLEARED'`, `ai_review` 저장. **그 학생 채점에 포함**(스냅샷 `reported=false`) | `AI_OK` |
+| ↳ AI: 오류 | 신고 행 `status='OPEN'`, `ai_review` 저장, 채점 제외 | `AI_ERROR` |
+| 같은 문항의 두 번째 신고부터 | AI 호출 없이 `status='OPEN'`, 채점 제외 | `TO_TEACHER` |
+| 같은 학생이 같은 출제 문항을 다시 신고 | 새 행 만들지 않고 앞 결과 그대로 | 앞 결과 |
+
+- 응답: `{ review: "AI_OK" | "AI_ERROR" | "TO_TEACHER", message?: string }`. `review`가 없으면 프론트는 `TO_TEACHER`로 본다(지금 동작).
+- AI 검토 출력 검증: `{ verdict: "OK" | "ERROR", reason: string(≤200자) }`. 형식이 틀리거나 시간 초과면 **`TO_TEACHER`로 처리**(교사 판단으로 넘김, 학생에게 오류를 보이지 않음).
+- `class_reported_questions` 행에 추가: `aiReview: { verdict, reason } | null`(재신고 행엔 그 문항 첫 신고의 검토), `questionReportCount`(같은 반 같은 문항 신고 수, AI_CLEARED 포함), `status`에 `AI_CLEARED`. `studentReportCount`는 AI_CLEARED 포함.
+- 남용: AI 호출은 문항당 한 번이라 비용이 커지지 않음. 학생별 호출 제한은 기존 원자적 제한에 포함 부탁.
+- 프론트 mock 테스트(`mockApi.test.ts` "신고 AI 1차 검토")와 같은 시나리오로 확인 부탁.

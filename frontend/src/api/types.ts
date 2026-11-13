@@ -11,6 +11,7 @@ import type {
   StudentQuizQuestion,
   GrowthReport,
   QuizReportReason,
+  QuizReportOutcome,
   ReportedQuestion,
   SessionGoal,
   Consent,
@@ -152,8 +153,8 @@ export interface Api {
   // 주제 테스트 (학생)
   /** 본인 ENDED 세션 + 이번 세션에서 추출된 주제만. 고정 5문항(개념 3 + 적용 2), 정답·해설 없음. 출제 스냅샷 */
   getQuiz(sessionId: string, topicId: string): Promise<{ topic: { id: string; name: string }; questions: StudentQuizQuestion[] }>;
-  /** 제출 전에만. 신고한 문항은 채점에서 제외되고 교사에게 모인다 */
-  reportQuestion(sessionId: string, questionId: string, reason: QuizReportReason): Promise<void>;
+  /** 제출 전에만. 같은 문항의 첫 신고는 AI가 검토(문제 없으면 채점 포함), 다시 신고되면 채점 제외·교사에게. 같은 출제 문항 재신고는 앞 결과 그대로 */
+  reportQuestion(sessionId: string, questionId: string, reason: QuizReportReason): Promise<QuizReportOutcome>;
   /** 세션당 1회. 채점 결과(정답·해설 포함)를 돌려준다 */
   submitQuiz(sessionId: string, answers: Record<string, number | null>): Promise<QuizAttempt>;
   /** 학생 본인 / 교사(기록 공유 동의 시) */

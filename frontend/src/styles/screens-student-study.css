@@ -126,3 +126,13 @@ ul.timeline { list-style: none; margin-top: 0; margin-bottom: 0; }
   .question { padding: 16px; }
   .reflection-add { flex-wrap: wrap; }
 }
+
+/* 신고 처리 결과 안내 (AI 1차 검토) */
+.report-outcome {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--blue-bg);
+  color: var(--ink);
+  font-size: 13px;
+}

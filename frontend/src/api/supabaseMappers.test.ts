@@ -19,6 +19,8 @@ import {
   fetchAllPages,
   rowToFeedback,
   rowToAuditLog,
+  toReportOutcome,
+  normalizeReportedQuestion,
 } from "./supabaseMappers";
 
 describe("목표 ↔ 텍스트", () => {
@@ -277,3 +279,19 @@ describe("피드백 읽음·열람 기록 변환", () => {
   });
 });
 
+
+describe("신고 결과 변환", () => {
+  it("백엔드가 review를 주면 그대로, 없거나 모르는 값이면 교사에게 간 것으로", () => {
+    expect(toReportOutcome({ review: "AI_OK", message: "괜찮아요" })).toEqual({ review: "AI_OK", message: "괜찮아요" });
+    expect(toReportOutcome({ review: "AI_ERROR" }).review).toBe("AI_ERROR");
+    expect(toReportOutcome({ ok: true })).toMatchObject({ review: "TO_TEACHER" });
+    expect(toReportOutcome({ review: "HACK" }).review).toBe("TO_TEACHER");
+    expect(toReportOutcome(null).message).not.toBe("");
+  });
+
+  it("신고 목록 행에 새 필드가 없으면 aiReview null, 문항 신고 수 1", () => {
+    const row = { reportId: "r", topicName: "t", prompt: "p", choices: ["a"], answerIndex: 0, explanation: "e", reason: "UNCLEAR" as const, status: "OPEN" as const, studentNumber: 1, studentReportCount: 1, createdAt: "c" };
+    expect(normalizeReportedQuestion(row as never)).toMatchObject({ aiReview: null, questionReportCount: 1 });
+    expect(normalizeReportedQuestion({ ...row, aiReview: { verdict: "OK", reason: "x" }, questionReportCount: 3 })).toMatchObject({ aiReview: { verdict: "OK" }, questionReportCount: 3 });
+  });
+});

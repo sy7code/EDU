@@ -40,6 +40,8 @@ beforeEach(() => {
     latencyMs: 0,
     storage: null,
     onAiPayload: (p) => aiPayloads.push(p),
+    // 기존 테스트는 '신고 = 채점 제외·교사에게'를 전제로 하므로 AI 1차 검토가 오류로 보는 쪽을 기본으로 둔다
+    reviewQuestion: () => ({ verdict: "ERROR", reason: "테스트 기본" }),
   });
 });
 
@@ -748,6 +750,78 @@ describe("미룬 항목 수정", () => {
     advance(60_000);
     return { s, topic, quiz };
   }
+
+  describe("신고 AI 1차 검토", () => {
+    let reviews: number;
+    const withReviewer = (verdict: "OK" | "ERROR") => {
+      reviews = 0;
+      api = createMockApi({
+        seed: createSeed(clock),
+        now: () => clock,
+        latencyMs: 0,
+        storage: null,
+        reviewQuestion: () => {
+          reviews += 1;
+          return { verdict, reason: verdict === "OK" ? "정답과 해설이 맞아요" : "정답 번호가 해설과 달라요" };
+        },
+      });
+    };
+    const teacherRows = async () => {
+      await api.login("t1");
+      return api.listReportedQuestions("c1");
+    };
+
+    it("첫 신고를 AI가 문제 없다고 보면 채점에 포함하고, 교사 목록엔 AI_CLEARED로만 남는다", async () => {
+      withReviewer("OK");
+      const { s, quiz } = await topicQuiz("s07", "꼭짓점");
+      const out = await api.reportQuestion(s.id, quiz.questions[0].id, "WRONG_ANSWER");
+      expect(out.review).toBe("AI_OK");
+      expect(out.message).not.toBe("");
+      expect((await api.submitQuiz(s.id, {})).total).toBe(5);
+      const rows = await teacherRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ status: "AI_CLEARED", aiReview: { verdict: "OK" }, questionReportCount: 1, studentReportCount: 1 });
+    });
+
+    it("AI가 오류로 보면 채점에서 빼고 교사 확인 목록에 올린다", async () => {
+      withReviewer("ERROR");
+      const { s, quiz } = await topicQuiz("s07", "꼭짓점");
+      expect((await api.reportQuestion(s.id, quiz.questions[0].id, "WRONG_ANSWER")).review).toBe("AI_ERROR");
+      expect((await api.submitQuiz(s.id, {})).total).toBe(4);
+      expect((await teacherRows())[0]).toMatchObject({ status: "OPEN", aiReview: { verdict: "ERROR" } });
+    });
+
+    it("같은 문항이 다시 신고되면 AI를 거치지 않고 교사에게, 앞선 AI 검토와 신고 수를 함께 보인다", async () => {
+      withReviewer("OK");
+      const a = await topicQuiz("s01", "꼭짓점");
+      const b = await topicQuiz("s02", "꼭짓점");
+      const common = a.quiz.questions.find((q) => b.quiz.questions.some((x) => x.id === q.id));
+      expect(common).toBeDefined();
+      await api.login("s01");
+      expect((await api.reportQuestion(a.s.id, common!.id, "UNCLEAR")).review).toBe("AI_OK");
+      await api.login("s02");
+      expect((await api.reportQuestion(b.s.id, common!.id, "UNCLEAR")).review).toBe("TO_TEACHER");
+      expect(reviews).toBe(1);
+      expect((await api.submitQuiz(b.s.id, {})).total).toBe(4);
+      const rows = await teacherRows();
+      const open = rows.find((r) => r.status === "OPEN")!;
+      expect(open).toMatchObject({ aiReview: { verdict: "OK" }, questionReportCount: 2 });
+      expect(rows.filter((r) => r.status === "AI_CLEARED")).toHaveLength(1);
+    });
+
+    it("같은 학생이 같은 문항을 다시 신고하면 같은 결과를 돌려주고 한 번으로 센다", async () => {
+      withReviewer("OK");
+      const { s, quiz } = await topicQuiz("s07", "꼭짓점");
+      const first = await api.reportQuestion(s.id, quiz.questions[0].id, "UNCLEAR");
+      const again = await api.reportQuestion(s.id, quiz.questions[0].id, "WRONG_ANSWER");
+      expect(again).toEqual(first);
+      expect(reviews).toBe(1);
+      await api.reportQuestion(s.id, quiz.questions[1].id, "UNCLEAR");
+      const rows = await teacherRows();
+      expect(rows).toHaveLength(2);
+      expect(rows.every((r) => r.studentReportCount === 2)).toBe(true);
+    });
+  });
 
   it("새로 불러와도 신고한 문항은 신고 상태로 나온다", async () => {
     const { s, topic, quiz } = await topicQuiz("s01", "꼭짓점");

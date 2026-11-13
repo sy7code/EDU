@@ -21,6 +21,9 @@ import type {
   StudentQuizQuestion,
   TopicGrowth,
   User,
+  QuizAiReview,
+  QuizReportOutcome,
+  QuizReportReason,
 } from "../types/domain";
 import type { Db, ServedQuestion } from "./mockData";
 import { keywordHits, TOPIC_DICTIONARY, type DictionaryTopic } from "./mockTopicData";
@@ -32,6 +35,8 @@ export type MockOptions = {
   latencyMs?: number;
   storage?: Storage | null;
   onAiPayload?: (payload: string) => void;
+  /** 신고 문항 AI 1차 검토 (mock AI). 기본은 정답 번호·해설·선택지 형식 검사 */
+  reviewQuestion?: (q: { prompt: string; choices: string[]; answerIndex: number; explanation: string }, reason: QuizReportReason) => QuizAiReview;
 };
 
 export const STORAGE_KEY = "growth-pace-mock-db-v6"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
@@ -49,7 +54,16 @@ const MAX_AI_INPUT = 1000;
 const AI_PER_MINUTE = 10;
 const POLICY_VERSION = "2026-11-v1";
 
+/** 기본 mock AI 검토: 형식 오류(정답 번호 범위·빈 해설·같은 선택지)만 오류로 본다 */
+function defaultReview(q: { choices: string[]; answerIndex: number; explanation: string }): QuizAiReview {
+  if (!Number.isInteger(q.answerIndex) || q.answerIndex < 0 || q.answerIndex >= q.choices.length) return { verdict: "ERROR", reason: "정답 번호가 선택지 범위를 벗어나요" };
+  if (!q.explanation.trim()) return { verdict: "ERROR", reason: "해설이 비어 있어요" };
+  if (new Set(q.choices).size !== q.choices.length) return { verdict: "ERROR", reason: "같은 선택지가 두 번 있어요" };
+  return { verdict: "OK", reason: "정답과 해설이 서로 맞고 선택지에 문제가 없어 보여요" };
+}
+
 export function createMockApi(opts: MockOptions): Api {
+  const reviewQuestion = opts.reviewQuestion ?? defaultReview;
   const now = opts.now ?? (() => new Date());
   const latency = opts.latencyMs ?? 250;
   const storage = opts.storage === undefined ? safeStorage() : opts.storage;
@@ -821,9 +835,31 @@ export function createMockApi(opts: MockOptions): Api {
         const q = serve?.questions.find((x) => x.id === questionId);
         if (!serve || !q) throw new ApiError("NOT_FOUND");
         if (!["WRONG_ANSWER", "UNCLEAR", "UNRELATED"].includes(reason)) throw new ApiError("VALIDATION");
-        if (q.reported) return;
-        q.reported = true;
-        db.quizReports.push({ id: id("report"), sessionId, questionId, studentId: s.studentId, classId: me().classId, reason, status: "OPEN", createdAt: iso() });
+        // 같은 출제 문항을 다시 신고하면 앞 결과 그대로 (한 번으로 센다)
+        if (q.reportOutcome) return q.reportOutcome;
+        const classId = me().classId;
+        const base = { id: id("report"), sessionId, questionId, studentId: s.studentId, classId, reason, createdAt: iso() };
+        const prior = db.quizReports.some((r) => r.classId === classId && r.questionId === questionId);
+        let outcome: QuizReportOutcome;
+        if (!prior) {
+          // 문항의 첫 신고: AI가 문항(문제·선택지·정답·해설)만 보고 검토. 학생 기록은 보내지 않는다
+          const pool = db.topicQuestions.find((x) => x.id === questionId)!;
+          const review = reviewQuestion({ prompt: pool.prompt, choices: pool.choices, answerIndex: pool.answerIndex, explanation: pool.explanation }, reason);
+          if (review.verdict === "OK") {
+            db.quizReports.push({ ...base, status: "AI_CLEARED", aiReview: review });
+            outcome = { review: "AI_OK", message: "AI가 확인해 보니 문항에 오류가 없어 보여요. 이 문제는 채점에 들어가요. 다른 친구도 같은 문제를 신고하면 선생님이 직접 확인해요." };
+          } else {
+            q.reported = true;
+            db.quizReports.push({ ...base, status: "OPEN", aiReview: review });
+            outcome = { review: "AI_ERROR", message: "AI도 문항에 문제가 있다고 봤어요. 이 문제는 채점에서 빼고 선생님께 알렸어요." };
+          }
+        } else {
+          q.reported = true;
+          db.quizReports.push({ ...base, status: "OPEN", aiReview: null });
+          outcome = { review: "TO_TEACHER", message: "다른 친구도 신고한 문제라 선생님께 바로 보냈어요. 이 문제는 채점에서 빠져요." };
+        }
+        q.reportOutcome = outcome;
+        return outcome;
       }),
 
     submitQuiz: (sessionId, answers) =>
@@ -927,6 +963,9 @@ export function createMockApi(opts: MockOptions): Api {
               explanation: q.explanation,
               reason: r.reason,
               status: r.status,
+              // 재신고 행에는 그 문항의 첫 AI 검토를 보여 준다
+              aiReview: r.aiReview ?? reports.find((x) => x.questionId === r.questionId && x.aiReview)?.aiReview ?? null,
+              questionReportCount: reports.filter((x) => x.questionId === r.questionId).length,
               // 기록 공유 미동의 학생은 누가 어떤 주제를 공부했는지 드러나지 않게 익명
               studentNumber: sharedWithTeacher(r.studentId) ? (userById(r.studentId)?.number ?? 0) : null,
               studentReportCount: sharedWithTeacher(r.studentId) ? reports.filter((x) => x.studentId === r.studentId).length : null,

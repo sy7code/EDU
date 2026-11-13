@@ -61,6 +61,11 @@ export type StudentQuizQuestion = { id: string; type: "MCQ" | "OX"; prompt: stri
 
 export type QuizReportReason = "WRONG_ANSWER" | "UNCLEAR" | "UNRELATED";
 
+/** AI의 문항 1차 검토 결과 */
+export type QuizAiReview = { verdict: "OK" | "ERROR"; reason: string };
+/** 신고 처리 결과. AI_OK: 문제 없어 채점에 포함 / AI_ERROR: 오류라 채점 제외·교사에게 / TO_TEACHER: 같은 문항 재신고라 채점 제외·교사에게 */
+export type QuizReportOutcome = { review: "AI_OK" | "AI_ERROR" | "TO_TEACHER"; message: string };
+
 export type QuizResultItem = {
   questionId: string;
   prompt: string;
@@ -99,7 +104,12 @@ export type ReportedQuestion = {
   answerIndex: number;
   explanation: string;
   reason: QuizReportReason;
-  status: "OPEN" | "KEEP_EXCLUDED" | "DISMISSED";
+  /** AI_CLEARED: 문항의 첫 신고를 AI가 검토해 문제 없다고 봄 (교사 확인 목록엔 안 뜨고 신고 수에만 셈) */
+  status: "OPEN" | "KEEP_EXCLUDED" | "DISMISSED" | "AI_CLEARED";
+  /** 이 문항의 첫 신고에 대한 AI 검토 (없으면 null: 백엔드 미반영 등) */
+  aiReview: QuizAiReview | null;
+  /** 같은 반에서 이 문항이 신고된 횟수 (AI가 걸러 낸 신고 포함) */
+  questionReportCount: number;
   studentNumber: number | null; // 기록 공유 미동의 학생이면 null (익명)
   studentReportCount: number | null; // 이 학생의 전체 신고 수 (남발 판단용), 미동의면 null
   createdAt: string;

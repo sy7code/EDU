@@ -16,7 +16,7 @@ import type {
   Student,
   User,
 } from "../types/domain";
-import { buildAnalyticsRaw, chunk, rowToAuditLog, rowToFeedback, consentRows, fetchAllPages, isShared, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
+import { buildAnalyticsRaw, chunk, normalizeReportedQuestion, toReportOutcome, rowToAuditLog, rowToFeedback, consentRows, fetchAllPages, isShared, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
 
 const POLICY_VERSION = "2026-11-v1";
 import { ApiError, type Api } from "./types";
@@ -305,9 +305,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const r = await fn<{ topic: { id: string; name: string }; questions: unknown[] }>("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz`, { topicId });
       return { topic: { id: String(r.topic.id), name: String(r.topic.name) }, questions: pickQuizQuestions(r.questions ?? []) };
     },
-    reportQuestion: async (sessionId, questionId, reason) => {
-      await fn("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz/report`, { questionId, reason });
-    },
+    reportQuestion: async (sessionId, questionId, reason) =>
+      toReportOutcome(await fn<unknown>("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz/report`, { questionId, reason })),
     submitQuiz: async (sessionId, answers) => fn<QuizAttempt>("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz/submit`, { answers }),
 
     // 주제별 성장·신고 (명세 v0.5: RPC + 함수)
@@ -318,7 +317,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const total = { sessions: rows.length, minutes: rows.reduce((n, r) => n + ((r.durationMinutes as number) ?? 0), 0) };
       return { studentId, shared: raw?.shared !== false, topics: raw?.shared === false ? [] : (raw?.topics ?? []), total };
     },
-    listReportedQuestions: async (classId) => (ok(await sb.rpc("class_reported_questions", { p_class_id: classId })) as ReportedQuestion[]) ?? [],
+    listReportedQuestions: async (classId) => ((ok(await sb.rpc("class_reported_questions", { p_class_id: classId })) as ReportedQuestion[]) ?? []).map(normalizeReportedQuestion),
     resolveReport: async (reportId, action) => {
       await fn("POST", `/quiz/reports/${encodeURIComponent(reportId)}/resolve`, { action });
     },

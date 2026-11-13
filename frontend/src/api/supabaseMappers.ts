@@ -1,6 +1,6 @@
 // 프론트 형식 ↔ 백엔드(Supabase) 형식 변환. 순수 함수만 둔다.
 import { GOAL_ACTIVITIES, REFLECTION_ITEMS } from "../lib/checklists";
-import type { AuditLog, ClassAnalyticsRaw, Feedback, Consent, ConsentKind, LearningSession, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion, User } from "../types/domain";
+import type { QuizReportOutcome, ReportedQuestion, AuditLog, ClassAnalyticsRaw, Feedback, Consent, ConsentKind, LearningSession, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion, User } from "../types/domain";
 import { ApiError, type ApiErrorCode } from "./types";
 
 const SEP = " | ";
@@ -294,4 +294,19 @@ export function rowToAuditLog(r: Record<string, unknown>): AuditLog {
     studentId: r.studentId == null ? null : String(r.studentId),
     createdAt: String(r.createdAt ?? ""),
   };
+}
+
+/** 신고 응답 → 결과. 백엔드가 review를 아직 안 주면 예전처럼 교사에게 간 것으로 본다 */
+const REPORT_REVIEWS = ["AI_OK", "AI_ERROR", "TO_TEACHER"] as const;
+const TO_TEACHER_MESSAGE = "신고를 선생님께 보냈어요. 이 문제는 채점에서 빠져요.";
+export function toReportOutcome(body: unknown): QuizReportOutcome {
+  const b = (body ?? {}) as { review?: unknown; message?: unknown };
+  const review = REPORT_REVIEWS.find((r) => r === b.review);
+  if (!review) return { review: "TO_TEACHER", message: TO_TEACHER_MESSAGE };
+  return { review, message: typeof b.message === "string" && b.message ? b.message : review === "TO_TEACHER" ? TO_TEACHER_MESSAGE : "" };
+}
+
+/** class_reported_questions 행 → ReportedQuestion. 새 필드가 없으면 기본값 */
+export function normalizeReportedQuestion(r: ReportedQuestion & Partial<Pick<ReportedQuestion, "aiReview" | "questionReportCount">>): ReportedQuestion {
+  return { ...r, aiReview: r.aiReview ?? null, questionReportCount: typeof r.questionReportCount === "number" ? r.questionReportCount : 1 };
 }

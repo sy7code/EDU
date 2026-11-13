@@ -5,9 +5,16 @@ import { api, ApiError } from "../../api";
 import { useHasConsent } from "../../auth/session";
 import { Badge, Button, ErrorState, Spinner } from "../../components/ui";
 import { Icon } from "../../components/Icon";
-import type { QuizAttempt, QuizReportReason, SessionTopic } from "../../types/domain";
+import type { QuizAttempt, QuizReportOutcome, QuizReportReason, SessionTopic } from "../../types/domain";
 
 export const QUIZ_NOTICE = "테스트는 공부 확인용이에요. 성적에 들어가지 않아요.";
+
+/** 백엔드가 안내 문구를 비워 보낼 때 */
+const OUTCOME_FALLBACK: Record<QuizReportOutcome["review"], string> = {
+  AI_OK: "AI가 확인해 보니 문항에 오류가 없어 보여요. 이 문제는 채점에 들어가요.",
+  AI_ERROR: "AI도 문항에 문제가 있다고 봤어요. 채점에서 빼고 선생님께 알렸어요.",
+  TO_TEACHER: "신고를 선생님께 보냈어요. 이 문제는 채점에서 빠져요.",
+};
 
 const REASONS: Array<{ id: QuizReportReason; label: string }> = [
   { id: "WRONG_ANSWER", label: "정답이 이상해요" },
@@ -136,14 +143,15 @@ function SkippableError({ error, onRetry, onSkip, onBack }: { error: unknown; on
 function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; topicId: string; onDone: () => void; onBack: () => void }) {
   const qc = useQueryClient();
   const [answers, setAnswers] = useState<Record<string, number | null>>({});
-  const [reported, setReported] = useState<Record<string, QuizReportReason>>({});
+  const [reported, setReported] = useState<Record<string, QuizReportOutcome>>({});
   const [reporting, setReporting] = useState<string | null>(null);
   const quiz = useQuery({ queryKey: ["quiz", sessionId, topicId], queryFn: () => api.getQuiz(sessionId, topicId), retry: false });
   const report = useMutation({
     mutationFn: (v: { questionId: string; reason: QuizReportReason }) => api.reportQuestion(sessionId, v.questionId, v.reason),
-    onSuccess: (_d, v) => {
-      setReported((r) => ({ ...r, [v.questionId]: v.reason }));
-      setAnswers((a) => ({ ...a, [v.questionId]: null }));
+    onSuccess: (out, v) => {
+      setReported((r) => ({ ...r, [v.questionId]: out }));
+      // AI가 문제 없다고 본 문항은 채점에 들어가므로 고른 답을 그대로 둔다
+      if (out.review !== "AI_OK") setAnswers((a) => ({ ...a, [v.questionId]: null }));
       setReporting(null);
     },
   });
@@ -170,7 +178,7 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
   if (!quiz.data) return <Spinner label="AI가 문제를 준비하는 중이에요 (처음 나오는 주제는 시간이 조금 걸려요)" />;
   const { topic, questions } = quiz.data;
   // 신고 상태는 서버(출제 스냅샷)가 기억 → 새로고침해도 유지
-  const isReportedQ = (q: { id: string; reported?: boolean }) => !!reported[q.id] || !!q.reported;
+  const isReportedQ = (q: { id: string; reported?: boolean }) => (!!reported[q.id] && reported[q.id].review !== "AI_OK") || !!q.reported;
   const active = questions.filter((q) => !isReportedQ(q));
   const answered = active.filter((q) => answers[q.id] !== undefined && answers[q.id] !== null).length;
 
@@ -180,7 +188,7 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
         <div>
           <Badge tone="sky">성적에 들어가지 않아요</Badge>
           <h2>{topic.name} 확인 테스트</h2>
-          <p>모두에게 같은 난이도로 나와요. 이상한 문제는 신고하면 채점에서 빠져요. {QUIZ_NOTICE}</p>
+          <p>모두에게 같은 난이도로 나와요. 이상한 문제는 신고하면 AI가 먼저 확인하고, 오류가 있거나 다른 친구도 신고한 문제는 채점에서 빠져요. {QUIZ_NOTICE}</p>
         </div>
         <strong className="question-count">
           {answered}/{active.length} 선택
@@ -197,6 +205,8 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
                 </Badge>
                 {isReported ? (
                   <Badge tone="amber">신고함 · 채점 제외</Badge>
+                ) : reported[q.id]?.review === "AI_OK" ? (
+                  <Badge tone="sky">AI 확인 · 채점 포함</Badge>
                 ) : (
                   reporting !== q.id && (
                     <button type="button" onClick={() => setReporting(q.id)}>
@@ -206,6 +216,11 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
                 )}
               </div>
               <h3>{q.prompt}</h3>
+              {reported[q.id] && (
+                <p className="report-outcome" role="status">
+                  {reported[q.id].message || OUTCOME_FALLBACK[reported[q.id].review]}
+                </p>
+              )}
               <div className={`answers ${q.type === "OX" ? "ox" : ""}`} role="radiogroup" aria-label={`${i + 1}번 문제`}>
                 {q.choices.map((c, ci) => (
                   <button
