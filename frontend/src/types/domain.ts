@@ -242,3 +242,17 @@ export type FacePassRaw = {
   result: FacePassResultCode;
   message: string;
 };
+
+// ---------- 교사 반 분석 (원자료, 집계는 lib/analytics.ts) ----------
+export type ClassAnalyticsRaw = {
+  classId: string;
+  from: string;
+  to: string;
+  students: Array<{ studentId: string; name: string; number: number; shared: boolean }>;
+  /** 기간 내 반 학생 세션 (기록 공유 여부와 무관) */
+  sessions: LearningSession[];
+  /** 학생이 AI 도우미에 보낸 메시지. 기록 공유 학생만 */
+  questions: Array<{ id: string; sessionId: string; studentId: string; content: string; createdAt: string }>;
+  attempts: Array<{ sessionId: string; studentId: string; topicId: string; correct: number; total: number; createdAt: string }>;
+  sessionTopics: Array<{ sessionId: string; topicId: string; name: string }>;
+};
