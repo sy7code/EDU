@@ -10,6 +10,7 @@ import type {
   LearningEntry,
   LearningSession,
   Reflection,
+  SessionTopic,
   Student,
   User,
 } from "../types/domain";
@@ -241,6 +242,12 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return mapDashboard(raw, new Set(active.map((r) => String(r.studentId))));
     },
     getStudentOverview: async () => notSupported(),
+
+    // ---------- 주제별 성장 (명세 v0.5, 백엔드 반영 전엔 FEATURES.quiz=false 로 숨김) ----------
+    extractTopics: async (sessionId) => {
+      const r = await fn<{ topics?: SessionTopic[] }>("POST", `/sessions/${encodeURIComponent(sessionId)}/topics`);
+      return (r.topics ?? []).map((t) => ({ topicId: String(t.topicId), name: String(t.name), subject: t.subject, evidenceIds: t.evidenceIds ?? [] }));
+    },
 
     // ---------- 백엔드에 없는 기능: 화면에서 숨김. 공통 화면이 부르는 조회는 빈 값 ----------
     listUnits: async () => [],

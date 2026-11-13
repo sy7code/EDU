@@ -6,6 +6,7 @@ import type {
   QuizAttempt,
   QuizQuestion,
   Rubric,
+  SessionTopic,
   StudentOverview,
   StudentQuizQuestion,
   Unit,
@@ -129,6 +130,10 @@ export interface Api {
   getDashboard(classId: string): Promise<Dashboard>;
   /** 학생 종합 보드: 단원별 학습량·테스트·이해도·신호 (교사만, 자기 반) */
   getStudentOverview(studentId: string): Promise<StudentOverview>;
+
+  // 주제 (AI가 기록에서 추출, 반 주제 사전으로 이름 통일)
+  /** 본인 ENDED 세션의 주제 1~3개. 근거 없는 주제는 만들지 않음. 결과는 캐시 */
+  extractTopics(sessionId: string): Promise<SessionTopic[]>;
 
   // 단원·문제 관리 (교사)
   listUnits(classId: string): Promise<Unit[]>;

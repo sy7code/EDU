@@ -597,3 +597,69 @@ describe("최종 리뷰 수정", () => {
     expect(row.signal).toBe("LOW_SCORE");
   });
 });
+
+describe("주제 추출", () => {
+  async function sessionWith(studentId: string, entries: Array<{ content: string; visibility?: "TEACHER" | "PRIVATE" }>, end = true) {
+    await api.login(studentId);
+    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const s = await api.startSession({ goal: { subject: "공부", activities: ["concept"] }, authEventId: ev.id });
+    const ids: string[] = [];
+    for (const e of entries) {
+      ids.push((await api.addEntry({ sessionId: s.id, kind: "MEMO", content: e.content, visibility: e.visibility ?? "TEACHER" })).id);
+    }
+    if (end) {
+      advance(60_000);
+      await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    }
+    return { s, ids };
+  }
+
+  it("기록 키워드로 주제를 뽑고 근거 기록을 붙인다", async () => {
+    const { s, ids } = await sessionWith("s01", [{ content: "완전제곱식으로 바꾸면 꼭짓점이 보인다" }, { content: "점심 먹음" }]);
+    const topics = await api.extractTopics(s.id);
+    expect(topics.map((t) => t.name)).toEqual(["이차함수 꼭짓점"]);
+    expect(topics[0].evidenceIds).toEqual([ids[0]]);
+  });
+
+  it("근거가 없으면 주제를 만들지 않는다", async () => {
+    const { s } = await sessionWith("s01", [{ content: "오늘은 그냥 책을 읽었다" }]);
+    expect(await api.extractTopics(s.id)).toEqual([]);
+  });
+
+  it("PRIVATE 기록은 주제 근거로 쓰지 않는다", async () => {
+    const { s } = await sessionWith("s01", [{ content: "꼭짓점 공부", visibility: "PRIVATE" }]);
+    expect(await api.extractTopics(s.id)).toEqual([]);
+  });
+
+  it("같은 개념은 반 주제 사전의 같은 주제로 묶인다", async () => {
+    const a = await sessionWith("s01", [{ content: "꼭짓점 구하기" }]);
+    const ta = await api.extractTopics(a.s.id);
+    advance(60_000);
+    const b = await sessionWith("s02", [{ content: "완전제곱식 연습" }]);
+    const tb = await api.extractTopics(b.s.id);
+    expect(tb[0].topicId).toBe(ta[0].topicId);
+  });
+
+  it("주제는 최대 3개, 근거가 많은 순서", async () => {
+    const { s } = await sessionWith("s01", [
+      { content: "꼭짓점, 완전제곱식, 이차함수 축의 방정식" },
+      { content: "부등식 부등호" },
+      { content: "관계대명사 who" },
+      { content: "질량 보존" },
+    ]);
+    const topics = await api.extractTopics(s.id);
+    expect(topics.length).toBe(3);
+    expect(topics[0].name).toBe("이차함수 꼭짓점");
+  });
+
+  it("다른 학생 세션의 주제는 뽑을 수 없다", async () => {
+    const { s } = await sessionWith("s01", [{ content: "꼭짓점" }]);
+    await api.login("s02");
+    await expectCode(api.extractTopics(s.id), "NOT_FOUND");
+  });
+
+  it("진행 중인 세션은 주제를 뽑을 수 없다", async () => {
+    const { s } = await sessionWith("s01", [{ content: "꼭짓점" }], false);
+    await expectCode(api.extractTopics(s.id), "SESSION_NOT_ACTIVE");
+  });
+});

@@ -50,6 +50,12 @@ export type SessionGoal = {
   unitId?: string; // 단원 테스트 대상 단원 (선택)
 };
 
+// ---------- 주제 (반 단위 주제 사전) ----------
+export type Topic = { id: string; classId: string; name: string; subject?: string };
+
+/** 이번 세션 기록에서 AI가 찾은 주제. 근거 기록 ID 필수 */
+export type SessionTopic = { topicId: string; name: string; subject?: string; evidenceIds: string[] };
+
 // ---------- 단원 테스트 ----------
 export type Unit = {
   id: string;

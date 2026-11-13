@@ -12,6 +12,8 @@ import type {
   QuizQuestion,
   Reflection,
   Rubric,
+  SessionTopic,
+  Topic,
   Unit,
   User,
 } from "../types/domain";
@@ -37,6 +39,10 @@ export type Db = {
   quizAttempts: QuizAttempt[];
   /** 세션별 출제 스냅샷 (섞인 선택지·맞춘 정답 번호). 채점은 이것으로 */
   quizServes: Record<string, ServedQuestion[]>;
+  /** 반 단위 주제 사전 (key = mock 사전 키, 실서비스에선 LLM이 기존 주제를 고름) */
+  topics: Array<Topic & { key: string }>;
+  /** 세션별 추출 주제 캐시 */
+  sessionTopics: Record<string, SessionTopic[]>;
 };
 
 export type ServedQuestion = {
@@ -244,5 +250,7 @@ export function createSeed(now: Date): Db {
     questions: structuredClone(SEED_QUESTIONS),
     quizAttempts,
     quizServes: {},
+    topics: [],
+    sessionTopics: {},
   };
 }

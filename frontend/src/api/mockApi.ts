@@ -17,11 +17,13 @@ import type {
   LearningSession,
   QuizAttempt,
   QuizQuestion,
+  SessionTopic,
   StudentQuizQuestion,
   UnitOverview,
   User,
 } from "../types/domain";
 import type { Db, ServedQuestion } from "./mockData";
+import { keywordHits, TOPIC_DICTIONARY, type DictionaryTopic } from "./mockTopicData";
 import { ApiError, type Api } from "./types";
 
 export type MockOptions = {
@@ -32,12 +34,13 @@ export type MockOptions = {
   onAiPayload?: (payload: string) => void;
 };
 
-export const STORAGE_KEY = "growth-pace-mock-db-v5"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
+export const STORAGE_KEY = "growth-pace-mock-db-v6"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
 export const SESSION_USER_KEY = "growth-pace-mock-user";
 const AUTH_EVENT_TTL_MS = 120_000;
 const QR_TTL_MS = 60_000;
 const CODE_PER_MINUTE = 20;
 const QUIZ_MAX = 5;
+const TOPICS_MAX = 3;
 const MAX_ENTRY = 2000;
 const MAX_AI_INPUT = 1000;
 const AI_PER_MINUTE = 10;
@@ -273,6 +276,17 @@ export function createMockApi(opts: MockOptions): Api {
             evidenceIds: msgs.map((m) => m.id),
           },
     ];
+  }
+
+  // ---------- 주제 사전 ----------
+  /** 반 주제 사전에서 같은 개념(사전 key)의 주제를 찾고, 없으면 만든다 → 이름이 쪼개지지 않음 */
+  function classTopic(classId: string, dict: DictionaryTopic) {
+    let t = db.topics.find((x) => x.classId === classId && x.key === dict.key);
+    if (!t) {
+      t = { id: id("topic"), classId, key: dict.key, name: dict.name, subject: dict.subject };
+      db.topics.push(t);
+    }
+    return t;
   }
 
   // ---------- 단원·문제 ----------
@@ -701,6 +715,33 @@ export function createMockApi(opts: MockOptions): Api {
           })
           .sort((a, b) => a.number - b.number);
         return { classId, from: from.toISOString(), to: to.toISOString(), students: rows };
+      }),
+
+    // ---------- 주제 추출 (mock AI: 키워드 사전) ----------
+    extractTopics: (sessionId) =>
+      run(() => {
+        const u = me();
+        const s = visibleSession(sessionId);
+        if (u.role !== "student" || s.studentId !== u.id) throw new ApiError("NOT_FOUND");
+        if (s.status !== "ENDED") throw new ApiError("SESSION_NOT_ACTIVE");
+        const cached = db.sessionTopics[sessionId];
+        if (cached) return cached;
+        // 근거: 교사 공개 기록만 (PRIVATE은 AI·교사 모두 보지 않음)
+        const evidence = publicEntries(sessionId).filter((e) => e.content.trim());
+        const found = TOPIC_DICTIONARY.map((dict) => {
+          const ids = evidence.filter((e) => keywordHits(e.content, dict) > 0).map((e) => e.id);
+          const hits = evidence.reduce((n, e) => n + keywordHits(e.content, dict), 0);
+          return { dict, ids, hits };
+        })
+          .filter((x) => x.ids.length > 0) // 근거 없는 주제는 만들지 않음
+          .sort((a, b) => b.hits - a.hits)
+          .slice(0, TOPICS_MAX);
+        const result: SessionTopic[] = found.map(({ dict, ids }) => {
+          const topic = classTopic(u.classId, dict);
+          return { topicId: topic.id, name: topic.name, subject: topic.subject, evidenceIds: ids };
+        });
+        db.sessionTopics[sessionId] = result;
+        return result;
       }),
 
     // ---------- 단원·문제 관리 ----------
