@@ -1,4 +1,5 @@
 import type {
+  ClassAnalyticsRaw,
   AiMessage,
   Assessment,
   AuthEvent,
@@ -132,6 +133,8 @@ export interface Api {
 
   // 교사
   getDashboard(classId: string): Promise<Dashboard>;
+  /** 반 분석 원자료: 기간 내 반 학생 세션·질문·응시·주제. 기록 공유 미동의 학생의 질문·응시·주제는 빠짐 */
+  getClassAnalytics(classId: string, from: Date, to: Date): Promise<ClassAnalyticsRaw>;
 
   // 주제 (AI가 기록에서 추출, 반 주제 사전으로 이름 통일)
   /** 본인 ENDED 세션의 주제 1~3개. 근거 없는 주제는 만들지 않음. 결과는 캐시 */

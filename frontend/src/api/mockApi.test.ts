@@ -779,3 +779,48 @@ describe("미룬 항목 수정", () => {
     await expectCode(api.finalizeAssessment(s.id, []), "SESSION_NOT_ACTIVE");
   });
 });
+
+describe("반 분석 원자료", () => {
+  const FOUR_WEEKS = 28 * 86400000;
+  const range = () => [new Date(clock.getTime() - FOUR_WEEKS), clock] as const;
+
+  it("반 분석: 교사는 자기 반 학생 30명과 시드 질문을 받는다", async () => {
+    await api.login("t1");
+    const r = await api.getClassAnalytics("c1", ...range());
+    expect(r.students.length).toBe(30);
+    expect(r.sessions.length).toBeGreaterThan(0);
+    expect(r.questions.length).toBeGreaterThan(0);
+    expect(r.questions.every((q) => r.sessions.some((s) => s.id === q.sessionId && s.studentId === q.studentId))).toBe(true);
+  });
+
+  it("반 분석: 기간 밖 세션은 빠진다", async () => {
+    await api.login("t1");
+    const r = await api.getClassAnalytics("c1", new Date(clock.getTime() + 86400000), new Date(clock.getTime() + 2 * 86400000));
+    expect(r.sessions).toEqual([]);
+    expect(r.questions).toEqual([]);
+  });
+
+  it("반 분석: 기록 공유 미동의 학생은 shared=false, 질문·응시·주제가 빠진다", async () => {
+    await api.login("s05");
+    await api.saveConsents([
+      { kind: "FACEPASS", granted: true, byGuardian: false },
+      { kind: "AI", granted: true, byGuardian: false },
+      { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
+    ]);
+    await api.login("t1");
+    const r = await api.getClassAnalytics("c1", ...range());
+    expect(r.students.find((s) => s.studentId === "s05")?.shared).toBe(false);
+    expect(r.questions.some((q) => q.studentId === "s05")).toBe(false);
+    expect(r.attempts.some((a) => a.studentId === "s05")).toBe(false);
+    const s05Sessions = new Set(r.sessions.filter((s) => s.studentId === "s05").map((s) => s.id));
+    expect(r.sessionTopics.some((t) => s05Sessions.has(t.sessionId))).toBe(false);
+  });
+
+  it("반 분석: 다른 반 교사는 NOT_FOUND, 학생은 FORBIDDEN", async () => {
+    await api.login("t2");
+    await expectCode(api.getClassAnalytics("c1", ...range()), "NOT_FOUND");
+    await api.login("s01");
+    await expectCode(api.getClassAnalytics("c1", ...range()), "FORBIDDEN");
+  });
+});
+

@@ -261,6 +261,37 @@ export function createSeed(now: Date): Db {
     },
   ];
 
+  // 반 분석 데모: AI 도우미 질문 (별도 난수라 기존 시드 값은 그대로). AI 미동의 학생(s04)은 질문 없음
+  const aiMessages: AiMessage[] = [];
+  const ar = rng(8642);
+  const QUESTION_BANK: Record<"CONCEPT" | "CHECK" | "ANSWER" | "OTHER", string[]> = {
+    CONCEPT: ["왜 꼭짓점의 x좌표가 -b/2a 이야?", "완전제곱식이 뭐야?", "이 공식은 어떻게 나온 거야?", "관계대명사 who랑 which 차이가 뭐야?", "질량 보존 법칙은 왜 성립해?"],
+    CHECK: ["이렇게 풀었는데 맞아?", "x=3 나왔는데 확인해줘", "부등호 방향 이렇게 바꾸는 게 맞지?", "내가 쓴 문장 맞는지 봐줘"],
+    ANSWER: ["그냥 답 알려줘", "정답이 뭐야?", "풀이 보여줘", "이 문제 다 풀어줘"],
+    OTHER: ["오늘 뭐부터 하면 좋을까", "고마워", "시험 범위가 어디까지야"],
+  };
+  // 학생마다 질문 성향을 다르게 해서 분포가 보이게 한다
+  const STYLE: Array<Array<keyof typeof QUESTION_BANK>> = [
+    ["CONCEPT", "CONCEPT", "CHECK", "OTHER"],
+    ["ANSWER", "ANSWER", "CHECK", "CONCEPT"],
+    ["CHECK", "CHECK", "CONCEPT", "ANSWER"],
+  ];
+  for (const s of sessions) {
+    if (s.studentId === "s04") continue;
+    const num = users.find((u) => u.id === s.studentId)?.number ?? 0;
+    if (num % 5 === 0) continue; // 질문을 거의 안 하는 학생도 있게
+    const style = STYLE[num % STYLE.length];
+    const count = Math.floor(ar() * 4);
+    const start = new Date(s.startedAt).getTime();
+    for (let k = 0; k < count; k++) {
+      const type = style[Math.floor(ar() * style.length)];
+      const bank = QUESTION_BANK[type];
+      const at = new Date(start + (k + 1) * 5 * 60000);
+      aiMessages.push({ id: nextId("ai"), sessionId: s.id, role: "student", content: bank[Math.floor(ar() * bank.length)], createdAt: iso(at) });
+      aiMessages.push({ id: nextId("ai"), sessionId: s.id, role: "ai", content: "좋은 질문이에요. 먼저 스스로 어디까지 생각했는지 말해 볼래요?", createdAt: iso(new Date(at.getTime() + 30000)) });
+    }
+  }
+
   return {
     users,
     facepassLinks,
@@ -270,7 +301,7 @@ export function createSeed(now: Date): Db {
     authEvents: [],
     sessions,
     entries,
-    aiMessages: [],
+    aiMessages,
     reflections,
     feedback: [],
     rubrics,

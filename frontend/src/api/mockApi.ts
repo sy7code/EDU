@@ -666,6 +666,32 @@ export function createMockApi(opts: MockOptions): Api {
         return f;
       }),
 
+    getClassAnalytics: (classId, from, to) =>
+      run(() => {
+        const t = teacher();
+        if (t.classId !== classId) throw new ApiError("NOT_FOUND");
+        const studs = db.users.filter((u) => u.role === "student" && u.classId === classId);
+        const ids = new Set(studs.map((u) => u.id));
+        const sessions = db.sessions.filter((s) => ids.has(s.studentId) && new Date(s.startedAt) >= from && new Date(s.startedAt) <= to);
+        // 기록 공유 미동의 학생의 질문·응시·주제는 교사에게 내려보내지 않는다 (서버 RLS와 같은 규칙)
+        const visible = sessions.filter((s) => sharedWithTeacher(s.studentId));
+        const owner = new Map(visible.map((s) => [s.id, s.studentId]));
+        return {
+          classId,
+          from: from.toISOString(),
+          to: to.toISOString(),
+          students: studs.map((u) => ({ studentId: u.id, name: u.name, number: u.number ?? 0, shared: sharedWithTeacher(u.id) })),
+          sessions: sessions.map((s) => ({ ...s })),
+          questions: db.aiMessages
+            .filter((m) => m.role === "student" && owner.has(m.sessionId))
+            .map((m) => ({ id: m.id, sessionId: m.sessionId, studentId: owner.get(m.sessionId)!, content: m.content, createdAt: m.createdAt })),
+          attempts: db.quizAttempts
+            .filter((a) => owner.has(a.sessionId))
+            .map((a) => ({ sessionId: a.sessionId, studentId: a.studentId, topicId: a.topicId, correct: a.correct, total: a.total, createdAt: a.createdAt })),
+          sessionTopics: visible.flatMap((s) => (db.sessionTopics[s.id] ?? []).map((x) => ({ sessionId: s.id, topicId: x.topicId, name: x.name }))),
+        };
+      }),
+
     getDashboard: (classId) =>
       run(() => {
         const t = teacher();

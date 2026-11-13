@@ -13,6 +13,7 @@ import {
   pickQuizQuestions,
   rowToUser,
   consentRows,
+  buildAnalyticsRaw,
 } from "./supabaseMappers";
 
 describe("목표 ↔ 텍스트", () => {
@@ -173,3 +174,40 @@ describe("v0.5.1 백엔드 반영", () => {
     ]);
   });
 });
+
+describe("반 분석 원자료 변환", () => {
+  const sess = (id: string, studentId: string) => ({ id, studentId, goal: { subject: "수학", activities: [] }, startedAt: "2026-11-10T10:00:00Z", endedAt: null, startAuth: "FACEPASS" as const, endAuth: null, status: "ACTIVE" as const, durationMinutes: null });
+  const input = {
+    classId: "c", from: "f", to: "t",
+    students: [
+      { studentId: "a", name: "학생01", number: 1, shared: true },
+      { studentId: "h", name: "학생03", number: 3, shared: false },
+    ],
+    sessions: [sess("sa", "a"), sess("sh", "h")],
+    aiRows: [
+      { id: "m1", sessionId: "sa", role: "user", content: "왜 그래?", createdAt: "x" },
+      { id: "m2", sessionId: "sa", role: "ai", content: "좋은 질문", createdAt: "y" },
+      { id: "m3", sessionId: "sh", role: "user", content: "답 알려줘", createdAt: "z" },
+    ],
+    attemptRows: [
+      { sessionId: "sa", studentId: "a", topicId: "t1", correct: 4, total: 5, createdAt: "c" },
+      { sessionId: "sh", studentId: "h", topicId: "t1", correct: 1, total: 5, createdAt: "c" },
+    ],
+    topicRows: [
+      { sessionId: "sa", topicId: "t1", name: "꼭짓점" },
+      { sessionId: "sh", topicId: "t1", name: "꼭짓점" },
+    ],
+  };
+
+  it("학생 질문만 세션 주인과 함께 넣는다 (AI 답 제외)", () => {
+    expect(buildAnalyticsRaw(input).questions).toEqual([{ id: "m1", sessionId: "sa", studentId: "a", content: "왜 그래?", createdAt: "x" }]);
+  });
+
+  it("기록 공유 미동의 학생의 응시·주제는 뺀다", () => {
+    const r = buildAnalyticsRaw(input);
+    expect(r.attempts).toEqual([{ sessionId: "sa", studentId: "a", topicId: "t1", correct: 4, total: 5, createdAt: "c" }]);
+    expect(r.sessionTopics).toEqual([{ sessionId: "sa", topicId: "t1", name: "꼭짓점" }]);
+    expect(r.sessions.length).toBe(2);
+  });
+});
+

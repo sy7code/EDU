@@ -1,6 +1,6 @@
 // 프론트 형식 ↔ 백엔드(Supabase) 형식 변환. 순수 함수만 둔다.
 import { GOAL_ACTIVITIES, REFLECTION_ITEMS } from "../lib/checklists";
-import type { Consent, ConsentKind, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion, User } from "../types/domain";
+import type { ClassAnalyticsRaw, Consent, ConsentKind, LearningSession, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion, User } from "../types/domain";
 import { ApiError, type ApiErrorCode } from "./types";
 
 const SEP = " | ";
@@ -212,4 +212,36 @@ export function rowToUser(row: Record<string, unknown>): User {
 /** 동의 입력 → consents insert 행 (snake_case) */
 export function consentRows(studentId: string, policyVersion: string, input: Array<{ kind: ConsentKind; granted: boolean; byGuardian: boolean }>) {
   return input.map((c) => ({ student_id: studentId, kind: c.kind, granted: c.granted, by_guardian: c.byGuardian, policy_version: policyVersion }));
+}
+
+/** 실제 조회 결과 → 반 분석 원자료. AI 답은 빼고, 기록 공유 미동의 학생의 질문·응시·주제는 한 번 더 거른다 */
+export function buildAnalyticsRaw(input: {
+  classId: string;
+  from: string;
+  to: string;
+  students: Array<{ studentId: string; name: string; number: number; shared: boolean }>;
+  sessions: LearningSession[];
+  aiRows: Array<Record<string, unknown>>;
+  attemptRows: Array<Record<string, unknown>>;
+  topicRows: Array<Record<string, unknown>>;
+}): ClassAnalyticsRaw {
+  const shared = new Set(input.students.filter((s) => s.shared).map((s) => s.studentId));
+  const owner = new Map(input.sessions.filter((s) => shared.has(s.studentId)).map((s) => [s.id, s.studentId]));
+  const sid = (r: Record<string, unknown>) => String(r.sessionId ?? "");
+  return {
+    classId: input.classId,
+    from: input.from,
+    to: input.to,
+    students: input.students,
+    sessions: input.sessions,
+    questions: input.aiRows
+      .filter((r) => r.role !== "ai" && owner.has(sid(r)))
+      .map((r) => ({ id: String(r.id), sessionId: sid(r), studentId: owner.get(sid(r))!, content: String(r.content ?? ""), createdAt: String(r.createdAt ?? "") })),
+    attempts: input.attemptRows
+      .filter((r) => owner.has(sid(r)))
+      .map((r) => ({ sessionId: sid(r), studentId: owner.get(sid(r))!, topicId: String(r.topicId), correct: Number(r.correct ?? 0), total: Number(r.total ?? 0), createdAt: String(r.createdAt ?? "") })),
+    sessionTopics: input.topicRows
+      .filter((r) => owner.has(sid(r)))
+      .map((r) => ({ sessionId: sid(r), topicId: String(r.topicId), name: String(r.name ?? "") })),
+  };
 }
