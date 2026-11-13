@@ -707,3 +707,69 @@ describe("최종 리뷰 수정 (주제별 성장)", () => {
     expect(rep.studentReportCount).toBeNull();
   });
 });
+
+describe("미룬 항목 수정", () => {
+  async function topicQuiz(studentId: string, content: string) {
+    await api.login(studentId);
+    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const s = await api.startSession({ goal: { subject: "공부", activities: [] }, authEventId: ev.id });
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content, visibility: "TEACHER" });
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    const [topic] = await api.extractTopics(s.id);
+    const quiz = await api.getQuiz(s.id, topic.topicId);
+    advance(60_000);
+    return { s, topic, quiz };
+  }
+
+  it("새로 불러와도 신고한 문항은 신고 상태로 나온다", async () => {
+    const { s, topic, quiz } = await topicQuiz("s01", "꼭짓점");
+    await api.reportQuestion(s.id, quiz.questions[0].id, "UNCLEAR");
+    const again = await api.getQuiz(s.id, topic.topicId);
+    expect(again.questions[0].reported).toBe(true);
+    expect(again.questions[1].reported).toBe(false);
+  });
+
+  it("같은 주제는 풀이 5문항보다 커도 모두 같은 반 풀에서, 개념 3·적용 2로 나온다", async () => {
+    const pool = TOPIC_DICTIONARY.find((d) => d.name === "이차함수 꼭짓점")!.pool;
+    for (const sid of ["s01", "s02"]) {
+      const { quiz } = await topicQuiz(sid, "꼭짓점");
+      const levels = quiz.questions.map((q) => pool.find((x) => x.prompt === q.prompt)?.level);
+      expect(levels.every(Boolean)).toBe(true);
+      expect(levels.filter((l) => l === "CONCEPT").length).toBe(3);
+      expect(levels.filter((l) => l === "APPLY").length).toBe(2);
+    }
+  });
+
+  it("전부 신고한 응시는 성장·대시보드 정답률에 들어가지 않는다", async () => {
+    const { s, quiz } = await topicQuiz("s07", "꼭짓점"); // 시드에 응시 기록 없는 학생
+    await api.login("s07");
+    for (const q of quiz.questions) await api.reportQuestion(s.id, q.id, "UNCLEAR");
+    await api.submitQuiz(s.id, {});
+    const g = await api.getTopicGrowth("s07");
+    expect(g.topics[0].lastRate).toBeNull();
+    await api.login("t1");
+    expect((await api.getDashboard("c1")).students.find((x) => x.studentId === "s07")!.lastQuizRate).toBeNull();
+  });
+
+  it("기록 공유를 철회하면 대시보드 최근 테스트 정답률도 숨긴다", async () => {
+    const { s } = await topicQuiz("s07", "꼭짓점");
+    await api.login("s07");
+    await api.submitQuiz(s.id, {});
+    await api.saveConsents([
+      { kind: "FACEPASS", granted: true, byGuardian: false },
+      { kind: "AI", granted: true, byGuardian: false },
+      { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
+    ]);
+    await api.login("t1");
+    expect((await api.getDashboard("c1")).students.find((x) => x.studentId === "s07")!.lastQuizRate).toBeNull();
+  });
+
+  it("진행 중인 세션은 교사가 평가를 확정할 수 없다", async () => {
+    await api.login("s01");
+    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const s = await api.startSession({ goal: GOAL, authEventId: ev.id });
+    await api.login("t1");
+    await expectCode(api.finalizeAssessment(s.id, []), "SESSION_NOT_ACTIVE");
+  });
+});

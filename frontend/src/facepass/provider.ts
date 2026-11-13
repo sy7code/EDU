@@ -22,12 +22,18 @@ function tossSdk(): TossSdk | null {
 
 export class TossFacePassProvider implements FaceAuthProvider {
   readonly kind = "toss" as const;
-  constructor(private readonly sdk: TossSdk) {}
+  constructor(private readonly sdk: TossSdk, private readonly timeoutMs = 60_000) {}
 
   authenticate(): Promise<FacePassRaw> {
     return new Promise((resolve, reject) => {
       // 1) 리스너 먼저 등록 → 2) start 호출 (문서 권장 순서)
+      // 단말기가 결과를 끝내 보내지 않으면 '확인하고 있어요'에서 멈추지 않게 시간 초과로 끝낸다
+      const timer = setTimeout(() => {
+        off();
+        reject(new Error("FACEPASS_TIMEOUT"));
+      }, this.timeoutMs);
       const off = this.sdk.facePass.listenData((p) => {
+        clearTimeout(timer);
         off();
         resolve(p);
       });

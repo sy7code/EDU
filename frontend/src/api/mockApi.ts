@@ -738,7 +738,7 @@ export function createMockApi(opts: MockOptions): Api {
       run(() => {
         const { topic, questions } = servedQuiz(sessionId, topicId);
         // 정답·해설은 내려주지 않는다 (채점은 서버)
-        const safe: StudentQuizQuestion[] = questions.map((x) => ({ id: x.id, type: x.type, prompt: x.prompt, choices: [...x.choices] }));
+        const safe: StudentQuizQuestion[] = questions.map((x) => ({ id: x.id, type: x.type, prompt: x.prompt, choices: [...x.choices], reported: x.reported }));
         return { topic: { id: topic.id, name: topic.name }, questions: safe };
       }),
 
@@ -938,7 +938,8 @@ export function createMockApi(opts: MockOptions): Api {
     finalizeAssessment: (sessionId, scores) =>
       run(() => {
         const t = teacher();
-        visibleSession(sessionId);
+        const target = visibleSession(sessionId);
+        if (target.status !== "ENDED") throw new ApiError("SESSION_NOT_ACTIVE", "끝난 학습만 평가를 확정할 수 있어요");
         const rubric = db.rubrics.find((r) => r.classId === t.classId);
         if (!rubric) throw new ApiError("NOT_FOUND");
         for (const sc of scores) {

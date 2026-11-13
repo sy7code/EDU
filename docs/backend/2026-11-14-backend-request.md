@@ -269,4 +269,5 @@ grant select on v_topics, v_session_topics, v_quiz_attempts to authenticated;
 | 4-5 | 중간 | 주제 근거 `evidenceIds`에서 **`"goal"`을 빼고 교사 공개 기록 1개 이상을 필수로** | 목표는 계획이지 공부한 근거가 아님. 목표만 쓰고 기록 없이 주제·테스트가 생길 수 있음 |
 | 4-6 | 낮음 | `class_dashboard`에 `lastQuizRate`(최근 응시, `total > 0`만) 추가 | 지금은 값이 없어 프론트가 실제 모드에서 열을 숨김 |
 | 4-7 | 낮음 | (가능하면) `v_me.under14` + `consents.by_guardian` 저장, 서버 check: under14 && granted && !by_guardian → 거부 | 만 14세 미만 보호자 동의. 이번에 어렵다면 **발표 자료에 한계로 명시** |
+| 4-9 | 낮음 | `POST /sessions/:id/quiz` 응답 문항에 `reported: boolean` 추가 (출제 스냅샷 기준) | 새로고침하면 프론트가 신고 상태를 잃어 같은 문항을 다시 신고 → `unique(session_id, question_id)` 오류 가능 |
 | 4-8 | 검토 | 문항 풀을 수준별 2배 이상으로 키우고, 같은 학생이 같은 주제에서 본 문항은 다시 내지 않기 | 같은 5문항 반복 + 제출 후 정답 공개 → 두 번째 응시 상승이 실력보다 암기일 수 있음 |

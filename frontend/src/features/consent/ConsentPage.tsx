@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { api } from "../../api";
+import { api, FEATURES } from "../../api";
 import { useConsents, useMe } from "../../auth/session";
 import { Button, Card, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import type { ConsentKind } from "../../types/domain";
@@ -11,7 +11,10 @@ const ITEMS: Array<{ kind: ConsentKind; title: string; body: string; ifNo: strin
     kind: "FACEPASS",
     title: "얼굴 인증(토스 페이스패스)으로 학습 시작·종료 확인",
     body: "얼굴 정보는 토스가 암호화해 보관하고, 성장 페이스는 얼굴 사진이나 특징값을 받지 않아요. 인증 결과(누가, 언제, 어느 단말기)만 받아요.",
-    ifNo: "동의하지 않아도 QR·학생증 바코드·선생님 확인으로 똑같이 쓸 수 있어요.",
+    ifNo:
+      FEATURES.codeAuth || FEATURES.manualAuth
+        ? "동의하지 않아도 QR·학생증 바코드·선생님 확인으로 똑같이 쓸 수 있어요."
+        : "동의하지 않아도 학습 시작·종료 인증은 할 수 있어요(지금은 데모 인증, QR·학생증 바코드는 준비 중).",
   },
   {
     kind: "AI",

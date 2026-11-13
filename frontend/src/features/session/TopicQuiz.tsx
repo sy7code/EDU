@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../../api";
+import { useHasConsent } from "../../auth/session";
 import { Badge, Button, Card, ErrorState, Spinner } from "../../components/ui";
 import type { QuizAttempt, QuizReportReason, SessionTopic } from "../../types/domain";
 
@@ -14,7 +15,9 @@ const REASONS: Array<{ id: QuizReportReason; label: string }> = [
 
 /** 마치기 화면: AI가 찾은 주제 → 하나 골라 고정 난이도 테스트 → 결과. 끝나거나 건너뛰면 onDone */
 export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: () => void }) {
-  const topics = useQuery({ queryKey: ["session-topics", sessionId], queryFn: () => api.extractTopics(sessionId) });
+  // 외부 LLM을 부르는 요청이라 실패해도 자동 재시도하지 않음 (비용·호출 제한)
+  const topics = useQuery({ queryKey: ["session-topics", sessionId], queryFn: () => api.extractTopics(sessionId), retry: false });
+  const shareOk = useHasConsent("LEARNING_RECORD");
   const entries = useQuery({ queryKey: ["entries", sessionId], queryFn: () => api.listEntries(sessionId) });
   const [picked, setPicked] = useState<string | null>(null);
   const [quizTopic, setQuizTopic] = useState<SessionTopic | null>(null);
@@ -29,7 +32,9 @@ export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: ()
       <Card>
         <h2 className="font-semibold">오늘 공부한 주제</h2>
         <p className="mt-2 text-sm text-stone-500">
-          이번 기록에서 주제를 찾지 못했어요. 다음엔 알게 된 개념이나 궁금한 점을 한 줄씩 남겨 보세요. (교사 공개 기록만 살펴봐요)
+          {shareOk
+            ? "이번 기록에서 주제를 찾지 못했어요. 다음엔 알게 된 개념이나 궁금한 점을 한 줄씩 남겨 보세요. (교사 공개 기록만 살펴봐요)"
+            : "기록 공유에 동의하지 않아 모든 기록이 '나만 보기'라서 AI가 주제를 찾을 수 없어요. 동의 설정에서 바꿀 수 있어요."}
         </p>
         <Button className="mt-4" onClick={onDone}>
           돌아보기로 넘어가기
@@ -97,7 +102,7 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
   const [answers, setAnswers] = useState<Record<string, number | null>>({});
   const [reported, setReported] = useState<Record<string, QuizReportReason>>({});
   const [reporting, setReporting] = useState<string | null>(null);
-  const quiz = useQuery({ queryKey: ["quiz", sessionId, topicId], queryFn: () => api.getQuiz(sessionId, topicId) });
+  const quiz = useQuery({ queryKey: ["quiz", sessionId, topicId], queryFn: () => api.getQuiz(sessionId, topicId), retry: false });
   const report = useMutation({
     mutationFn: (v: { questionId: string; reason: QuizReportReason }) => api.reportQuestion(sessionId, v.questionId, v.reason),
     onSuccess: (_d, v) => {
@@ -130,7 +135,9 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
   if (quiz.error) return <SkippableError error={quiz.error} onRetry={() => quiz.refetch()} onSkip={finish} onBack={onBack} />;
   if (!quiz.data) return <Spinner label="AI가 문제를 준비하는 중이에요 (처음 나오는 주제는 시간이 조금 걸려요)" />;
   const { topic, questions } = quiz.data;
-  const active = questions.filter((q) => !reported[q.id]);
+  // 신고 상태는 서버(출제 스냅샷)가 기억 → 새로고침해도 유지
+  const isReportedQ = (q: { id: string; reported?: boolean }) => !!reported[q.id] || !!q.reported;
+  const active = questions.filter((q) => !isReportedQ(q));
   const answered = active.filter((q) => answers[q.id] !== undefined && answers[q.id] !== null).length;
 
   return (
@@ -144,7 +151,7 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
       <p className="text-xs text-stone-500">모두에게 같은 난이도로 나와요. 이상한 문제는 신고하면 채점에서 빠져요. {QUIZ_NOTICE}</p>
       <ol className="mt-4 space-y-5">
         {questions.map((q, i) => {
-          const isReported = !!reported[q.id];
+          const isReported = isReportedQ(q);
           return (
             <li key={q.id} className={isReported ? "opacity-50" : ""}>
               <p className="text-sm font-medium">
@@ -188,7 +195,7 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
         })}
       </ol>
       {(submit.error || report.error) && <div className="mt-3"><ErrorState error={submit.error ?? report.error} /></div>}
-      <Button className="mt-5 w-full" onClick={() => submit.mutate()} disabled={submit.isPending || submit.isSuccess}>
+      <Button className="mt-5 w-full" onClick={() => submit.mutate()} disabled={submit.isPending || submit.isSuccess || report.isPending}>
         {answered < active.length ? `제출하기 (${active.length - answered}개 안 고름)` : "제출하기"}
       </Button>
     </Card>

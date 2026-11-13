@@ -167,7 +167,7 @@ function EntryComposer({ sessionId, shareOk }: { sessionId: string; shareOk: boo
         ) : (
           <span className="text-xs text-stone-500">기록 공유에 동의하지 않아 모든 기록은 나만 봐요</span>
         )}
-        <Button className="ml-auto" disabled={!canSubmit} onClick={submit}>
+        <Button className="ml-auto" disabled={!canSubmit || (kind === "PAPER" && add.isPending)} onClick={submit}>
           {kind === "PAPER" && !content.trim() ? "종이에 기록했어요" : "기록하기"}
         </Button>
       </div>

@@ -1,6 +1,6 @@
 // 프론트 형식 ↔ 백엔드(Supabase) 형식 변환. 순수 함수만 둔다.
 import { GOAL_ACTIVITIES, REFLECTION_ITEMS } from "../lib/checklists";
-import type { Consent, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal } from "../types/domain";
+import type { Consent, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion } from "../types/domain";
 import { ApiError, type ApiErrorCode } from "./types";
 
 const SEP = " | ";
@@ -8,11 +8,16 @@ const GOAL_MAX = 200; // sessions.goal check (1~200자)
 
 /** 백엔드 sessions.goal 은 텍스트 하나 → "과목 | 활동라벨, ... | 메모" */
 export function goalToText(goal: SessionGoal): string {
+  // 자유 입력에 구분자(" | ")가 있으면 다시 읽을 때 깨지므로 " / "로 바꾼다
+  const clean = (t: string) => t.replace(/\s*\|\s*/g, " / ").trim();
   const labels = goal.activities.map((id) => GOAL_ACTIVITIES.find((a) => a.id === id)?.label ?? id);
-  const parts = [goal.subject, labels.join(", ")];
-  if (goal.note?.trim()) parts.push(goal.note.trim());
-  const text = parts.filter((p, i) => i === 0 || p).join(SEP);
-  return Array.from(text).slice(0, GOAL_MAX).join("");
+  const note = goal.note?.trim() ? clean(goal.note) : "";
+  // 형식: "오늘 할 것 | 활동 | 메모". 메모가 있으면 활동 칸이 비어도 자리를 남겨 메모가 활동으로 읽히지 않게 한다
+  const tailText = note ? SEP + labels.join(", ") + SEP + note : labels.length ? SEP + labels.join(", ") : "";
+  // 200자를 넘으면 활동·메모는 지키고 '오늘 할 것'을 줄인다
+  const budget = Math.max(1, GOAL_MAX - Array.from(tailText).length);
+  const subject = Array.from(clean(goal.subject)).slice(0, budget).join("");
+  return Array.from(subject + tailText).slice(0, GOAL_MAX).join("");
 }
 
 export function textToGoal(text: string): SessionGoal {
@@ -178,4 +183,19 @@ export function latestConsents(rows: Array<Record<string, unknown>>): Consent[] 
     });
   }
   return [...latest.values()];
+}
+
+/** 서버 출제 응답에서 학생 화면에 필요한 필드만 (서버가 실수로 정답을 넣어도 화면·캐시에 남지 않게) */
+export function pickQuizQuestions(raw: unknown[]): StudentQuizQuestion[] {
+  return raw.map((x) => {
+    const q = x as Record<string, unknown>;
+    const out: StudentQuizQuestion = {
+      id: String(q.id),
+      type: q.type === "OX" ? "OX" : "MCQ",
+      prompt: String(q.prompt ?? ""),
+      choices: Array.isArray(q.choices) ? q.choices.map(String) : [],
+    };
+    if (typeof q.reported === "boolean") out.reported = q.reported;
+    return out;
+  });
 }

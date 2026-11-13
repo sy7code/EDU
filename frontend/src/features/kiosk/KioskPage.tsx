@@ -73,7 +73,11 @@ export function KioskPage() {
       const ev = await api.submitFaceAuth(DEVICE_ID, raw);
       setView(ev.success ? { kind: "done", event: ev } : { kind: "error", message: "등록되지 않았거나 얼굴 인증에 동의하지 않은 사용자예요. QR·바코드를 써 주세요." });
     } catch (e) {
-      setView({ kind: "error", message: e instanceof Error && e.message === "FACEPASS_RENDER_FAILED" ? "인증 화면을 열지 못했어요. QR·바코드를 써 주세요." : errorMessage(e) });
+      setView({ kind: "error", message: e instanceof Error && e.message === "FACEPASS_RENDER_FAILED"
+          ? "인증 화면을 열지 못했어요. QR·바코드를 써 주세요."
+          : e instanceof Error && e.message === "FACEPASS_TIMEOUT"
+            ? "인증 시간이 지났어요. 다시 시도하거나 QR·바코드를 써 주세요."
+            : errorMessage(e) });
     }
   }
 

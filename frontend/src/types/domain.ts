@@ -57,7 +57,7 @@ export type SessionTopic = { topicId: string; name: string; subject?: string; ev
 
 // ---------- 주제 테스트 (고정 난이도 5문항: 개념 3 + 적용 2) ----------
 /** 학생에게 내려가는 문항: 정답·해설 없음 */
-export type StudentQuizQuestion = { id: string; type: "MCQ" | "OX"; prompt: string; choices: string[] };
+export type StudentQuizQuestion = { id: string; type: "MCQ" | "OX"; prompt: string; choices: string[]; reported?: boolean };
 
 export type QuizReportReason = "WRONG_ANSWER" | "UNCLEAR" | "UNRELATED";
 

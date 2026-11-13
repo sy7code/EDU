@@ -15,7 +15,7 @@ npm run build
 
 | 변수 | 설명 |
 |---|---|
-| `VITE_USE_MOCK` | `true`(기본)면 브라우저 안 mock API, `false`면 Supabase (아직 미구현) |
+| `VITE_USE_MOCK` | **`true`일 때만** 브라우저 안 mock API, 그 밖(없음 포함)은 실제 Supabase. 데모는 `npm run dev:demo`(5174) |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Supabase 공개 값 |
 | `VITE_KIOSK_DEVICE_ID` | 키오스크 기기 ID |
 

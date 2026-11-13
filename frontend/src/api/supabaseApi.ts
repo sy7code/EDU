@@ -14,11 +14,10 @@ import type {
   ReportedQuestion,
   Reflection,
   SessionTopic,
-  StudentQuizQuestion,
   Student,
   User,
 } from "../types/domain";
-import { goalToText, latestConsents, mapDashboard, mapFnError, mapPgError, rowToReflection, textToGoal, toGrounded } from "./supabaseMappers";
+import { goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, rowToReflection, textToGoal, toGrounded } from "./supabaseMappers";
 
 const POLICY_VERSION = "2026-11-v1";
 import { ApiError, type Api } from "./types";
@@ -271,8 +270,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     // 주제 테스트 (명세 v0.5)
-    getQuiz: async (sessionId, topicId) =>
-      fn<{ topic: { id: string; name: string }; questions: StudentQuizQuestion[] }>("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz`, { topicId }),
+    getQuiz: async (sessionId, topicId) => {
+      const r = await fn<{ topic: { id: string; name: string }; questions: unknown[] }>("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz`, { topicId });
+      return { topic: { id: String(r.topic.id), name: String(r.topic.name) }, questions: pickQuizQuestions(r.questions ?? []) };
+    },
     reportQuestion: async (sessionId, questionId, reason) => {
       await fn("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz/report`, { questionId, reason });
     },

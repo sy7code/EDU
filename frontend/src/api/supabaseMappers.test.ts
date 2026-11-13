@@ -10,6 +10,7 @@ import {
   toGrounded,
   rowToReflection,
   latestConsents,
+  pickQuizQuestions,
 } from "./supabaseMappers";
 
 describe("목표 ↔ 텍스트", () => {
@@ -115,5 +116,29 @@ describe("수정본 백엔드 형식 (2026-11-14)", () => {
     ]);
     expect(c.find((x) => x.kind === "AI")?.granted).toBe(false);
     expect(c.length).toBe(2);
+  });
+});
+
+describe("미룬 항목 수정 (변환)", () => {
+  it("'오늘 할 것'에 구분자가 있어도 다시 읽을 때 깨지지 않는다", () => {
+    const back = textToGoal(goalToText({ subject: "A | B 복습", activities: ["concept"] }));
+    expect(back).toEqual({ subject: "A / B 복습", activities: ["concept"] });
+  });
+
+  it("200자를 넘으면 활동은 지키고 '오늘 할 것'을 줄인다", () => {
+    const text = goalToText({ subject: "가".repeat(250), activities: ["concept", "problem"] });
+    expect(Array.from(text).length).toBeLessThanOrEqual(200);
+    expect(textToGoal(text).activities).toEqual(["concept", "problem"]);
+  });
+
+  it("서버 출제 응답에서 학생에게 필요한 필드만 남긴다", () => {
+    const qs = pickQuizQuestions([{ id: "q1", type: "MCQ", prompt: "p", choices: ["a", "b"], answerIndex: 1, explanation: "e", reported: true }]);
+    expect(qs).toEqual([{ id: "q1", type: "MCQ", prompt: "p", choices: ["a", "b"], reported: true }]);
+  });
+});
+
+describe("목표 메모", () => {
+  it("활동 없이 메모만 있어도 메모를 활동으로 읽지 않는다", () => {
+    expect(textToGoal(goalToText({ subject: "복습", activities: [], note: "꼭짓점" }))).toEqual({ subject: "복습", activities: [], note: "꼭짓점" });
   });
 });

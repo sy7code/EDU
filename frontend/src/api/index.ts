@@ -3,7 +3,8 @@ import { createSeed } from "./mockData";
 import { createSupabaseApi } from "./supabaseApi";
 import { ApiError, type Api } from "./types";
 
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== "false";
+// 명시적으로 "true"일 때만 mock. 환경변수 없이 빌드하면 누구나 로그인되는 mock이 배포되는 일을 막는다
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 /** 실제 백엔드에 아직 없는 기능은 화면에서 숨긴다 (mock 데모에서는 모두 보임) */
 export const FEATURES = {
