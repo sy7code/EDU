@@ -126,3 +126,12 @@ button.stat-card:focus-visible {
 .analysis-stack > * + * {
   margin-top: 18px;
 }
+
+/* 대시보드 상태 칸 한 줄 판단 */
+.row-insight {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 220px;
+}

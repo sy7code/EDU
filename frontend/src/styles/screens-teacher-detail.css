@@ -206,3 +206,35 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 학생 상세 요약 '한눈에 보기' */
+.judge-card {
+  padding: 22px;
+  margin-bottom: 18px;
+}
+.judge-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.judge-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.judge-item .badge {
+  flex: none;
+}
+.judge-item strong {
+  display: block;
+}
+.judge-item small {
+  display: block;
+  color: var(--muted);
+}
+.judge-item p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}

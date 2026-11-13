@@ -11,6 +11,7 @@ import { Pager } from "../../components/Pager";
 import { SearchBox } from "../../components/SearchBox";
 import { matchStudent } from "../../lib/studentSearch";
 import { matchesFilter, type DashboardFilter } from "../../lib/dashboardFilter";
+import { studentInsights } from "../../lib/insights";
 
 export function ClassDashboard() {
   const me = useMe();
@@ -51,6 +52,18 @@ export function ClassDashboard() {
   const shown = rows.filter((r) => matchesFilter(r, filter) && matchStudent(r, query));
 
   const paged = paginate(shown, page, 10);
+  const avgSessions = rows.length ? rows.reduce((n, r) => n + r.sessionCount, 0) / rows.length : null;
+  // 상태 칸 한 줄: 규칙으로 뽑은 첫 경고 (기록 공유 미동의 학생은 서버가 내용 값을 비워 보내므로 횟수 규칙만 걸린다)
+  const topWarn = (r: (typeof rows)[number]) =>
+    studentInsights({
+      period: "최근 7일",
+      shared: true,
+      sessionCount: r.sessionCount,
+      classAvgSessions: avgSessions,
+      lastSessionAt: r.lastSessionAt,
+      quizRate: r.lastQuizRate,
+      openQuestionCount: r.openQuestionCount,
+    }).find((x) => x.tone === "warn");
 
   const stat = (label: string, value: string | number, key: typeof filter, icon: string, tone = "") => (
     <button
@@ -135,6 +148,14 @@ export function ClassDashboard() {
                   )}
                   {r.hasReflectionWithoutFeedback && <Badge tone="sky">피드백 기다림</Badge>}
                   {r.pendingAssessment > 0 && <Badge tone="sky">확정 {r.pendingAssessment}</Badge>}
+                  {(() => {
+                    const w = topWarn(r);
+                    return w ? (
+                      <small className="row-insight" title={w.action ? `${w.evidence} → ${w.action}` : w.evidence}>
+                        {w.text} · {w.evidence}
+                      </small>
+                    ) : null;
+                  })()}
                 </td>
                 {FEATURES.manualAuth && <td className="cell-right">
                   {confirmedId === r.studentId ? (
