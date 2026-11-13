@@ -264,14 +264,36 @@ export function createSeed(now: Date): Db {
   // 반 분석 데모: AI 도우미 질문 (별도 난수라 기존 시드 값은 그대로). AI 미동의 학생(s04)은 질문 없음
   const aiMessages: AiMessage[] = [];
   const ar = rng(8642);
-  const QUESTION_BANK: Record<"CONCEPT" | "CHECK" | "ANSWER" | "OTHER", string[]> = {
-    CONCEPT: ["왜 꼭짓점의 x좌표가 -b/2a 이야?", "완전제곱식이 뭐야?", "이 공식은 어떻게 나온 거야?", "관계대명사 who랑 which 차이가 뭐야?", "질량 보존 법칙은 왜 성립해?"],
-    CHECK: ["이렇게 풀었는데 맞아?", "x=3 나왔는데 확인해줘", "부등호 방향 이렇게 바꾸는 게 맞지?", "내가 쓴 문장 맞는지 봐줘"],
-    ANSWER: ["그냥 답 알려줘", "정답이 뭐야?", "풀이 보여줘", "이 문제 다 풀어줘"],
-    OTHER: ["오늘 뭐부터 하면 좋을까", "고마워", "시험 범위가 어디까지야"],
+  // 과목별 예문 (데모에서 학습 과목과 질문이 어긋나 보이지 않게)
+  type QType = "CONCEPT" | "CHECK" | "ANSWER" | "OTHER";
+  const QUESTION_BANK: Record<string, Record<QType, string[]>> = {
+    수학: {
+      CONCEPT: ["왜 꼭짓점의 x좌표가 -b/2a 이야?", "완전제곱식이 뭐야?", "부등식에 음수를 곱하면 왜 부등호가 바뀌어?"],
+      CHECK: ["이렇게 풀었는데 맞아?", "x=3 나왔는데 확인해줘", "부등호 방향 이렇게 바꾸는 게 맞지?"],
+      ANSWER: ["그냥 답 알려줘", "정답이 뭐야?", "이 문제 다 풀어줘"],
+      OTHER: ["오늘 뭐부터 하면 좋을까", "고마워"],
+    },
+    영어: {
+      CONCEPT: ["관계대명사 who랑 which 차이가 뭐야?", "선행사가 뭐야?", "왜 여기엔 that을 못 써?"],
+      CHECK: ["내가 쓴 문장 맞는지 봐줘", "이렇게 해석했는데 맞아?"],
+      ANSWER: ["해석 그냥 알려줘", "정답이 뭐야?", "빈칸 답 알려줘"],
+      OTHER: ["단어 외우는 방법 있어?", "고마워"],
+    },
+    과학: {
+      CONCEPT: ["질량 보존 법칙은 왜 성립해?", "화학 반응이 뭐야?", "기체가 나오면 질량은 어떻게 돼?"],
+      CHECK: ["반응 전후 질량 같다고 썼는데 맞아?", "이렇게 정리했는데 확인해줘"],
+      ANSWER: ["그냥 답 알려줘", "정답이 뭐야?"],
+      OTHER: ["시험 범위가 어디까지야", "고마워"],
+    },
+    국어: {
+      CONCEPT: ["비유랑 상징 차이가 뭐야?", "이 시에서 화자는 왜 그렇게 말해?", "주제를 어떻게 찾아?"],
+      CHECK: ["주제를 이렇게 정리했는데 맞아?", "내가 찾은 근거 맞는지 봐줘"],
+      ANSWER: ["주제 그냥 알려줘", "정답이 뭐야?"],
+      OTHER: ["오늘 뭐부터 하면 좋을까", "고마워"],
+    },
   };
   // 학생마다 질문 성향을 다르게 해서 분포가 보이게 한다
-  const STYLE: Array<Array<keyof typeof QUESTION_BANK>> = [
+  const STYLE: QType[][] = [
     ["CONCEPT", "CONCEPT", "CHECK", "OTHER"],
     ["ANSWER", "ANSWER", "CHECK", "CONCEPT"],
     ["CHECK", "CHECK", "CONCEPT", "ANSWER"],
@@ -285,7 +307,7 @@ export function createSeed(now: Date): Db {
     const start = new Date(s.startedAt).getTime();
     for (let k = 0; k < count; k++) {
       const type = style[Math.floor(ar() * style.length)];
-      const bank = QUESTION_BANK[type];
+      const bank = (QUESTION_BANK[s.goal.subject] ?? QUESTION_BANK["수학"])[type];
       const at = new Date(start + (k + 1) * 5 * 60000);
       aiMessages.push({ id: nextId("ai"), sessionId: s.id, role: "student", content: bank[Math.floor(ar() * bank.length)], createdAt: iso(at) });
       aiMessages.push({ id: nextId("ai"), sessionId: s.id, role: "ai", content: "좋은 질문이에요. 먼저 스스로 어디까지 생각했는지 말해 볼래요?", createdAt: iso(new Date(at.getTime() + 30000)) });

@@ -8,6 +8,7 @@ import { formatDateTime, formatDuration } from "../../lib/time";
 import { SessionDetail } from "../records/SessionDetail";
 import { TopicGrowthView } from "../records/TopicGrowthView";
 import { AssessmentPanel } from "./AssessmentPanel";
+import { StudentProfile, useQuestionCountBySession } from "./StudentProfile";
 
 export function StudentDetailPage() {
   const { studentId = "" } = useParams();
@@ -20,6 +21,7 @@ export function StudentDetailPage() {
     return d.students.find((s) => s.studentId === studentId) ?? null;
   } });
 
+  const qCount = useQuestionCountBySession(studentId);
   const selectedId = params.get("session") ?? sessions.data?.[0]?.id;
   const selected = sessions.data?.find((s) => s.id === selectedId);
 
@@ -36,6 +38,7 @@ export function StudentDetailPage() {
       <PageTitle sub={`학생이 '교사 공개'로 남긴 기록만 보여요${FEATURES.audit ? " · 열람 기록이 남아요" : ""}`}>
         {dash.data ? `${dash.data.number}번 ${dash.data.name}` : "학생 기록"}
       </PageTitle>
+      <StudentProfile studentId={studentId} />
       {FEATURES.quiz && <TopicGrowthView studentId={studentId} viewer="teacher" />}
       {sessions.isLoading && <Spinner />}
       {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
@@ -54,7 +57,10 @@ export function StudentDetailPage() {
                 >
                   <p className="text-xs text-stone-500">{formatDateTime(s.startedAt)}</p>
                   <p className="font-medium">{goalLabel(s.goal)}</p>
-                  <p className="text-xs text-brand-700">{s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}</p>
+                  <p className="text-xs text-brand-700">
+                    {s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}
+                    {qCount.get(s.id) ? <span className="text-stone-500"> · AI 질문 {qCount.get(s.id)}회</span> : null}
+                  </p>
                 </button>
               </li>
             ))}
