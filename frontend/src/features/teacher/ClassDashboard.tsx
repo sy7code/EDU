@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api } from "../../api";
@@ -17,10 +17,23 @@ export function ClassDashboard() {
   });
   const [filter, setFilter] = useState<"all" | "attention" | "active" | "pending">("all");
   const [manualMsg, setManualMsg] = useState<string | null>(null);
+  const [confirmedId, setConfirmedId] = useState<string | null>(null);
   const manual = useMutation({
     mutationFn: (studentId: string) => api.submitManualAuth(studentId),
-    onSuccess: (ev) => setManualMsg(`${ev.maskedName} 학생을 확인했어요. 학생 기기에서 2분 안에 이어서 진행할 수 있어요.`),
+    onSuccess: (ev) => {
+      setConfirmedId(ev.studentId);
+      setManualMsg(`${ev.maskedName} 학생의 학습 시작·종료를 선생님이 확인했어요. 학생 기기에서 2분 안에 이어서 진행하면 돼요.`);
+    },
   });
+  // 안내는 화면 아래 고정 알림으로 띄우고 6초 뒤 닫는다 (스크롤 위치와 상관없이 보이게)
+  useEffect(() => {
+    if (!manualMsg) return;
+    const t = setTimeout(() => {
+      setManualMsg(null);
+      setConfirmedId(null);
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [manualMsg]);
 
   if (dash.isLoading || me.isLoading) return <Spinner />;
   if (dash.error) return <ErrorState error={dash.error} onRetry={() => dash.refetch()} />;
@@ -50,12 +63,14 @@ export function ClassDashboard() {
         {stat("반 전체", `${rows.length}명`, "all")}
       </div>
 
-      {manualMsg && (
-        <div className="mb-3 rounded-lg bg-brand-50 p-3 text-sm text-brand-700" role="status">
-          {manualMsg}
+      {(manualMsg || manual.error) && (
+        <div
+          className="fixed inset-x-4 bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] z-50 mx-auto max-w-lg rounded-xl bg-ink p-4 text-sm text-white shadow-lg"
+          role={manual.error ? "alert" : "status"}
+        >
+          {manual.error ? <ErrorState error={manual.error} /> : manualMsg}
         </div>
       )}
-      {manual.error && <div className="mb-3"><ErrorState error={manual.error} /></div>}
 
       <Card className="overflow-x-auto p-0">
         <table className="w-full min-w-[720px] text-sm">
@@ -92,9 +107,19 @@ export function ClassDashboard() {
                   {r.pendingAssessment > 0 && <Badge tone="sky">확정 {r.pendingAssessment}</Badge>}
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  <Button variant="ghost" className="px-2 py-1 text-xs" onClick={() => manual.mutate(r.studentId)} disabled={manual.isPending}>
-                    수기 확인
-                  </Button>
+                  {confirmedId === r.studentId ? (
+                    <span className="text-xs font-semibold text-brand-700">✓ 확인함</span>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      className="px-2 py-1 text-xs"
+                      title="얼굴 인증·QR을 쓰지 않는 학생이 학습을 시작하거나 마칠 때, 선생님이 대신 확인해요"
+                      onClick={() => manual.mutate(r.studentId)}
+                      disabled={manual.isPending}
+                    >
+                      선생님이 확인
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -102,7 +127,8 @@ export function ClassDashboard() {
         </table>
       </Card>
       <p className="mt-2 text-xs text-stone-400">
-        '수기 확인'은 얼굴 인증·기기를 쓰지 않는 학생의 학습 시작·종료를 선생님이 직접 확인하는 기능이에요. 확인 기록은 남아요.
+        '선생님이 확인'은 얼굴 인증이나 QR을 쓰지 않는(또는 못 쓰는) 학생이 학습을 시작·종료할 때, 단말기 대신 선생님이 눈으로
+        확인해 주는 기능이에요. 누르면 그 학생 기기의 인증 대기 화면이 바로 넘어가요. 누가 언제 확인했는지 기록이 남아요.
       </p>
     </div>
   );
