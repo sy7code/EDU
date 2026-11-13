@@ -4,7 +4,7 @@ import { Link, Navigate, useParams } from "react-router";
 import { api } from "../../api";
 import { useHasConsent } from "../../auth/session";
 import { Badge, Button, ButtonLink, Card, EmptyState, ErrorState, Spinner } from "../../components/ui";
-import { activityLabel } from "../../lib/checklists";
+import { goalLabel } from "../../lib/checklists";
 import { elapsedLabel, formatTime } from "../../lib/time";
 import type { EntryKind, LearningEntry, Visibility } from "../../types/domain";
 
@@ -46,7 +46,7 @@ export function SessionPage() {
           <div>
             <p className="text-xs text-stone-500">{formatTime(s.startedAt)} 시작 · 오늘의 목표</p>
             <p className="font-semibold">
-              {s.goal.subject} · {s.goal.activities.map(activityLabel).join(", ")}
+              {goalLabel(s.goal)}
             </p>
             {s.goal.note && <p className="text-sm text-stone-600">{s.goal.note}</p>}
           </div>

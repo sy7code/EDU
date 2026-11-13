@@ -3,9 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, FEATURES } from "../../api";
 import { Button, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
-import { activityLabel } from "../../lib/checklists";
+import { goalLabel } from "../../lib/checklists";
 import { formatDateTime, formatDuration } from "../../lib/time";
 import { SessionDetail } from "../records/SessionDetail";
+import { TopicGrowthView } from "../records/TopicGrowthView";
 import { AssessmentPanel } from "./AssessmentPanel";
 
 export function StudentDetailPage() {
@@ -35,6 +36,7 @@ export function StudentDetailPage() {
       <PageTitle sub={`학생이 '교사 공개'로 남긴 기록만 보여요${FEATURES.audit ? " · 열람 기록이 남아요" : ""}`}>
         {dash.data ? `${dash.data.number}번 ${dash.data.name}` : "학생 기록"}
       </PageTitle>
+      {FEATURES.quiz && <TopicGrowthView studentId={studentId} viewer="teacher" />}
       {sessions.isLoading && <Spinner />}
       {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
       {sessions.data?.length === 0 && <EmptyState title="학습 기록이 없어요">먼저 학생과 학습 계획을 이야기해 보세요.</EmptyState>}
@@ -51,7 +53,7 @@ export function StudentDetailPage() {
                   }`}
                 >
                   <p className="text-xs text-stone-500">{formatDateTime(s.startedAt)}</p>
-                  <p className="font-medium">{s.goal.subject} · {s.goal.activities.map(activityLabel).join(", ")}</p>
+                  <p className="font-medium">{goalLabel(s.goal)}</p>
                   <p className="text-xs text-brand-700">{s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}</p>
                 </button>
               </li>

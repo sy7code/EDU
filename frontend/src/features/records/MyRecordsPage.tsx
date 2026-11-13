@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
-import { api } from "../../api";
+import { api, FEATURES } from "../../api";
+import { useMe } from "../../auth/session";
+import { TopicGrowthView } from "./TopicGrowthView";
 import { Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
-import { activityLabel } from "../../lib/checklists";
+import { goalLabel } from "../../lib/checklists";
 import { formatDateTime, formatDuration } from "../../lib/time";
 import { SessionDetail } from "./SessionDetail";
 import { AssessmentView } from "../teacher/AssessmentPanel";
 
 export function MyRecordsPage() {
   const [params, setParams] = useSearchParams();
+  const me = useMe();
   const sessions = useQuery({ queryKey: ["sessions", "me"], queryFn: () => api.listSessions({}) });
   const selectedId = params.get("session") ?? sessions.data?.[0]?.id;
   const selected = sessions.data?.find((s) => s.id === selectedId);
@@ -19,6 +22,7 @@ export function MyRecordsPage() {
       <PageTitle sub={sessions.data ? `지금까지 ${sessions.data.length}번, ${formatDuration(totalMin)} 스스로 공부했어요` : undefined}>
         내 학습 기록
       </PageTitle>
+      {FEATURES.quiz && me.data && <TopicGrowthView studentId={me.data.id} viewer="student" />}
       {sessions.isLoading && <Spinner />}
       {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
       {sessions.data?.length === 0 && <EmptyState title="아직 기록이 없어요">홈에서 첫 학습을 시작해 보세요.</EmptyState>}
@@ -35,7 +39,7 @@ export function MyRecordsPage() {
                 >
                   <p className="text-xs text-stone-500">{formatDateTime(s.startedAt)}</p>
                   <p className="font-medium">
-                    {s.goal.subject} · {s.goal.activities.map(activityLabel).join(", ")}
+                    {goalLabel(s.goal)}
                   </p>
                   <p className="text-xs text-brand-700">{s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}</p>
                 </button>

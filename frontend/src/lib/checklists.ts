@@ -33,3 +33,9 @@ export function activityLabel(id: string): string {
 export function reflectionLabel(id: string): string {
   return REFLECTION_ITEMS.find((r) => r.id === id)?.label ?? id;
 }
+
+/** 목표 한 줄 표시: 활동이 없으면 "오늘 할 것"만 (끝에 " · "가 남지 않게) */
+export function goalLabel(goal: { subject: string; activities: string[] }): string {
+  const acts = goal.activities.map(activityLabel).join(", ");
+  return acts ? `${goal.subject} · ${acts}` : goal.subject;
+}

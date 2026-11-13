@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { api } from "../../api";
 import { useMe } from "../../auth/session";
 import { Badge, ButtonLink, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
-import { activityLabel } from "../../lib/checklists";
+import { activityLabel, goalLabel } from "../../lib/checklists";
 import { elapsedLabel, formatDateTime, formatDuration } from "../../lib/time";
 
 export function StudentHome() {
@@ -25,7 +25,7 @@ export function StudentHome() {
         <Card className="border-brand-500 bg-brand-50">
           <Badge tone="brand">학습 중</Badge>
           <p className="mt-2 text-lg font-semibold">
-            {active.data.goal.subject} · {active.data.goal.activities.map(activityLabel).join(", ")}
+            {goalLabel(active.data.goal)}
           </p>
           <p className="text-sm text-stone-600">{elapsedLabel(active.data.startedAt)} 째 공부하고 있어요</p>
           <ButtonLink to={`/student/session/${active.data.id}`} className="mt-4">

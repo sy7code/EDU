@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, FEATURES } from "../../api";
 import { Badge, Card, ErrorState, METHOD_LABEL, Spinner } from "../../components/ui";
-import { activityLabel, reflectionLabel, UNDERSTANDING_LABELS } from "../../lib/checklists";
+import { goalLabel, reflectionLabel, UNDERSTANDING_LABELS } from "../../lib/checklists";
 import { formatDateTime, formatDuration, formatTime } from "../../lib/time";
 import type { LearningSession } from "../../types/domain";
 import { QuizResult } from "../session/TopicQuiz";
@@ -47,7 +47,7 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
       <Card>
         <p className="text-xs text-stone-500">{formatDateTime(session.startedAt)}</p>
         <p className={`mt-1 text-lg font-semibold ${hl.has("goal") ? "rounded bg-amber-100 px-1" : ""}`}>
-          {session.goal.subject} · {session.goal.activities.map(activityLabel).join(", ")}
+          {goalLabel(session.goal)}
         </p>
         {session.goal.note && <p className="text-sm text-stone-600">{session.goal.note}</p>}
         <div className="mt-2 flex flex-wrap gap-2 text-xs">
