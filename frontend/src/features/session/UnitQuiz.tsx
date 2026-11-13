@@ -45,9 +45,9 @@ export function UnitQuiz({ sessionId, onDone }: { sessionId: string; onDone: () 
     );
   }
 
-  if (quiz.isLoading) return <Spinner label="문제를 불러오는 중" />;
   if (quiz.error) return <ErrorState error={quiz.error} onRetry={() => quiz.refetch()} />;
-  const { unit, questions } = quiz.data!;
+  if (!quiz.data) return <Spinner label="문제를 불러오는 중" />;
+  const { unit, questions } = quiz.data;
 
   if (questions.length === 0) {
     return (

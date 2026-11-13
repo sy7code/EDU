@@ -35,9 +35,10 @@ export function ClassDashboard() {
     return () => clearTimeout(t);
   }, [manualMsg]);
 
-  if (dash.isLoading || me.isLoading) return <Spinner />;
   if (dash.error) return <ErrorState error={dash.error} onRetry={() => dash.refetch()} />;
-  const rows = dash.data!.students;
+  // 쿼리가 꺼진 순간(반 정보가 잠깐 비는 로그인·로그아웃 전환)에는 isLoading이 false라 data로 판단한다
+  if (!dash.data) return <Spinner />;
+  const rows = dash.data.students;
   const shown = rows.filter((r) =>
     filter === "attention" ? r.needsAttention : filter === "active" ? r.activeNow : filter === "pending" ? r.pendingAssessment > 0 : true,
   );
@@ -81,6 +82,7 @@ export function ClassDashboard() {
               <th className="px-4 py-2.5">학습</th>
               <th className="px-4 py-2.5">시간</th>
               <th className="px-4 py-2.5">남은 질문</th>
+              <th className="px-4 py-2.5">최근 테스트</th>
               <th className="px-4 py-2.5">최근</th>
               <th className="px-4 py-2.5">상태</th>
               <th className="px-4 py-2.5" />
@@ -98,6 +100,9 @@ export function ClassDashboard() {
                 <td className="px-4 py-2.5 tabular-nums">{r.sessionCount}회</td>
                 <td className="px-4 py-2.5 tabular-nums">{formatDuration(r.totalMinutes)}</td>
                 <td className="px-4 py-2.5 tabular-nums">{r.openQuestionCount}</td>
+                <td className={`px-4 py-2.5 tabular-nums ${r.lastQuizRate !== null && r.lastQuizRate < 0.4 ? "font-semibold text-amber-700" : ""}`}>
+                  {r.lastQuizRate === null ? "-" : `${Math.round(r.lastQuizRate * 100)}%`}
+                </td>
                 <td className="px-4 py-2.5 text-xs text-stone-500">{r.lastSessionAt ? formatDateTime(r.lastSessionAt) : "-"}</td>
                 <td className="space-x-1 px-4 py-2.5">
                   {r.activeNow && <Badge tone="brand">학습 중</Badge>}

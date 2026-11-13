@@ -9,7 +9,10 @@ export function AppLayout() {
 
   const links =
     me?.role === "teacher"
-      ? [{ to: "/teacher", label: "반 대시보드" }]
+      ? [
+          { to: "/teacher", label: "반 대시보드" },
+          { to: "/teacher/units", label: "단원 문제" },
+        ]
       : me?.role === "student"
         ? [
             { to: "/student", label: "홈" },

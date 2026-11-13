@@ -38,9 +38,9 @@ export function AssessmentPanel({ session, onEvidence }: { session: LearningSess
       </Card>
     );
   }
-  if (rubric.isLoading || assessment.isLoading) return <Spinner />;
   if (rubric.error) return <ErrorState error={rubric.error} />;
-  const r = rubric.data!;
+  if (!rubric.data || assessment.isLoading) return <Spinner />;
+  const r = rubric.data;
   const ai = assessment.data?.ai ?? null;
   const finalized = assessment.data?.finalizedAt;
 
