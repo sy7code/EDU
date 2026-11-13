@@ -11,6 +11,7 @@ export function AppLayout() {
     me?.role === "teacher"
       ? [
           { to: "/teacher", label: "반 대시보드" },
+          { to: "/teacher/analytics", label: "반 분석" },
           ...(FEATURES.quiz ? [{ to: "/teacher/reports", label: "신고된 문제" }] : []),
         ]
       : me?.role === "student"

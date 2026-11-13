@@ -1,3 +1,4 @@
+import { AnalyticsPage } from "./features/teacher/AnalyticsPage";
 import { createBrowserRouter } from "react-router";
 import { AppLayout } from "./components/Layout";
 import { RequireRole } from "./auth/session";
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
           { index: true, element: <ClassDashboard /> },
           { path: "students/:studentId", element: <StudentDetailPage /> },
           { path: "reports", element: <ReportsPage /> },
+          { path: "analytics", element: <AnalyticsPage /> },
         ],
       },
     ],
