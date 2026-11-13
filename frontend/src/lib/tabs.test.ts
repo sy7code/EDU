@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTab, studentDetailTab } from "./tabs";
+import { parseTab, studentDetailTab, myRecordsTab } from "./tabs";
 
 const TABS = ["summary", "records", "questions"] as const;
 
@@ -26,3 +26,11 @@ describe("교사 학생 상세 기본 탭 (리뷰 I3)", () => {
   });
 });
 
+
+describe("내 기록 탭", () => {
+  it("notes만 내 정리, 없거나 모르는 값은 학습 목록", () => {
+    expect(myRecordsTab("notes")).toBe("notes");
+    expect(myRecordsTab(null)).toBe("list");
+    expect(myRecordsTab("x")).toBe("list");
+  });
+});

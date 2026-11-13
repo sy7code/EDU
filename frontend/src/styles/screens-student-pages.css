@@ -422,3 +422,80 @@ a.record-row {
     min-height: 0;
   }
 }
+
+/* 내 기록 '내 정리' 탭 */
+.notes-view {
+  display: grid;
+  gap: 14px;
+}
+.notes-toolbar .filter-row {
+  margin: 0;
+}
+.notes-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.notes-head small {
+  color: var(--muted, #6b7280);
+}
+.notes-open {
+  font: inherit;
+  font-size: 13px;
+  color: var(--green);
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.notes-entries,
+.notes-questions {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.notes-entries p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.notes-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.notes-reflection {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--orange-bg);
+}
+.notes-reflection p {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.notes-questions button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line, #e5e7eb);
+  padding: 8px 0;
+  cursor: pointer;
+}
+.notes-questions strong {
+  overflow-wrap: anywhere;
+}
+.notes-questions small {
+  flex: none;
+}

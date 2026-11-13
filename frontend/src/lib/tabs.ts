@@ -8,3 +8,8 @@ export function studentDetailTab(tab: string | null, session: string | null): "s
   if (tab === null) return session ? "records" : "summary";
   return parseTab(tab, ["summary", "records", "questions"] as const, "summary");
 }
+
+/** 학생 내 기록 탭: notes 만 '내 정리', 그 밖은 학습 목록 */
+export function myRecordsTab(tab: string | null): "list" | "notes" {
+  return parseTab(tab, ["list", "notes"] as const, "list");
+}

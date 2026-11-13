@@ -197,6 +197,27 @@ describe("권한", () => {
     expect(e.visibility).toBe("PRIVATE");
   });
 
+  it("내 정리: 학생은 자기 세션의 비공개 기록·돌아보기까지 받고, 다른 학생 것은 받지 않는다", async () => {
+    const s = await startAs("s01");
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "나만 볼 메모", visibility: "PRIVATE" });
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    await api.saveReflection({ sessionId: s.id, checks: [], understanding: 2, remainingQuestions: ["남은 것"] });
+    const mine = await api.listMyNotes();
+    expect(mine.sessions.every((x) => x.studentId === "s01")).toBe(true);
+    expect(mine.sessions.some((x) => x.id === s.id)).toBe(true);
+    expect(mine.entries.some((e) => e.content === "나만 볼 메모")).toBe(true);
+    expect(mine.reflections.some((r) => r.sessionId === s.id && r.remainingQuestions[0] === "남은 것")).toBe(true);
+    const ids = new Set(mine.sessions.map((x) => x.id));
+    expect(mine.entries.every((e) => ids.has(e.sessionId))).toBe(true);
+    expect(mine.reflections.every((r) => ids.has(r.sessionId))).toBe(true);
+  });
+
+  it("내 정리는 학생만 부를 수 있다", async () => {
+    await api.login("t1");
+    await expectCode(api.listMyNotes(), "FORBIDDEN");
+  });
+
   it("학생은 반 명단을 조회할 수 없다", async () => {
     await api.login("s01");
     await expectCode(api.listStudents("c1"), "FORBIDDEN");

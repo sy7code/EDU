@@ -589,6 +589,19 @@ export function createMockApi(opts: MockOptions): Api {
         return [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       }),
 
+    listMyNotes: () =>
+      run(() => {
+        const u = me();
+        if (u.role !== "student") throw new ApiError("FORBIDDEN");
+        const sessions = db.sessions.filter((s) => s.studentId === u.id).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+        const ids = new Set(sessions.map((s) => s.id));
+        return {
+          sessions: sessions.map((s) => ({ ...s })),
+          entries: db.entries.filter((e) => ids.has(e.sessionId)).map((e) => ({ ...e })),
+          reflections: db.reflections.filter((r) => ids.has(r.sessionId)).map((r) => ({ ...r })),
+        };
+      }),
+
     listAiMessages: (sessionId) =>
       run(() => {
         const s = visibleSession(sessionId);

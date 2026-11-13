@@ -32,6 +32,18 @@ function seoulDate(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
 
+
+function mapEntry(r: Row): LearningEntry {
+  return {
+    id: String(r.id),
+    sessionId: String(r.sessionId),
+    kind: (r.kind as LearningEntry["kind"]) ?? "MEMO",
+    content: String(r.content ?? ""),
+    visibility: r.visibility === "PRIVATE" ? "PRIVATE" : "TEACHER",
+    createdAt: String(r.createdAt),
+  };
+}
+
 function mapSession(r: Row): LearningSession {
   return {
     id: String(r.id),
@@ -203,14 +215,22 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     listEntries: async (sessionId) => {
       const rows = ok(await sb.from("v_entries").select().eq("sessionId", sessionId).order("createdAt")) as Row[];
-      return rows.map((r): LearningEntry => ({
-        id: String(r.id),
-        sessionId: String(r.sessionId),
-        kind: (r.kind as LearningEntry["kind"]) ?? "MEMO",
-        content: String(r.content ?? ""),
-        visibility: r.visibility === "PRIVATE" ? "PRIVATE" : "TEACHER",
-        createdAt: String(r.createdAt),
-      }));
+      return rows.map(mapEntry);
+    },
+    listMyNotes: async () => {
+      const u = await requireMe();
+      if (u.role !== "student") throw new ApiError("FORBIDDEN");
+      const sessions = (ok(await sb.from("v_sessions").select().eq("studentId", u.id).order("startedAt", { ascending: false })) as Row[]).map(mapSession);
+      // 세션 ID로 100개씩 나눠 조회 (URL 길이), 페이지 경계가 흔들리지 않게 id로 정렬
+      const bySessions = async (view: string): Promise<Row[]> => {
+        const out: Row[] = [];
+        for (const part of chunk(sessions.map((x) => x.id), 100)) {
+          out.push(...(await fetchAllPages(async (a, b) => ok(await sb.from(view).select().in("sessionId", part).order("sessionId").order(view === "v_entries" ? "id" : "updatedAt").range(a, b)) as Row[])));
+        }
+        return out;
+      };
+      const [entryRows, reflRows] = await Promise.all([bySessions("v_entries"), bySessions("v_reflections")]);
+      return { sessions, entries: entryRows.map(mapEntry), reflections: reflRows.map(rowToReflection) };
     },
 
     // ---------- AI ----------

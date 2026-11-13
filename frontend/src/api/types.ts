@@ -120,6 +120,8 @@ export interface Api {
   // 기록
   addEntry(input: { sessionId: string; kind: EntryKind; content: string; visibility: Visibility }): Promise<LearningEntry>;
   listEntries(sessionId: string): Promise<LearningEntry[]>;
+  /** 학생 본인: 내 모든 세션의 기록(비공개 포함)과 돌아보기 ('내 정리' 탭) */
+  listMyNotes(): Promise<{ sessions: LearningSession[]; entries: LearningEntry[]; reflections: Reflection[] }>;
 
   // AI
   listAiMessages(sessionId: string): Promise<AiMessage[]>;

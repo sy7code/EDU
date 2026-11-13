@@ -9,12 +9,15 @@ import { Badge, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../c
 import { goalLabel } from "../../lib/checklists";
 import { formatDateTime, formatDuration } from "../../lib/time";
 import { SessionDetail } from "./SessionDetail";
+import { NotesView } from "./NotesView";
+import { myRecordsTab } from "../../lib/tabs";
 import { AssessmentView } from "../teacher/AssessmentPanel";
 
 export function MyRecordsPage() {
   const [params, setParams] = useSearchParams();
   const me = useMe();
   const sessions = useQuery({ queryKey: ["sessions", "me"], queryFn: () => api.listSessions({}) });
+  const tab = myRecordsTab(params.get("tab"));
   const selectedId = params.get("session") ?? sessions.data?.[0]?.id;
   const selected = sessions.data?.find((s) => s.id === selectedId);
   const totalMin = (sessions.data ?? []).reduce((n, s) => n + (s.durationMinutes ?? 0), 0);
@@ -39,11 +42,24 @@ export function MyRecordsPage() {
       <PageTitle sub={sessions.data ? `지금까지 ${sessions.data.length}번, ${formatDuration(totalMin)} 스스로 공부했어요` : undefined}>
         내 학습 기록
       </PageTitle>
-      {FEATURES.quiz && me.data && <TopicGrowthView studentId={me.data.id} viewer="student" />}
-      {sessions.isLoading && <Spinner />}
-      {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
-      {sessions.data?.length === 0 && <EmptyState title="아직 기록이 없어요">홈에서 첫 학습을 시작해 보세요.</EmptyState>}
-      {sessions.data && sessions.data.length > 0 && (
+      <nav className="tabs wide" aria-label="내 기록 보기">
+        {(["list", "notes"] as const).map((t) => (
+          <button
+            key={t}
+            aria-current={tab === t ? "page" : undefined}
+            onClick={() => setParams(t === "notes" ? { tab: "notes" } : {})}
+            className={tab === t ? "active" : ""}
+          >
+            {t === "list" ? "학습 목록" : "내 정리"}
+          </button>
+        ))}
+      </nav>
+      {tab === "notes" && <NotesView onOpenSession={choose} />}
+      {tab === "list" && FEATURES.quiz && me.data && <TopicGrowthView studentId={me.data.id} viewer="student" />}
+      {tab === "list" && sessions.isLoading && <Spinner />}
+      {tab === "list" && sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
+      {tab === "list" && sessions.data?.length === 0 && <EmptyState title="아직 기록이 없어요">홈에서 첫 학습을 시작해 보세요.</EmptyState>}
+      {tab === "list" && sessions.data && sessions.data.length > 0 && (
         <section>
           <div className="section-title">
             <h2>학습 목록</h2>
