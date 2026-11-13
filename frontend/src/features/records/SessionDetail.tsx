@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "../../auth/session";
 import { api, FEATURES } from "../../api";
@@ -22,18 +22,38 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
   const fb = useQuery({ queryKey: ["feedback", session.id], queryFn: () => api.listFeedback(session.id) });
   const me = useMe();
   const qc = useQueryClient();
-  // 학생이 이 기록을 열면 안 읽은 피드백을 읽음으로. 이번에 처음 본 것은 '새' 표시를 남겨 둔다
+  // 학생이 피드백 카드를 실제로 보면(화면에 절반 이상 들어오면) 안 읽은 피드백을 읽음으로.
+  // 이번에 처음 본 것은 '새' 표시를 남겨 둔다
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
-  useEffect(() => setNewIds(new Set()), [session.id]);
+  const [seen, setSeen] = useState(false);
+  // 기록을 불러오는 동안엔 카드가 없으므로, 카드가 생기는 순간을 state로 받는다
+  const [fbEl, setFbEl] = useState<HTMLDivElement | null>(null);
+  const inFlight = useRef<Set<string>>(new Set()); // 같은 피드백을 두 번 보내지 않게
   useEffect(() => {
-    if (me.data?.role !== "student" || !fb.data) return;
-    const unread = fb.data.filter((f) => !f.readAt);
+    setNewIds(new Set());
+    setSeen(false);
+  }, [session.id]);
+  useEffect(() => {
+    const el = fbEl;
+    if (!el || seen || me.data?.role !== "student") return;
+    if (typeof IntersectionObserver === "undefined") {
+      setSeen(true);
+      return;
+    }
+    const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setSeen(true), { threshold: 0.5 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [fbEl, seen, me.data?.role]);
+  useEffect(() => {
+    if (!seen || me.data?.role !== "student" || !fb.data) return;
+    const unread = fb.data.filter((f) => !f.readAt && !inFlight.current.has(f.id));
     if (unread.length === 0) return;
+    unread.forEach((f) => inFlight.current.add(f.id));
     setNewIds((prev) => new Set([...prev, ...unread.map((f) => f.id)]));
     Promise.all(unread.map((f) => api.markFeedbackRead(f.id)))
       .then(() => qc.invalidateQueries({ queryKey: ["feedback", session.id] }))
-      .catch(() => undefined); // 읽음 기록 실패는 화면을 막지 않는다 (다음에 열 때 다시 시도)
-  }, [fb.data, me.data?.role, session.id, qc]);
+      .catch(() => unread.forEach((f) => inFlight.current.delete(f.id))); // 실패하면 다음에 다시 시도
+  }, [seen, fb.data, me.data?.role, session.id, qc]);
   const quiz = useQuery({
     queryKey: ["quiz-attempt", session.id],
     queryFn: () => api.getQuizAttempt(session.id),
@@ -141,6 +161,7 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
 
       {quiz.data && <QuizResult attempt={quiz.data} collapsed />}
 
+      <div ref={setFbEl}>
       <Card>
         <h3 className="font-semibold">선생님 피드백</h3>
         {fb.data?.length === 0 && <p className="mt-2 text-sm text-stone-400">아직 피드백이 없어요</p>}
@@ -154,6 +175,7 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
           ))}
         </ul>
       </Card>
+      </div>
     </div>
   );
 }

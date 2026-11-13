@@ -37,7 +37,10 @@ export function StudentDetailPage() {
   useEffect(() => {
     if (!FEATURES.audit || logged.current === studentId) return;
     logged.current = studentId;
-    api.logStudentView(studentId).catch(() => undefined);
+    api.logStudentView(studentId).catch(() => {
+      // 기록이 실패하면 다음에 이 화면을 열 때 다시 시도한다
+      if (logged.current === studentId) logged.current = null;
+    });
   }, [studentId]);
   const chooseSession = (id: string) => {
     go({ session: id });

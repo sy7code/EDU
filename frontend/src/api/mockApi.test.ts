@@ -839,12 +839,13 @@ describe("피드백 읽음·교사 열람 기록", () => {
     expect((await api.listFeedback(f.sessionId)).find((x) => x.id === f.id)?.readAt).not.toBeNull();
   });
 
-  it("남의 피드백은 읽음으로 할 수 없다", async () => {
+  it("남의 피드백·교사의 읽음 요청은 조용히 무시된다 (실제 서버는 0건 처리)", async () => {
     const f = await feedbackFor("s02");
     await api.login("s01");
-    await expectCode(api.markFeedbackRead(f.id), "NOT_FOUND");
+    await api.markFeedbackRead(f.id);
     await api.login("t1");
-    await expectCode(api.markFeedbackRead(f.id), "FORBIDDEN");
+    await api.markFeedbackRead(f.id);
+    expect((await api.listFeedback(f.sessionId)).find((x) => x.id === f.id)?.readAt).toBeNull();
   });
 
   it("교사가 학생 상세를 열면 그 학생의 열람 기록에 남는다", async () => {
@@ -861,6 +862,15 @@ describe("피드백 읽음·교사 열람 기록", () => {
   it("다른 반 학생 열람 기록은 남길 수 없다", async () => {
     await api.login("t2");
     await expectCode(api.logStudentView("s02"), "NOT_FOUND");
+  });
+});
+
+describe("열람 기록 개수", () => {
+  it("최근 10개까지만 돌려준다", async () => {
+    await api.login("t1");
+    for (let i = 0; i < 12; i++) await api.logStudentView("s02");
+    await api.login("s02");
+    expect((await api.listAuditLogs()).length).toBe(10);
   });
 });
 

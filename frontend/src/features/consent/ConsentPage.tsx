@@ -118,14 +118,14 @@ function ViewLog() {
   return (
     <Card className="mt-8">
       <h2 className="font-semibold">내 기록을 본 사람</h2>
-      <p className="text-xs text-stone-500">선생님이 내 학습 기록을 열면 여기에 남아요 (최근 10개)</p>
+      <p className="text-xs text-stone-500">선생님이 '학생 상세' 화면에서 내 기록을 열면 남아요 (최근 10개). 반 전체 통계·대시보드를 볼 때는 남지 않아요.</p>
       {logs.isLoading && <Spinner />}
       {logs.error && <ErrorState error={logs.error} onRetry={() => logs.refetch()} />}
       {logs.data?.length === 0 && <p className="mt-2 text-sm text-stone-500">아직 없어요</p>}
       <ul className="mt-2 divide-y divide-stone-100 text-sm">
-        {logs.data?.slice(0, 10).map((l) => (
+        {logs.data?.map((l) => (
           <li key={l.id} className="flex justify-between gap-2 py-2">
-            <span>{l.actorName || "선생님"} 선생님이 내 기록을 봤어요</span>
+            <span>{l.actorName ? `${l.actorName} 선생님` : "선생님"}이 내 기록을 봤어요</span>
             <span className="text-xs text-stone-500">{formatDateTime(l.createdAt)}</span>
           </li>
         ))}

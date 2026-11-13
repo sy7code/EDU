@@ -43,6 +43,7 @@ const QUIZ_CONCEPT = 3; // 고정 난이도: 개념 확인 3
 const QUIZ_APPLY = 2; // + 적용 2 = 5문항
 const TOPICS_MAX = 3;
 const SIGNAL_MIN_TOTAL = 3; // 채점 문항이 이보다 적으면 차이 신호를 내지 않음
+const AUDIT_LIMIT = 10; // 학생 화면 "최근 10개"와 같게
 const MAX_ENTRY = 2000;
 const MAX_AI_INPUT = 1000;
 const AI_PER_MINUTE = 10;
@@ -668,10 +669,9 @@ export function createMockApi(opts: MockOptions): Api {
     markFeedbackRead: (feedbackId) =>
       run(() => {
         const u = me();
-        if (u.role !== "student") throw new ApiError("FORBIDDEN");
         const f = db.feedback.find((x) => x.id === feedbackId);
-        // 남의 피드백은 존재를 숨긴다 (서버는 0건 처리)
-        if (!f || db.sessions.find((s) => s.id === f.sessionId)?.studentId !== u.id) throw new ApiError("NOT_FOUND");
+        // 실제 서버와 같게: 학생 본인 피드백이 아니면 에러 없이 아무것도 바꾸지 않는다 (RLS 0건)
+        if (u.role !== "student" || !f || db.sessions.find((s) => s.id === f.sessionId)?.studentId !== u.id) return;
         if (!f.readAt) f.readAt = iso();
       }),
     logStudentView: (studentId) =>
@@ -686,7 +686,8 @@ export function createMockApi(opts: MockOptions): Api {
         return db.auditLogs
           .filter((l) => l.action === "VIEW_STUDENT_DETAIL" && (u.role === "student" ? l.targetStudentId === u.id : l.actorId === u.id))
           .map((l, i) => ({ id: l.id ?? `audit-${i}`, actorId: l.actorId, actorName: userById(l.actorId)?.name ?? "", action: l.action, studentId: l.targetStudentId, createdAt: l.at }))
-          .reverse();
+          .reverse()
+          .slice(0, AUDIT_LIMIT);
       }),
 
     getClassAnalytics: (classId, from, to) =>

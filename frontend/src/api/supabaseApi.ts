@@ -261,7 +261,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       ok(await sb.rpc("log_student_view", { p_student_id: studentId }));
     },
     listAuditLogs: async () => {
-      const rows = ok(await sb.from("v_audit_logs").select().order("createdAt", { ascending: false }).limit(50)) as Row[];
+      const rows = ok(await sb.from("v_audit_logs").select().order("createdAt", { ascending: false }).limit(10)) as Row[]; // 학생 화면 "최근 10개"
       return rows.map(rowToAuditLog);
     },
 
