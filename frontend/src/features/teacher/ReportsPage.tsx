@@ -96,7 +96,7 @@ export function ReportsPage() {
                 <span>
                   <Icon name="alert" />
                   <small>이 문항 신고</small>
-                  <strong>{r.questionReportCount}번</strong>
+                  <strong>{r.questionReportCount === null ? "-" : `${r.questionReportCount}번`}</strong>
                 </span>
                 <span>
                   <Icon name={r.studentNumber === null ? "lock" : "users"} />

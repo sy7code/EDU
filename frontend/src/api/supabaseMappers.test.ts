@@ -84,6 +84,15 @@ describe("대시보드 변환", () => {
     );
     expect(d.students.map((s) => s.hasReflectionWithoutFeedback)).toEqual([true, false]);
   });
+
+  it("기록 공유는 shared === true일 때만 (없거나 이상한 값이면 비공개)", () => {
+    const base = { studentId: "a", name: "학생01", number: 1, sessionCount: 1, totalMinutes: 30, openQuestionCount: 0, lastSessionAt: null, needsAttention: false };
+    const d = mapDashboard(
+      { classId: "c", from: "f", to: "t", students: [{ ...base, shared: true }, { ...base, shared: "true" }, { ...base }] },
+      new Set(),
+    );
+    expect(d.students.map((s) => s.shared)).toEqual([true, false, false]);
+  });
 });
 
 describe("에러 변환", () => {
@@ -289,9 +298,9 @@ describe("신고 결과 변환", () => {
     expect(toReportOutcome(null).message).not.toBe("");
   });
 
-  it("신고 목록 행에 새 필드가 없으면 aiReview null, 문항 신고 수 1", () => {
+  it("신고 목록 행에 새 필드가 없으면 aiReview·문항 신고 수 모두 null (모르는 값을 1로 꾸미지 않음)", () => {
     const row = { reportId: "r", topicName: "t", prompt: "p", choices: ["a"], answerIndex: 0, explanation: "e", reason: "UNCLEAR" as const, status: "OPEN" as const, studentNumber: 1, studentReportCount: 1, createdAt: "c" };
-    expect(normalizeReportedQuestion(row as never)).toMatchObject({ aiReview: null, questionReportCount: 1 });
+    expect(normalizeReportedQuestion(row as never)).toMatchObject({ aiReview: null, questionReportCount: null });
     expect(normalizeReportedQuestion({ ...row, aiReview: { verdict: "OK", reason: "x" }, questionReportCount: 3 })).toMatchObject({ aiReview: { verdict: "OK" }, questionReportCount: 3 });
   });
 });

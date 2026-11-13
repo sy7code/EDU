@@ -1,4 +1,4 @@
-import type { TopicGrowth } from "../types/domain";
+import type { DashboardRow, TopicGrowth } from "../types/domain";
 import { UNDERSTANDING_LABELS } from "./checklists";
 import type { QuestionType } from "./questionType";
 
@@ -100,4 +100,17 @@ export function studentInsights(input: InsightInput): Insight[] {
 
   if (out.length === 0) out.push({ tone: "info", text: "특별히 챙길 신호 없음", evidence: "", action: "" });
   return out.sort((a, b) => ORDER[a.tone] - ORDER[b.tone]).slice(0, 4);
+}
+
+/** 대시보드 한 줄: 그 학생의 첫 경고 (최근 7일). 기록 공유 미동의면 횟수 규칙만 */
+export function dashboardRowWarning(r: DashboardRow, classAvgSessions: number | null): Insight | undefined {
+  return studentInsights({
+    period: "최근 7일",
+    shared: r.shared,
+    sessionCount: r.sessionCount,
+    classAvgSessions,
+    lastSessionAt: r.lastSessionAt,
+    quizRate: r.lastQuizRate,
+    openQuestionCount: r.openQuestionCount,
+  }).find((x) => x.tone === "warn");
 }

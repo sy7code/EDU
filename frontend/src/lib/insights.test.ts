@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { studentInsights, type InsightInput } from "./insights";
-import type { TopicGrowth } from "../types/domain";
+import { dashboardRowWarning, studentInsights, type InsightInput } from "./insights";
+import type { DashboardRow, TopicGrowth } from "../types/domain";
 
 const base: InsightInput = { period: "최근 4주", shared: true, sessionCount: 5, classAvgSessions: 5 };
 const topic = (over: Partial<TopicGrowth>): TopicGrowth => ({
@@ -76,5 +76,22 @@ describe("교사 판단 문장", () => {
     expect(out.every((x) => x.tone === "warn")).toBe(true);
     const tones = studentInsights({ ...base, hasReflectionWithoutFeedback: true, topics: [topic({ name: "b", firstRate: 0.2, lastRate: 0.6 })], openQuestionCount: 4 }).map((x) => x.tone);
     expect(tones).toEqual(["warn", "good", "info"]);
+  });
+});
+
+describe("대시보드 한 줄 경고", () => {
+  const row = (over: Partial<DashboardRow>): DashboardRow => ({
+    studentId: "a", name: "학생01", number: 1, sessionCount: 3, totalMinutes: 60, openQuestionCount: 0, lastSessionAt: null,
+    needsAttention: false, hasReflectionWithoutFeedback: false, shared: true, activeNow: false, pendingAssessment: 0, lastQuizRate: null, ...over,
+  });
+
+  it("공유 동의 학생은 남은 질문·정답률로 경고", () => {
+    expect(dashboardRowWarning(row({ openQuestionCount: 5 }), 3)?.text).toBe("남은 질문이 쌓임");
+    expect(dashboardRowWarning(row({ lastQuizRate: 0.1 }), 3)?.text).toBe("확인 테스트 정답률 낮음");
+  });
+
+  it("기록 공유 미동의 학생은 값이 와도 내용 기반 경고를 하지 않고 횟수 경고만", () => {
+    expect(dashboardRowWarning(row({ shared: false, openQuestionCount: 5, lastQuizRate: 0.1 }), 3)).toBeUndefined();
+    expect(dashboardRowWarning(row({ shared: false, sessionCount: 0 }), 3)?.text).toBe("최근 7일 학습 기록 없음");
   });
 });

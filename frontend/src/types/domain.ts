@@ -57,7 +57,15 @@ export type SessionTopic = { topicId: string; name: string; subject?: string; ev
 
 // ---------- 주제 테스트 (고정 난이도 5문항: 개념 3 + 적용 2) ----------
 /** 학생에게 내려가는 문항: 정답·해설 없음 */
-export type StudentQuizQuestion = { id: string; type: "MCQ" | "OX"; prompt: string; choices: string[]; reported?: boolean };
+export type StudentQuizQuestion = {
+  id: string;
+  type: "MCQ" | "OX";
+  prompt: string;
+  choices: string[];
+  reported?: boolean;
+  /** 이 출제에서 학생이 이미 신고했다면 그 처리 결과 (새로고침해도 안내 유지) */
+  reportOutcome?: QuizReportOutcome;
+};
 
 export type QuizReportReason = "WRONG_ANSWER" | "UNCLEAR" | "UNRELATED";
 
@@ -108,8 +116,8 @@ export type ReportedQuestion = {
   status: "OPEN" | "KEEP_EXCLUDED" | "DISMISSED" | "AI_CLEARED";
   /** 이 문항의 첫 신고에 대한 AI 검토 (없으면 null: 백엔드 미반영 등) */
   aiReview: QuizAiReview | null;
-  /** 같은 반에서 이 문항이 신고된 횟수 (AI가 걸러 낸 신고 포함) */
-  questionReportCount: number;
+  /** 같은 반에서 이 문항이 신고된 횟수 (AI가 걸러 낸 신고 포함). 백엔드가 아직 안 주면 null */
+  questionReportCount: number | null;
   studentNumber: number | null; // 기록 공유 미동의 학생이면 null (익명)
   studentReportCount: number | null; // 이 학생의 전체 신고 수 (남발 판단용), 미동의면 null
   createdAt: string;
@@ -230,6 +238,8 @@ export type DashboardRow = {
   needsAttention: boolean;
   /** 기간 안에 돌아보기를 남겼는데 아직 피드백이 없는 기록이 있음 (기록 공유 미동의면 false) */
   hasReflectionWithoutFeedback: boolean;
+  /** 기록 공유 동의 (백엔드 5-1). false면 내용 기반 판단을 하지 않는다 */
+  shared: boolean;
   activeNow: boolean;
   pendingAssessment: number;
   lastQuizRate: number | null; // 최근 단원 테스트 정답률 (공유 동의 없으면 null)

@@ -304,9 +304,8 @@ grant select on v_topics, v_session_topics, v_quiz_attempts to authenticated;
 ## 7. 추가 요청 (내 정리 탭 · 신고 AI 1차 검토, 2026-11-14)
 
 ### 7-1. [확인] 학생 '내 정리' 조회
-프론트 `listMyNotes()`는 학생 본인 세션 ID를 100개씩 나눠 `v_entries`·`v_reflections`를 `.in("sessionId", ids)`로 읽는다(페이지 정렬 `sessionId`, `id`/`updatedAt`).
+프론트 `listMyNotes()`는 학생 본인 세션(`v_sessions`, `id` 정렬·페이지)을 읽고, 세션 ID를 100개씩 나눠 `v_entries`(`sessionId`,`id` 정렬)·`v_reflections`(`sessionId` 정렬)를 `.in("sessionId", ids)`로 읽는다.
 - 학생 본인에게는 `PRIVATE` 기록도 `v_entries`에서 보여야 함 (RLS 확인 부탁)
-- `v_reflections`에 `updatedAt` 컬럼이 있어야 함 (정렬용)
 
 ### 7-2. [새 기능] 신고 AI 1차 검토 — `POST /sessions/:id/quiz/report`
 사용자 결정: **같은 문항 기준**으로 첫 신고는 AI가 검토하고, 같은 문항이 다시 신고되면 교사에게. AI가 걸러 낸 신고도 학생별 신고 수에 센다.
@@ -322,5 +321,9 @@ grant select on v_topics, v_session_topics, v_quiz_attempts to authenticated;
 - 응답: `{ review: "AI_OK" | "AI_ERROR" | "TO_TEACHER", message?: string }`. `review`가 없으면 프론트는 `TO_TEACHER`로 본다(지금 동작).
 - AI 검토 출력 검증: `{ verdict: "OK" | "ERROR", reason: string(≤200자) }`. 형식이 틀리거나 시간 초과면 **`TO_TEACHER`로 처리**(교사 판단으로 넘김, 학생에게 오류를 보이지 않음).
 - `class_reported_questions` 행에 추가: `aiReview: { verdict, reason } | null`(재신고 행엔 그 문항 첫 신고의 검토), `questionReportCount`(같은 반 같은 문항 신고 수, AI_CLEARED 포함), `status`에 `AI_CLEARED`. `studentReportCount`는 AI_CLEARED 포함.
+- **동시성**: "같은 반 이 문항의 첫 신고" 판정은 원자적이어야 함. 두 학생이 동시에 신고해도 AI 검토는 한 번만 돌고 첫 신고는 하나만 생기게(예: `(class_id, question_id)` 단위 advisory lock 또는 첫 신고 표시용 unique 행).
+- **교사 처리 `POST /quiz/reports/:id/resolve`**: `status='OPEN'`인 신고만 처리, 그 밖(`AI_CLEARED`·이미 처리)은 `VALIDATION`. 결정은 같은 반 **같은 문항의 열린 신고 전체**에 적용하고, DISMISS면 각 응시를 재채점.
+- **출제 응답 `POST /sessions/:id/quiz`**: 문항마다 이미 신고했으면 `reportOutcome: { review, message }`를 같이 내려 주기(4-9 `reported` 확장). 새로고침해도 학생 화면의 "AI 확인 · 채점 포함" 안내가 유지됨.
+- `questionReportCount`를 안 주면 프론트는 "-"로 표시(1로 꾸미지 않음).
 - 남용: AI 호출은 문항당 한 번이라 비용이 커지지 않음. 학생별 호출 제한은 기존 원자적 제한에 포함 부탁.
 - 프론트 mock 테스트(`mockApi.test.ts` "신고 AI 1차 검토")와 같은 시나리오로 확인 부탁.

@@ -809,6 +809,55 @@ describe("미룬 항목 수정", () => {
       expect(rows.filter((r) => r.status === "AI_CLEARED")).toHaveLength(1);
     });
 
+    it("새로 불러와도 AI가 문제 없다고 본 신고 결과가 출제 문항에 남는다", async () => {
+      withReviewer("OK");
+      const { s, topic, quiz } = await topicQuiz("s07", "꼭짓점");
+      await api.reportQuestion(s.id, quiz.questions[0].id, "UNCLEAR");
+      const again = await api.getQuiz(s.id, topic.topicId);
+      expect(again.questions[0].reportOutcome?.review).toBe("AI_OK");
+      expect(again.questions[0].reported).toBe(false);
+      expect(again.questions[1].reportOutcome).toBeUndefined();
+    });
+
+    it("AI가 걸러 낸 신고와 이미 처리한 신고는 교사가 다시 처리할 수 없다", async () => {
+      withReviewer("OK");
+      const { s, quiz } = await topicQuiz("s07", "꼭짓점");
+      await api.reportQuestion(s.id, quiz.questions[0].id, "UNCLEAR");
+      const [cleared] = await teacherRows();
+      await expectCode(api.resolveReport(cleared.reportId, "KEEP_EXCLUDED"), "VALIDATION");
+      withReviewer("ERROR");
+      const b = await topicQuiz("s07", "꼭짓점");
+      await api.reportQuestion(b.s.id, b.quiz.questions[0].id, "UNCLEAR");
+      const [open] = await teacherRows();
+      await api.resolveReport(open.reportId, "DISMISS");
+      await expectCode(api.resolveReport(open.reportId, "KEEP_EXCLUDED"), "VALIDATION");
+    });
+
+    it("같은 문항의 열린 신고는 교사 결정 한 번으로 함께 처리하고 각 응시를 재채점한다", async () => {
+      withReviewer("ERROR");
+      const a = await topicQuiz("s01", "꼭짓점");
+      const b = await topicQuiz("s02", "꼭짓점");
+      const common = a.quiz.questions.find((q) => b.quiz.questions.some((x) => x.id === q.id))!;
+      await api.login("s01");
+      await api.reportQuestion(a.s.id, common.id, "UNCLEAR");
+      await api.submitQuiz(a.s.id, {});
+      await api.login("s02");
+      expect((await api.reportQuestion(b.s.id, common.id, "UNCLEAR")).review).toBe("TO_TEACHER");
+      await api.submitQuiz(b.s.id, {});
+      const rows = await teacherRows();
+      expect(rows.filter((r) => r.status === "OPEN")).toHaveLength(2);
+      await api.resolveReport(rows[0].reportId, "DISMISS");
+      expect((await teacherRows()).map((r) => r.status)).toEqual(["DISMISSED", "DISMISSED"]);
+      expect((await api.getQuizAttempt(a.s.id))!.total).toBe(5);
+      expect((await api.getQuizAttempt(b.s.id))!.total).toBe(5);
+    });
+
+    it("기본 mock AI 검토는 형식이 맞는 시드 문항을 문제 없다고 본다", async () => {
+      api = createMockApi({ seed: createSeed(clock), now: () => clock, latencyMs: 0, storage: null });
+      const { s, quiz } = await topicQuiz("s07", "꼭짓점");
+      expect((await api.reportQuestion(s.id, quiz.questions[0].id, "WRONG_ANSWER")).review).toBe("AI_OK");
+    });
+
     it("같은 학생이 같은 문항을 다시 신고하면 같은 결과를 돌려주고 한 번으로 센다", async () => {
       withReviewer("OK");
       const { s, quiz } = await topicQuiz("s07", "꼭짓점");

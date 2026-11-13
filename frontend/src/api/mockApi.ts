@@ -774,6 +774,7 @@ export function createMockApi(opts: MockOptions): Api {
               openQuestionCount: openQ,
               lastSessionAt: last?.startedAt ?? null,
               needsAttention: openQ >= 3 || inRange.length === 0,
+              shared: sharedWithTeacher(u.id),
               // 공유 동의가 있을 때만: 기간 안 돌아보기 중 피드백이 하나도 없는 것이 있으면 true
               hasReflectionWithoutFeedback:
                 sharedWithTeacher(u.id) &&
@@ -823,7 +824,14 @@ export function createMockApi(opts: MockOptions): Api {
       run(() => {
         const { topic, questions } = servedQuiz(sessionId, topicId);
         // 정답·해설은 내려주지 않는다 (채점은 서버)
-        const safe: StudentQuizQuestion[] = questions.map((x) => ({ id: x.id, type: x.type, prompt: x.prompt, choices: [...x.choices], reported: x.reported }));
+        const safe: StudentQuizQuestion[] = questions.map((x) => ({
+          id: x.id,
+          type: x.type,
+          prompt: x.prompt,
+          choices: [...x.choices],
+          reported: x.reported,
+          ...(x.reportOutcome ? { reportOutcome: { ...x.reportOutcome } } : {}),
+        }));
         return { topic: { id: topic.id, name: topic.name }, questions: safe };
       }),
 
@@ -843,7 +851,8 @@ export function createMockApi(opts: MockOptions): Api {
         let outcome: QuizReportOutcome;
         if (!prior) {
           // 문항의 첫 신고: AI가 문항(문제·선택지·정답·해설)만 보고 검토. 학생 기록은 보내지 않는다
-          const pool = db.topicQuestions.find((x) => x.id === questionId)!;
+          const pool = db.topicQuestions.find((x) => x.id === questionId);
+          if (!pool) throw new ApiError("NOT_FOUND");
           const review = reviewQuestion({ prompt: pool.prompt, choices: pool.choices, answerIndex: pool.answerIndex, explanation: pool.explanation }, reason);
           if (review.verdict === "OK") {
             db.quizReports.push({ ...base, status: "AI_CLEARED", aiReview: review });
@@ -951,6 +960,7 @@ export function createMockApi(opts: MockOptions): Api {
         if (t.classId !== classId) throw new ApiError("NOT_FOUND");
         const reports = db.quizReports.filter((r) => r.classId === classId);
         return reports
+          .filter((r) => db.topicQuestions.some((x) => x.id === r.questionId))
           .map((r): ReportedQuestion => {
             const q = db.topicQuestions.find((x) => x.id === r.questionId)!;
             const topic = db.topics.find((x) => x.id === q.topicId);
@@ -981,7 +991,11 @@ export function createMockApi(opts: MockOptions): Api {
         const r = db.quizReports.find((x) => x.id === reportId);
         if (!r || r.classId !== t.classId) throw new ApiError("NOT_FOUND");
         if (action !== "KEEP_EXCLUDED" && action !== "DISMISS") throw new ApiError("VALIDATION");
-        r.status = action === "KEEP_EXCLUDED" ? "KEEP_EXCLUDED" : "DISMISSED";
+        // 열린 신고만 처리 (AI가 걸러 낸 신고·이미 처리한 신고는 다시 못 바꿈)
+        if (r.status !== "OPEN") throw new ApiError("VALIDATION");
+        // 같은 문항의 열린 신고는 이 결정 하나로 함께 처리 (같은 문항에 서로 다른 결론이 남지 않게)
+        const sameQuestion = db.quizReports.filter((x) => x.classId === r.classId && x.questionId === r.questionId && x.status === "OPEN");
+        for (const x of sameQuestion) x.status = action === "KEEP_EXCLUDED" ? "KEEP_EXCLUDED" : "DISMISSED";
         if (action === "KEEP_EXCLUDED") {
           const q = db.topicQuestions.find((x) => x.id === r.questionId);
           if (q) q.excluded = true; // 다음 출제부터 빠짐
@@ -995,15 +1009,16 @@ export function createMockApi(opts: MockOptions): Api {
             rescore(a);
           }
         } else {
-          // 기각: 출제 스냅샷의 신고 표시를 풀고, 이미 제출했으면 재채점
-          const serve = db.quizServes[r.sessionId];
-          const sq = serve?.questions.find((x) => x.id === r.questionId);
-          if (sq) sq.reported = false;
-          const attempt = db.quizAttempts.find((a) => a.sessionId === r.sessionId);
-          if (attempt) {
-            const item = attempt.items.find((i) => i.questionId === r.questionId);
-            if (item) item.reported = false;
-            rescore(attempt);
+          // 기각: 함께 처리한 신고마다 출제 스냅샷의 신고 표시를 풀고, 이미 제출했으면 재채점
+          for (const x of sameQuestion) {
+            const sq = db.quizServes[x.sessionId]?.questions.find((q) => q.id === x.questionId);
+            if (sq) sq.reported = false;
+            const attempt = db.quizAttempts.find((a) => a.sessionId === x.sessionId);
+            if (attempt) {
+              const item = attempt.items.find((i) => i.questionId === x.questionId);
+              if (item) item.reported = false;
+              rescore(attempt);
+            }
           }
         }
         audit(action === "KEEP_EXCLUDED" ? "REPORT_KEEP_EXCLUDED" : "REPORT_DISMISS", r.studentId);

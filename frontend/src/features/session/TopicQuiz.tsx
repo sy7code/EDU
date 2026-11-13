@@ -5,7 +5,7 @@ import { api, ApiError } from "../../api";
 import { useHasConsent } from "../../auth/session";
 import { Badge, Button, ErrorState, Spinner } from "../../components/ui";
 import { Icon } from "../../components/Icon";
-import type { QuizAttempt, QuizReportOutcome, QuizReportReason, SessionTopic } from "../../types/domain";
+import type { QuizAttempt, QuizReportOutcome, QuizReportReason, SessionTopic, StudentQuizQuestion } from "../../types/domain";
 
 export const QUIZ_NOTICE = "테스트는 공부 확인용이에요. 성적에 들어가지 않아요.";
 
@@ -178,7 +178,9 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
   if (!quiz.data) return <Spinner label="AI가 문제를 준비하는 중이에요 (처음 나오는 주제는 시간이 조금 걸려요)" />;
   const { topic, questions } = quiz.data;
   // 신고 상태는 서버(출제 스냅샷)가 기억 → 새로고침해도 유지
-  const isReportedQ = (q: { id: string; reported?: boolean }) => (!!reported[q.id] && reported[q.id].review !== "AI_OK") || !!q.reported;
+  // 신고 결과: 이번 화면에서 받은 것 우선, 없으면 출제 스냅샷(새로고침 후)
+  const outcomeOf = (q: StudentQuizQuestion) => reported[q.id] ?? q.reportOutcome;
+  const isReportedQ = (q: StudentQuizQuestion) => (!!reported[q.id] && reported[q.id].review !== "AI_OK") || !!q.reported;
   const active = questions.filter((q) => !isReportedQ(q));
   const answered = active.filter((q) => answers[q.id] !== undefined && answers[q.id] !== null).length;
 
@@ -205,7 +207,7 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
                 </Badge>
                 {isReported ? (
                   <Badge tone="amber">신고함 · 채점 제외</Badge>
-                ) : reported[q.id]?.review === "AI_OK" ? (
+                ) : outcomeOf(q)?.review === "AI_OK" ? (
                   <Badge tone="sky">AI 확인 · 채점 포함</Badge>
                 ) : (
                   reporting !== q.id && (
@@ -216,9 +218,9 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
                 )}
               </div>
               <h3>{q.prompt}</h3>
-              {reported[q.id] && (
+              {outcomeOf(q) && (
                 <p className="report-outcome" role="status">
-                  {reported[q.id].message || OUTCOME_FALLBACK[reported[q.id].review]}
+                  {outcomeOf(q)!.message || OUTCOME_FALLBACK[outcomeOf(q)!.review]}
                 </p>
               )}
               <div className={`answers ${q.type === "OX" ? "ox" : ""}`} role="radiogroup" aria-label={`${i + 1}번 문제`}>

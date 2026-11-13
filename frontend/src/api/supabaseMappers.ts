@@ -85,6 +85,7 @@ type RawDashboardRow = {
   lastSessionAt: string | null;
   needsAttention: boolean;
   hasReflectionWithoutFeedback?: boolean;
+  shared?: unknown; // v0.6 (5-1)
   lastQuizRate?: number | null; // v0.5.1: 최근 응시 정답률(기록 공유 미동의면 null)
 };
 
@@ -103,6 +104,7 @@ export function mapDashboard(
     lastSessionAt: s.lastSessionAt ?? null,
     needsAttention: !!s.needsAttention,
     hasReflectionWithoutFeedback: !!s.hasReflectionWithoutFeedback,
+    shared: isShared(s.shared),
     activeNow: activeStudentIds.has(s.studentId),
     pendingAssessment: 0,
     lastQuizRate: typeof s.lastQuizRate === "number" ? s.lastQuizRate : null,
@@ -308,5 +310,5 @@ export function toReportOutcome(body: unknown): QuizReportOutcome {
 
 /** class_reported_questions 행 → ReportedQuestion. 새 필드가 없으면 기본값 */
 export function normalizeReportedQuestion(r: ReportedQuestion & Partial<Pick<ReportedQuestion, "aiReview" | "questionReportCount">>): ReportedQuestion {
-  return { ...r, aiReview: r.aiReview ?? null, questionReportCount: typeof r.questionReportCount === "number" ? r.questionReportCount : 1 };
+  return { ...r, aiReview: r.aiReview ?? null, questionReportCount: typeof r.questionReportCount === "number" ? r.questionReportCount : null };
 }

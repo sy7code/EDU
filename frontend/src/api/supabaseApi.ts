@@ -220,12 +220,18 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     listMyNotes: async () => {
       const u = await requireMe();
       if (u.role !== "student") throw new ApiError("FORBIDDEN");
-      const sessions = (ok(await sb.from("v_sessions").select().eq("studentId", u.id).order("startedAt", { ascending: false })) as Row[]).map(mapSession);
-      // 세션 ID로 100개씩 나눠 조회 (URL 길이), 페이지 경계가 흔들리지 않게 id로 정렬
+      // 세션이 1000개를 넘어도 잘리지 않게 페이지로 (id로 정렬해 경계 고정)
+      const sessions = (await fetchAllPages(async (a, b) => ok(await sb.from("v_sessions").select().eq("studentId", u.id).order("id").range(a, b)) as Row[])).map(mapSession);
+      // 세션 ID로 100개씩 나눠 조회 (URL 길이). 돌아보기는 세션당 하나라 sessionId 정렬로 충분
       const bySessions = async (view: string): Promise<Row[]> => {
         const out: Row[] = [];
         for (const part of chunk(sessions.map((x) => x.id), 100)) {
-          out.push(...(await fetchAllPages(async (a, b) => ok(await sb.from(view).select().in("sessionId", part).order("sessionId").order(view === "v_entries" ? "id" : "updatedAt").range(a, b)) as Row[])));
+          out.push(
+            ...(await fetchAllPages(async (a, b) => {
+              const q = sb.from(view).select().in("sessionId", part).order("sessionId");
+              return ok(await (view === "v_entries" ? q.order("id") : q).range(a, b)) as Row[];
+            })),
+          );
         }
         return out;
       };

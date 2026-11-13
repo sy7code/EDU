@@ -12,6 +12,7 @@ const row = (over: Partial<DashboardRow>): DashboardRow => ({
   lastSessionAt: null,
   needsAttention: false,
   hasReflectionWithoutFeedback: false,
+  shared: true,
   activeNow: false,
   pendingAssessment: 0,
   lastQuizRate: null,
