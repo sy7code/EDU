@@ -1,9 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useRef } from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { api, FEATURES } from "../../api";
 import { useMe } from "../../auth/session";
 import { TopicGrowthView } from "./TopicGrowthView";
-import { Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
+import { Badge, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import { goalLabel } from "../../lib/checklists";
 import { formatDateTime, formatDuration } from "../../lib/time";
 import { SessionDetail } from "./SessionDetail";
@@ -16,6 +17,20 @@ export function MyRecordsPage() {
   const selectedId = params.get("session") ?? sessions.data?.[0]?.id;
   const selected = sessions.data?.find((s) => s.id === selectedId);
   const totalMin = (sessions.data ?? []).reduce((n, s) => n + (s.durationMinutes ?? 0), 0);
+  const detailRef = useRef<HTMLDivElement>(null);
+  // 피드백 배지는 홈과 같은 캐시를 쓰고, 최근 끝낸 학습 5개만 확인한다
+  const fbSessions = (sessions.data ?? []).filter((s) => s.status === "ENDED").slice(0, 5);
+  const fbQueries = useQueries({
+    queries: fbSessions.map((s) => ({ queryKey: ["feedback", s.id], queryFn: () => api.listFeedback(s.id) })),
+  });
+  const hasFeedback = new Set(fbSessions.filter((_, i) => (fbQueries[i]?.data?.length ?? 0) > 0).map((s) => s.id));
+  const choose = (id: string) => {
+    setParams({ session: id });
+    // 좁은 화면에서는 목록 아래에 상세가 있어 골라도 반응이 없어 보이므로 상세로 내려간다
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  };
 
   return (
     <div>
@@ -32,7 +47,7 @@ export function MyRecordsPage() {
             {sessions.data.map((s) => (
               <li key={s.id}>
                 <button
-                  onClick={() => setParams({ session: s.id })}
+                  onClick={() => choose(s.id)}
                   className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
                     s.id === selectedId ? "border-brand-500 bg-brand-50" : "border-stone-200 bg-white hover:bg-stone-50"
                   }`}
@@ -41,13 +56,20 @@ export function MyRecordsPage() {
                   <p className="font-medium">
                     {goalLabel(s.goal)}
                   </p>
-                  <p className="text-xs text-brand-700">{s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}</p>
+                  <p className="text-xs text-brand-700">
+                    {s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}
+                    {hasFeedback.has(s.id) && (
+                      <span className="ml-1">
+                        <Badge tone="brand">선생님 피드백</Badge>
+                      </span>
+                    )}
+                  </p>
                 </button>
               </li>
             ))}
           </ul>
           {selected && (
-            <div className="space-y-4">
+            <div ref={detailRef} className="min-w-0 scroll-mt-4 space-y-4">
               <SessionDetail session={selected} />
               <StudentAssessment sessionId={selected.id} />
             </div>
