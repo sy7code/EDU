@@ -33,7 +33,7 @@ export function StudentDetailPage() {
       <Link to="/teacher" className="text-sm text-stone-500 hover:underline">
         ← 반 대시보드
       </Link>
-      <PageTitle sub="학생이 '교사 공개'로 남긴 기록만 보여요 · 열람 기록이 남아요">
+      <PageTitle sub={`학생이 '교사 공개'로 남긴 기록만 보여요${FEATURES.audit ? " · 열람 기록이 남아요" : ""}`}>
         {dash.data ? `${dash.data.number}번 ${dash.data.name}` : "학생 기록"}
       </PageTitle>
       {FEATURES.quiz && <StudentOverviewBoard studentId={studentId} />}

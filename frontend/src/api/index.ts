@@ -12,6 +12,7 @@ export const FEATURES = {
   manualAuth: USE_MOCK, // 선생님이 확인
   assessment: USE_MOCK, // AI·교사 교차채점
   quiz: USE_MOCK, // 단원 테스트·문제 관리·종합 보드
+  audit: USE_MOCK, // 교사 열람 감사 로그 (실제 백엔드엔 아직 없음 → "기록이 남아요" 문구도 숨김)
 } as const;
 
 function createRealApi(): Api {
