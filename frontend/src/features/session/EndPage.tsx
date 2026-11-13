@@ -7,6 +7,7 @@ import { REFLECTION_ITEMS, UNDERSTANDING_LABELS } from "../../lib/checklists";
 import { formatDuration, formatTime } from "../../lib/time";
 import type { AuthEvent, GroundedItem, LearningSession } from "../../types/domain";
 import { AuthWait } from "./AuthWait";
+import { useHasConsent } from "../../auth/session";
 import { TopicStep } from "./TopicQuiz";
 
 export function EndPage() {
@@ -47,12 +48,15 @@ export function EndPage() {
 /** 종료 후: AI가 찾은 주제 → 확인 테스트(이미 봤으면 생략) → 돌아보기 */
 function AfterEnd({ session }: { session: LearningSession }) {
   const [quizDone, setQuizDone] = useState(false);
+  // 주제 추출·문항 생성은 기록을 AI로 보내므로 AI 동의가 있어야 함
+  const aiOk = useHasConsent("AI");
+  const topicsOn = FEATURES.quiz && aiOk;
   const attempt = useQuery({
     queryKey: ["quiz-attempt", session.id],
     queryFn: () => api.getQuizAttempt(session.id),
-    enabled: FEATURES.quiz,
+    enabled: topicsOn,
   });
-  if (FEATURES.quiz && !quizDone) {
+  if (topicsOn && !quizDone) {
     if (attempt.error) return <ErrorState error={attempt.error} onRetry={() => attempt.refetch()} />;
     if (attempt.isLoading) return <Spinner />;
     if (!attempt.data) {

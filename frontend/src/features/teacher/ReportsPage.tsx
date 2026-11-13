@@ -50,9 +50,9 @@ export function ReportsPage() {
                 <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
                 <Badge tone="sky">{r.topicName}</Badge>
                 <span className="text-stone-500">
-                  {r.studentNumber}번 학생 · {REASON[r.reason]} · {formatDateTime(r.createdAt)}
+                  {r.studentNumber === null ? "학생(기록 비공개)" : `${r.studentNumber}번 학생`} · {REASON[r.reason]} · {formatDateTime(r.createdAt)}
                 </span>
-                {r.studentReportCount >= 3 && <Badge tone="amber">이 학생 신고 {r.studentReportCount}건</Badge>}
+                {r.studentReportCount !== null && r.studentReportCount >= 3 && <Badge tone="amber">이 학생 신고 {r.studentReportCount}건</Badge>}
               </div>
               <p className="mt-2 font-medium">{r.prompt}</p>
               <ol className="mt-2 grid gap-1 text-sm sm:grid-cols-2">

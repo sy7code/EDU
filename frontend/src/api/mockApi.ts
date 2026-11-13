@@ -42,6 +42,7 @@ const CODE_PER_MINUTE = 20;
 const QUIZ_CONCEPT = 3; // 고정 난이도: 개념 확인 3
 const QUIZ_APPLY = 2; // + 적용 2 = 5문항
 const TOPICS_MAX = 3;
+const SIGNAL_MIN_TOTAL = 3; // 채점 문항이 이보다 적으면 차이 신호를 내지 않음
 const MAX_ENTRY = 2000;
 const MAX_AI_INPUT = 1000;
 const AI_PER_MINUTE = 10;
@@ -279,6 +280,16 @@ export function createMockApi(opts: MockOptions): Api {
     ];
   }
 
+  /** 채점 대상: 학생 신고·교사 제외 확정이 아닌 문항 */
+  function isScored(i: { reported: boolean; excluded?: boolean }) {
+    return !i.reported && !i.excluded;
+  }
+  function rescore(a: QuizAttempt) {
+    const scored = a.items.filter(isScored);
+    a.total = scored.length;
+    a.correct = scored.filter((i) => i.correct).length;
+  }
+
   // ---------- 주제 사전 ----------
   /** 반 주제 사전에서 같은 개념(사전 key)의 주제를 찾고, 없으면 만든다 → 이름이 쪼개지지 않음 */
   function classTopic(classId: string, dict: DictionaryTopic) {
@@ -342,8 +353,8 @@ export function createMockApi(opts: MockOptions): Api {
     return list[0] ?? null;
   }
   /** 차이 신호: 스스로 '설명할 수 있다(3)'인데 60% 미만 → OVERCONFIDENT, 그 외 40% 미만 → LOW_SCORE */
-  function quizSignal(rate: number | null, understanding: number | null): TopicGrowth["signal"] {
-    if (rate === null) return null;
+  function quizSignal(rate: number | null, understanding: number | null, total = SIGNAL_MIN_TOTAL): TopicGrowth["signal"] {
+    if (rate === null || total < SIGNAL_MIN_TOTAL) return null; // 신고로 채점 문항이 너무 적으면 판단하지 않음
     if (understanding === 3 && rate < 0.6) return "OVERCONFIDENT";
     if (rate < 0.4) return "LOW_SCORE";
     return null;
@@ -700,6 +711,8 @@ export function createMockApi(opts: MockOptions): Api {
         const s = visibleSession(sessionId);
         if (u.role !== "student" || s.studentId !== u.id) throw new ApiError("NOT_FOUND");
         if (s.status !== "ENDED") throw new ApiError("SESSION_NOT_ACTIVE");
+        // 주제 추출·문항 생성은 기록을 AI(외부 LLM)로 보내므로 AI 동의가 있어야 함
+        if (!hasConsent(s.studentId, "AI")) throw new ApiError("CONSENT_REQUIRED");
         const cached = db.sessionTopics[sessionId];
         if (cached) return cached;
         // 근거: 교사 공개 기록만 (PRIVATE은 AI·교사 모두 보지 않음)
@@ -757,9 +770,9 @@ export function createMockApi(opts: MockOptions): Api {
         const items = questions.map((x) => {
           const raw = answers[x.id];
           const chosen = Number.isInteger(raw) && (raw as number) >= 0 && (raw as number) < x.choices.length ? (raw as number) : null;
-          return { questionId: x.id, prompt: x.prompt, choices: [...x.choices], chosen, answerIndex: x.answerIndex, correct: chosen === x.answerIndex, explanation: x.explanation, reported: x.reported };
+          return { questionId: x.id, prompt: x.prompt, choices: [...x.choices], chosen, answerIndex: x.answerIndex, correct: chosen === x.answerIndex, explanation: x.explanation, reported: x.reported, excluded: x.excluded };
         });
-        const scored = items.filter((i) => !i.reported); // 신고 문항은 채점 제외
+        const scored = items.filter(isScored); // 신고·제외 확정 문항은 채점 제외
         const attempt: QuizAttempt = {
           id: id("quiz"),
           sessionId,
@@ -816,8 +829,9 @@ export function createMockApi(opts: MockOptions): Api {
             attempts: attempts.length,
             firstRate: rate(attempts[0]),
             lastRate: rate(last),
+            lastTotal: last ? last.total : null,
             lastUnderstanding: und,
-            signal: quizSignal(rate(last), pairedUnd),
+            signal: quizSignal(rate(last), pairedUnd, last ? last.total : 0),
           };
         });
         topics.sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name));
@@ -842,8 +856,9 @@ export function createMockApi(opts: MockOptions): Api {
               explanation: q.explanation,
               reason: r.reason,
               status: r.status,
-              studentNumber: userById(r.studentId)?.number ?? 0,
-              studentReportCount: reports.filter((x) => x.studentId === r.studentId).length,
+              // 기록 공유 미동의 학생은 누가 어떤 주제를 공부했는지 드러나지 않게 익명
+              studentNumber: sharedWithTeacher(r.studentId) ? (userById(r.studentId)?.number ?? 0) : null,
+              studentReportCount: sharedWithTeacher(r.studentId) ? reports.filter((x) => x.studentId === r.studentId).length : null,
               createdAt: r.createdAt,
             };
           })
@@ -860,6 +875,15 @@ export function createMockApi(opts: MockOptions): Api {
         if (action === "KEEP_EXCLUDED") {
           const q = db.topicQuestions.find((x) => x.id === r.questionId);
           if (q) q.excluded = true; // 다음 출제부터 빠짐
+          // 이미 이 문항을 받은 모든 출제·응시에서도 채점 제외 (신고하지 않은 학생 포함)
+          for (const serve of Object.values(db.quizServes)) {
+            for (const sq of serve.questions) if (sq.id === r.questionId) sq.excluded = true;
+          }
+          for (const a of db.quizAttempts) {
+            if (!a.items.some((i) => i.questionId === r.questionId)) continue;
+            for (const i of a.items) if (i.questionId === r.questionId) i.excluded = true;
+            rescore(a);
+          }
         } else {
           // 기각: 출제 스냅샷의 신고 표시를 풀고, 이미 제출했으면 재채점
           const serve = db.quizServes[r.sessionId];
@@ -869,9 +893,7 @@ export function createMockApi(opts: MockOptions): Api {
           if (attempt) {
             const item = attempt.items.find((i) => i.questionId === r.questionId);
             if (item) item.reported = false;
-            const scored = attempt.items.filter((i) => !i.reported);
-            attempt.total = scored.length;
-            attempt.correct = scored.filter((i) => i.correct).length;
+            rescore(attempt);
           }
         }
         audit(action === "KEEP_EXCLUDED" ? "REPORT_KEEP_EXCLUDED" : "REPORT_DISMISS", r.studentId);

@@ -70,6 +70,7 @@ export type QuizResultItem = {
   correct: boolean;
   explanation: string;
   reported: boolean; // 학생이 신고한 문항 → 채점(total)에서 제외
+  excluded?: boolean; // 교사가 '문항 오류'로 제외 확정 → 이 문항을 푼 모든 응시에서 채점 제외
 };
 
 /** 주제별 성장 (학생 본인·교사). 정답률은 신고 제외 후 채점 문항이 있는 응시만 */
@@ -82,6 +83,7 @@ export type TopicGrowth = {
   attempts: number;
   firstRate: number | null;
   lastRate: number | null;
+  lastTotal: number | null; // 최근 응시의 채점 문항 수 (신고 제외 후). 3개 미만이면 신호 없음
   lastUnderstanding: 1 | 2 | 3 | null;
   signal: "OVERCONFIDENT" | "LOW_SCORE" | null;
 };
@@ -98,8 +100,8 @@ export type ReportedQuestion = {
   explanation: string;
   reason: QuizReportReason;
   status: "OPEN" | "KEEP_EXCLUDED" | "DISMISSED";
-  studentNumber: number;
-  studentReportCount: number; // 이 학생의 전체 신고 수 (남발 판단용)
+  studentNumber: number | null; // 기록 공유 미동의 학생이면 null (익명)
+  studentReportCount: number | null; // 이 학생의 전체 신고 수 (남발 판단용), 미동의면 null
   createdAt: string;
 };
 

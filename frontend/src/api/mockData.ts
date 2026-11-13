@@ -76,6 +76,7 @@ export type ServedQuestion = {
   answerIndex: number;
   explanation: string;
   reported: boolean;
+  excluded?: boolean;
 };
 
 const SURNAMES = ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임"];

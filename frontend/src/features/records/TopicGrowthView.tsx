@@ -60,6 +60,7 @@ export function TopicGrowthView({ studentId, viewer }: { studentId: string; view
                   <span>{t.sessions}회 · {formatDuration(t.minutes)}</span>
                   <span>
                     확인 테스트 {t.attempts}번 · {t.attempts > 1 ? `${pct(t.firstRate)} → ${pct(t.lastRate)}` : pct(t.lastRate)}
+                    {t.lastTotal !== null && t.lastTotal < 5 && <span className="ml-1 text-xs text-stone-400">(최근 {t.lastTotal}문항 기준)</span>}
                     {up !== null && up !== 0 && (
                       <strong className={up > 0 ? "ml-1 text-brand-700" : "ml-1 text-amber-700"}>
                         {up > 0 ? "▲" : "▼"}

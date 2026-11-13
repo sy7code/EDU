@@ -82,7 +82,7 @@ export function ClassDashboard() {
               <th className="px-4 py-2.5">학습</th>
               <th className="px-4 py-2.5">시간</th>
               <th className="px-4 py-2.5">남은 질문</th>
-              {FEATURES.quiz && <th className="px-4 py-2.5">최근 테스트</th>}
+              {FEATURES.dashboardQuizRate && <th className="px-4 py-2.5">최근 테스트</th>}
               <th className="px-4 py-2.5">최근</th>
               <th className="px-4 py-2.5">상태</th>
               {FEATURES.manualAuth && <th className="px-4 py-2.5" />}
@@ -100,7 +100,7 @@ export function ClassDashboard() {
                 <td className="px-4 py-2.5 tabular-nums">{r.sessionCount}회</td>
                 <td className="px-4 py-2.5 tabular-nums">{formatDuration(r.totalMinutes)}</td>
                 <td className="px-4 py-2.5 tabular-nums">{r.openQuestionCount}</td>
-                {FEATURES.quiz && (
+                {FEATURES.dashboardQuizRate && (
                   <td className={`px-4 py-2.5 tabular-nums ${r.lastQuizRate !== null && r.lastQuizRate < 0.4 ? "font-semibold text-amber-700" : ""}`}>
                     {r.lastQuizRate === null ? "-" : `${Math.round(r.lastQuizRate * 100)}%`}
                   </td>

@@ -19,8 +19,9 @@ export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: ()
   const [picked, setPicked] = useState<string | null>(null);
   const [quizTopic, setQuizTopic] = useState<SessionTopic | null>(null);
 
-  if (quizTopic) return <TopicQuiz sessionId={sessionId} topicId={quizTopic.topicId} onDone={onDone} />;
-  if (topics.error) return <ErrorState error={topics.error} onRetry={() => topics.refetch()} />;
+  if (quizTopic) return <TopicQuiz sessionId={sessionId} topicId={quizTopic.topicId} onDone={onDone} onBack={() => setQuizTopic(null)} />;
+  // AI 오류가 나도 돌아보기(핵심 기능)로는 넘어갈 수 있어야 함
+  if (topics.error) return <SkippableError error={topics.error} onRetry={() => topics.refetch()} onSkip={onDone} />;
   if (!topics.data) return <Spinner label="AI가 오늘 기록에서 주제를 찾는 중" />;
 
   if (topics.data.length === 0) {
@@ -37,7 +38,7 @@ export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: ()
     );
   }
 
-  const text = (id: string) => entries.data?.find((e) => e.id === id)?.content ?? "";
+  const text = (id: string) => (id === "goal" ? "(오늘 할 것)" : (entries.data?.find((e) => e.id === id)?.content ?? ""));
   const chosen = topics.data.find((t) => t.topicId === picked);
 
   return (
@@ -65,14 +66,33 @@ export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: ()
           이 주제 다 공부했어요, 테스트 보기
         </Button>
         <Button variant="ghost" onClick={onDone}>
-          나중에 할게요
+          이번엔 건너뛸게요
         </Button>
       </div>
     </Card>
   );
 }
 
-function TopicQuiz({ sessionId, topicId, onDone }: { sessionId: string; topicId: string; onDone: () => void }) {
+/** 오류 화면 + 돌아보기로 넘어가는 탈출구 */
+function SkippableError({ error, onRetry, onSkip, onBack }: { error: unknown; onRetry: () => void; onSkip: () => void; onBack?: () => void }) {
+  return (
+    <div className="space-y-2">
+      <ErrorState error={error} onRetry={onRetry} />
+      <div className="flex flex-wrap gap-2">
+        {onBack && (
+          <Button variant="secondary" onClick={onBack}>
+            주제 다시 고르기
+          </Button>
+        )}
+        <Button variant="ghost" onClick={onSkip}>
+          테스트 없이 돌아보기로 넘어가기
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; topicId: string; onDone: () => void; onBack: () => void }) {
   const qc = useQueryClient();
   const [answers, setAnswers] = useState<Record<string, number | null>>({});
   const [reported, setReported] = useState<Record<string, QuizReportReason>>({});
@@ -107,7 +127,7 @@ function TopicQuiz({ sessionId, topicId, onDone }: { sessionId: string; topicId:
       </Card>
     );
   }
-  if (quiz.error) return <ErrorState error={quiz.error} onRetry={() => quiz.refetch()} />;
+  if (quiz.error) return <SkippableError error={quiz.error} onRetry={() => quiz.refetch()} onSkip={finish} onBack={onBack} />;
   if (!quiz.data) return <Spinner label="AI가 문제를 준비하는 중이에요 (처음 나오는 주제는 시간이 조금 걸려요)" />;
   const { topic, questions } = quiz.data;
   const active = questions.filter((q) => !reported[q.id]);
@@ -186,10 +206,11 @@ export function QuizResult({ attempt, onNext }: { attempt: QuizAttempt; onNext?:
         {attempt.items.map((it, i) => (
           <li
             key={it.questionId}
-            className={`rounded-lg border p-3 text-sm ${it.reported ? "border-stone-200 bg-stone-50 text-stone-500" : it.correct ? "border-brand-100 bg-brand-50/50" : "border-amber-200 bg-amber-50/60"}`}
+            className={`rounded-lg border p-3 text-sm ${it.reported || it.excluded ? "border-stone-200 bg-stone-50 text-stone-500" : it.correct ? "border-brand-100 bg-brand-50/50" : "border-amber-200 bg-amber-50/60"}`}
           >
             <p className="font-medium">
-              {it.reported ? "🚩" : it.correct ? "⭕" : "❌"} {i + 1}. {it.prompt} {it.reported && <Badge>신고함 · 채점 제외</Badge>}
+              {it.reported || it.excluded ? "🚩" : it.correct ? "⭕" : "❌"} {i + 1}. {it.prompt} {it.reported && <Badge>신고함 · 채점 제외</Badge>}
+              {!it.reported && it.excluded && <Badge>문항 오류 · 채점 제외</Badge>}
             </p>
             <p className="mt-1 text-stone-600">
               내 답: {it.chosen === null ? "고르지 않음" : it.choices[it.chosen]} · 정답: <strong>{it.choices[it.answerIndex]}</strong>

@@ -638,3 +638,72 @@ describe("주제별 성장·신고 문제", () => {
     await expectCode(api.resolveReport(rep.reportId, "DISMISS"), "FORBIDDEN");
   });
 });
+
+describe("최종 리뷰 수정 (주제별 성장)", () => {
+  async function run(studentId: string, content: string, opts: { answers?: "correct" | "wrong"; report?: number; understanding?: 1 | 2 | 3 } = {}) {
+    await api.login(studentId);
+    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const s = await api.startSession({ goal: { subject: "공부", activities: [] }, authEventId: ev.id });
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content, visibility: "TEACHER" });
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    const [topic] = await api.extractTopics(s.id);
+    const quiz = await api.getQuiz(s.id, topic.topicId);
+    for (const q of quiz.questions.slice(0, opts.report ?? 0)) await api.reportQuestion(s.id, q.id, "WRONG_ANSWER");
+    const pool = TOPIC_DICTIONARY.flatMap((d) => d.pool);
+    const answers = Object.fromEntries(
+      quiz.questions.map((q) => {
+        const src = pool.find((x) => x.prompt === q.prompt)!;
+        const right = q.choices.indexOf(src.choices[src.answerIndex]);
+        return [q.id, opts.answers === "correct" ? right : opts.answers === "wrong" ? (right + 1) % q.choices.length : null];
+      }),
+    );
+    const attempt = await api.submitQuiz(s.id, answers);
+    if (opts.understanding) await api.saveReflection({ sessionId: s.id, checks: [], understanding: opts.understanding, remainingQuestions: [] });
+    advance(60_000);
+    return { s, topic, quiz, attempt };
+  }
+
+  it("AI 동의가 없으면 기록을 AI로 보내는 주제 추출을 하지 않는다", async () => {
+    await api.login("s04"); // 시드: AI 거부
+    const ev = await api.simulateFaceAuth(DEVICE, "s04", true);
+    const s = await api.startSession({ goal: { subject: "공부", activities: [] }, authEventId: ev.id });
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "꼭짓점", visibility: "TEACHER" });
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s04", true)).id);
+    await expectCode(api.extractTopics(s.id), "CONSENT_REQUIRED");
+  });
+
+  it("문항 제외를 유지하면 그 문항을 푼 다른 학생 응시도 다시 채점한다", async () => {
+    const a = await run("s01", "부등식", { answers: "correct", report: 1 });
+    const b = await run("s02", "부등호", { answers: "correct" });
+    expect(b.attempt.total).toBe(5);
+    await api.login("t1");
+    const rep = (await api.listReportedQuestions("c1")).find((r) => r.prompt === a.quiz.questions[0].prompt)!;
+    await api.resolveReport(rep.reportId, "KEEP_EXCLUDED");
+    await api.login("s02");
+    expect((await api.getQuizAttempt(b.s.id))?.total).toBe(4);
+  });
+
+  it("채점 문항이 3개 미만이면 차이 신호를 내지 않는다", async () => {
+    const r = await run("s02", "관계대명사", { answers: "wrong", report: 3, understanding: 3 });
+    await api.login("t1");
+    const g = (await api.getTopicGrowth("s02")).topics.find((t) => t.topicId === r.topic.topicId)!;
+    expect(g.lastTotal).toBe(2);
+    expect(g.signal).toBeNull();
+  });
+
+  it("기록 공유 미동의 학생의 신고는 교사에게 학생 번호 없이 보인다", async () => {
+    await run("s01", "꼭짓점", { report: 1 });
+    await api.login("s01");
+    await api.saveConsents([
+      { kind: "FACEPASS", granted: true, byGuardian: false },
+      { kind: "AI", granted: true, byGuardian: false },
+      { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
+    ]);
+    await api.login("t1");
+    const [rep] = await api.listReportedQuestions("c1");
+    expect(rep.studentNumber).toBeNull();
+    expect(rep.studentReportCount).toBeNull();
+  });
+});
