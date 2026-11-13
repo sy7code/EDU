@@ -8,6 +8,8 @@ import {
   reflectionToChanged,
   textToGoal,
   toGrounded,
+  rowToReflection,
+  latestConsents,
 } from "./supabaseMappers";
 
 describe("목표 ↔ 텍스트", () => {
@@ -77,5 +79,41 @@ describe("에러 변환", () => {
     expect(mapPgError({ message: "SESSION_NOT_ACTIVE" }).code).toBe("SESSION_NOT_ACTIVE");
     expect(mapPgError({ message: "new row violates row-level security policy for table \"entries\"" }).code).toBe("FORBIDDEN");
     expect(mapPgError({ message: "NOT_FOUND" }).code).toBe("NOT_FOUND");
+  });
+});
+
+describe("수정본 백엔드 형식 (2026-11-14)", () => {
+  it("테이블 쓰기 에러를 code로 구분한다", () => {
+    expect(mapPgError({ code: "SESSION_NOT_ACTIVE", message: "진행 중인 학습에만 기록할 수 있어요." }).code).toBe("SESSION_NOT_ACTIVE");
+    expect(mapPgError({ code: "NOT_FOUND", message: "찾을 수 없어요." }).code).toBe("NOT_FOUND");
+    expect(mapPgError({ code: "42501", message: "new row violates row-level security policy" }).code).toBe("FORBIDDEN");
+  });
+
+  it("주제 테스트 함수 에러 코드를 바꾼다", () => {
+    expect(mapFnError(409, { error: { code: "QUIZ_NOT_AVAILABLE", message: "x" } }).code).toBe("QUIZ_NOT_AVAILABLE");
+    expect(mapFnError(409, { error: { code: "QUIZ_ALREADY_TAKEN", message: "x" } }).code).toBe("QUIZ_ALREADY_TAKEN");
+    expect(mapFnError(502, { error: { code: "AI_BAD_OUTPUT", message: "x" } }).code).toBe("AI_BAD_OUTPUT");
+  });
+
+  it("성찰은 컬럼을 우선 읽고, 컬럼이 비면 예전 텍스트를 읽는다", () => {
+    expect(rowToReflection({ sessionId: "s", changed: "", checks: ["asked"], understanding: 3, note: "메모", remainingQuestions: ["q"], updatedAt: "t" })).toMatchObject({
+      checks: ["asked"],
+      understanding: 3,
+      note: "메모",
+    });
+    expect(rowToReflection({ sessionId: "s", changed: "예전 주관식", checks: [], understanding: null, note: null, remainingQuestions: [], updatedAt: "t" })).toMatchObject({
+      understanding: null,
+      legacyText: "예전 주관식",
+    });
+  });
+
+  it("동의는 종류별 최신 행이 현재 값이다", () => {
+    const c = latestConsents([
+      { kind: "AI", granted: true, policyVersion: "v", createdAt: "2026-11-14T00:00:00Z" },
+      { kind: "AI", granted: false, policyVersion: "v", createdAt: "2026-11-14T01:00:00Z" },
+      { kind: "LEARNING_RECORD", granted: true, policyVersion: "v", createdAt: "2026-11-14T00:30:00Z" },
+    ]);
+    expect(c.find((x) => x.kind === "AI")?.granted).toBe(false);
+    expect(c.length).toBe(2);
   });
 });

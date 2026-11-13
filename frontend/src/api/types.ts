@@ -41,6 +41,7 @@ export type ApiErrorCode =
   | "AI_TIMEOUT"
   | "QUIZ_ALREADY_TAKEN"
   | "QUIZ_NOT_AVAILABLE"
+  | "AI_BAD_OUTPUT"
   | "UNKNOWN";
 
 export class ApiError extends Error {
@@ -69,7 +70,8 @@ export function errorMessage(err: unknown): string {
     RATE_LIMITED: "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.",
     AI_TIMEOUT: "AI 응답이 늦어지고 있어요. 다시 시도해 주세요.",
     QUIZ_ALREADY_TAKEN: "이번 학습의 단원 테스트는 이미 제출했어요.",
-    QUIZ_NOT_AVAILABLE: "단원을 고르고 학습을 마친 뒤에 테스트를 볼 수 있어요.",
+    QUIZ_NOT_AVAILABLE: "학습을 마친 뒤, 이번 기록에서 찾은 주제로만 테스트를 볼 수 있어요.",
+    AI_BAD_OUTPUT: "AI가 문제를 제대로 만들지 못했어요. 다시 시도해 주세요.",
     UNKNOWN: "문제가 생겼어요. 잠시 후 다시 시도해 주세요.",
   };
   return map[code];

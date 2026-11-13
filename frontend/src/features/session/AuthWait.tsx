@@ -67,7 +67,7 @@ export function AuthWait({ purpose, onAuth }: { purpose: "start" | "end"; onAuth
       {/* 데모 인증: mock·실제 백엔드(/dev/facepass/simulate) 모두 지원 */}
       <div className="mt-5 flex flex-wrap justify-center gap-2 border-t border-dashed border-stone-200 pt-4">
         <span className="w-full text-xs text-stone-400">데모 전용 버튼{USE_MOCK ? "" : " (실제 단말기 연동 전)"}</span>
-        {faceOk && (
+        {(faceOk || !FEATURES.codeAuth) && ( /* 대체 수단(QR)이 없는 실제 모드에선 막히지 않게 항상 표시 */
           <Button variant="secondary" onClick={() => simulate.mutate("face")} disabled={simulate.isPending}>
             단말기 얼굴 인증 흉내
           </Button>

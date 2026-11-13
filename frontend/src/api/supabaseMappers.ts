@@ -1,6 +1,6 @@
 // 프론트 형식 ↔ 백엔드(Supabase) 형식 변환. 순수 함수만 둔다.
 import { GOAL_ACTIVITIES, REFLECTION_ITEMS } from "../lib/checklists";
-import type { Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal } from "../types/domain";
+import type { Consent, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal } from "../types/domain";
 import { ApiError, type ApiErrorCode } from "./types";
 
 const SEP = " | ";
@@ -119,6 +119,9 @@ const FN_CODES: Record<string, ApiErrorCode> = {
   RATE_LIMITED: "RATE_LIMITED",
   AI_TIMEOUT: "AI_TIMEOUT",
   AI_UNAVAILABLE: "AI_TIMEOUT",
+  QUIZ_NOT_AVAILABLE: "QUIZ_NOT_AVAILABLE",
+  QUIZ_ALREADY_TAKEN: "QUIZ_ALREADY_TAKEN",
+  AI_BAD_OUTPUT: "AI_BAD_OUTPUT",
 };
 
 /** Edge Function 에러 { error: { code, message } } → ApiError (화면 문구는 프론트 사전 사용) */
@@ -134,10 +137,45 @@ export function mapFnError(status: number, body: unknown): ApiError {
 /** PostgREST(테이블 직접 쓰기·RPC) 에러 → ApiError */
 export function mapPgError(err: { message?: string; code?: string }): ApiError {
   const m = err.message ?? "";
+  // 수정본 백엔드: 의미 있는 에러는 code로 온다 (message는 한국어 문장)
+  if (err.code === "SESSION_NOT_ACTIVE") return new ApiError("SESSION_NOT_ACTIVE");
+  if (err.code === "NOT_FOUND") return new ApiError("NOT_FOUND");
+  if (err.code === "42501") return new ApiError("FORBIDDEN");
   if (m.includes("SESSION_NOT_ACTIVE")) return new ApiError("SESSION_NOT_ACTIVE");
   if (m.includes("row-level security")) return new ApiError("FORBIDDEN");
   if (m.includes("NOT_FOUND")) return new ApiError("NOT_FOUND");
   if (m.includes("JWT") || err.code === "PGRST301") return new ApiError("UNAUTHENTICATED");
   if (m.includes("check constraint") || m.includes("violates")) return new ApiError("VALIDATION");
   return new ApiError("UNKNOWN", "db error");
+}
+
+/** v_reflections 행 → Reflection. 체크리스트 컬럼(understanding)이 있으면 그것을, 없으면 예전 changed 텍스트를 읽는다 */
+export function rowToReflection(row: Record<string, unknown>): Reflection {
+  const sessionId = String(row.sessionId ?? "");
+  const remaining = (row.remainingQuestions as string[] | null) ?? [];
+  const updatedAt = String(row.updatedAt ?? "");
+  const u = row.understanding as number | null | undefined;
+  if (u === 1 || u === 2 || u === 3) {
+    const base: Reflection = { sessionId, checks: (row.checks as string[] | null) ?? [], understanding: u, remainingQuestions: remaining, updatedAt };
+    const note = row.note as string | null | undefined;
+    return note ? { ...base, note } : base;
+  }
+  return changedToReflection(sessionId, String(row.changed ?? ""), remaining, updatedAt);
+}
+
+/** consents 이력 → 종류별 최신 값 */
+export function latestConsents(rows: Array<Record<string, unknown>>): Consent[] {
+  const latest = new Map<string, Consent>();
+  const sorted = [...rows].sort((a, b) => String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? "")));
+  for (const r of sorted) {
+    const kind = String(r.kind) as Consent["kind"];
+    latest.set(kind, {
+      kind,
+      granted: r.granted === true,
+      byGuardian: r.byGuardian === true,
+      policyVersion: String(r.policyVersion ?? ""),
+      createdAt: String(r.createdAt ?? ""),
+    });
+  }
+  return [...latest.values()];
 }

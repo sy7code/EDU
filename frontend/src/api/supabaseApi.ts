@@ -18,7 +18,9 @@ import type {
   Student,
   User,
 } from "../types/domain";
-import { changedToReflection, goalToText, mapDashboard, mapFnError, mapPgError, reflectionToChanged, textToGoal, toGrounded } from "./supabaseMappers";
+import { goalToText, latestConsents, mapDashboard, mapFnError, mapPgError, rowToReflection, textToGoal, toGrounded } from "./supabaseMappers";
+
+const POLICY_VERSION = "2026-11-v1";
 import { ApiError, type Api } from "./types";
 
 type Row = Record<string, unknown>;
@@ -131,10 +133,19 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return meCache;
     },
 
-    // ---------- 동의: 백엔드에 동의 기능이 없음 → 전부 허용 상태로 간주 (화면의 동의 메뉴는 숨김) ----------
-    getConsents: async (): Promise<Consent[]> =>
-      (["FACEPASS", "AI", "LEARNING_RECORD"] as const).map((kind) => ({ kind, granted: true, byGuardian: false, policyVersion: "backend-none", createdAt: new Date(0).toISOString() })),
-    saveConsents: async () => notSupported(),
+    // ---------- 동의 (백엔드 consents: 이력 append, 종류별 최신 행이 현재 값) ----------
+    getConsents: async (): Promise<Consent[]> => {
+      const u = await requireMe();
+      if (u.role !== "student") return [];
+      const rows = ok(await sb.from("v_consents").select().eq("studentId", u.id)) as Row[];
+      return latestConsents(rows);
+    },
+    saveConsents: async (input) => {
+      const u = await requireMe();
+      if (u.role !== "student") throw new ApiError("FORBIDDEN");
+      ok(await sb.from("consents").insert(input.map((c) => ({ student_id: u.id, kind: c.kind, granted: c.granted, policy_version: POLICY_VERSION }))));
+      return api.getConsents();
+    },
 
     listStudents: async (classId) => {
       const rows = ok(await sb.from("v_students").select().eq("classId", classId).order("number")) as Row[];
@@ -147,8 +158,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     submitCodeAuth: async () => notSupported(),
     submitManualAuth: async () => notSupported(),
     getPendingAuthEvent: async () => {
+      // 수정본: 인증이 없으면 200 + null (예전 404도 호환)
       try {
-        return mapAuthEvent(await fn<Row>("GET", "/auth-events/latest"));
+        const r = await fn<Row | null>("GET", "/auth-events/latest");
+        return r ? mapAuthEvent(r) : null;
       } catch (e) {
         if (e instanceof ApiError && e.code === "NOT_FOUND") return null;
         throw e;
@@ -182,12 +195,11 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
 
     // ---------- 기록 ----------
     addEntry: async ({ sessionId, kind, content, visibility }) => {
-      // 백엔드엔 PAPER 종류가 없고 빈 내용이 안 됨 → 메모로 저장
-      const realKind = kind === "PAPER" ? "MEMO" : kind;
-      const text = kind === "PAPER" ? `📝 종이에 기록함${content.trim() ? ` — ${content.trim()}` : ""}` : content.trim();
+      // 수정본: PAPER 허용, PAPER만 빈 내용 허용
+      const text = content.trim();
       const id = crypto.randomUUID();
-      ok(await sb.from("entries").insert({ id, session_id: sessionId, kind: realKind, content: text, visibility }));
-      const e: LearningEntry = { id, sessionId, kind: realKind, content: text, visibility, createdAt: new Date().toISOString() };
+      ok(await sb.from("entries").insert({ id, session_id: sessionId, kind, content: text, visibility }));
+      const e: LearningEntry = { id, sessionId, kind, content: text, visibility, createdAt: new Date().toISOString() };
       return e;
     },
     listEntries: async (sessionId) => {
@@ -217,11 +229,17 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     getReflection: async (sessionId) => {
       const r = ok(await sb.from("v_reflections").select().eq("sessionId", sessionId).maybeSingle()) as Row | null;
       if (!r) return null;
-      return changedToReflection(String(r.sessionId), String(r.changed ?? ""), (r.remainingQuestions as string[]) ?? [], String(r.updatedAt ?? ""));
+      return rowToReflection(r);
     },
     saveReflection: async (r) => {
       const remaining = r.remainingQuestions.map((q) => q.trim()).filter(Boolean).slice(0, 5);
-      ok(await sb.from("reflections").upsert({ session_id: r.sessionId, changed: reflectionToChanged(r), remaining_questions: remaining }, { onConflict: "session_id" }));
+      // 수정본: 체크리스트 컬럼에 저장 (changed 는 비움)
+      ok(
+        await sb.from("reflections").upsert(
+          { session_id: r.sessionId, changed: "", checks: r.checks, understanding: r.understanding, note: r.note?.trim() || null, remaining_questions: remaining },
+          { onConflict: "session_id" },
+        ),
+      );
       const saved: Reflection = { ...r, remainingQuestions: remaining, updatedAt: new Date().toISOString() };
       return saved;
     },
@@ -261,7 +279,13 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     submitQuiz: async (sessionId, answers) => fn<QuizAttempt>("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz/submit`, { answers }),
 
     // 주제별 성장·신고 (명세 v0.5: RPC + 함수)
-    getTopicGrowth: async (studentId) => ok(await sb.rpc("student_topic_growth", { p_student_id: studentId })) as GrowthReport,
+    getTopicGrowth: async (studentId) => {
+      const raw = ok(await sb.rpc("student_topic_growth", { p_student_id: studentId })) as { shared?: boolean; topics?: GrowthReport["topics"] } | null;
+      // RPC엔 전체 횟수·시간이 없어 세션 view로 계산 (교사는 동의와 무관하게 세션 시간은 봄)
+      const rows = ok(await sb.from("v_sessions").select("durationMinutes").eq("studentId", studentId)) as Row[];
+      const total = { sessions: rows.length, minutes: rows.reduce((n, r) => n + ((r.durationMinutes as number) ?? 0), 0) };
+      return { studentId, shared: raw?.shared !== false, topics: raw?.shared === false ? [] : (raw?.topics ?? []), total };
+    },
     listReportedQuestions: async (classId) => (ok(await sb.rpc("class_reported_questions", { p_class_id: classId })) as ReportedQuestion[]) ?? [],
     resolveReport: async (reportId, action) => {
       await fn("POST", `/quiz/reports/${encodeURIComponent(reportId)}/resolve`, { action });

@@ -7,11 +7,11 @@ export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== "false";
 
 /** 실제 백엔드에 아직 없는 기능은 화면에서 숨긴다 (mock 데모에서는 모두 보임) */
 export const FEATURES = {
-  consent: USE_MOCK, // 동의 설정 화면
+  consent: true, // 동의 설정 화면 (백엔드 consents 반영됨, 2026-11-14)
   codeAuth: USE_MOCK, // QR·학생증 바코드, 키오스크
   manualAuth: USE_MOCK, // 선생님이 확인
   assessment: USE_MOCK, // AI·교사 교차채점
-  quiz: USE_MOCK, // 단원 테스트·문제 관리·종합 보드
+  quiz: true, // 주제별 성장·확인 테스트·신고 (백엔드 v0.5 반영됨, 2026-11-14)
   audit: USE_MOCK, // 교사 열람 감사 로그 (실제 백엔드엔 아직 없음 → "기록이 남아요" 문구도 숨김)
 } as const;
 

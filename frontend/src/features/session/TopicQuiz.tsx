@@ -108,7 +108,7 @@ function TopicQuiz({ sessionId, topicId, onDone }: { sessionId: string; topicId:
     );
   }
   if (quiz.error) return <ErrorState error={quiz.error} onRetry={() => quiz.refetch()} />;
-  if (!quiz.data) return <Spinner label="문제를 불러오는 중" />;
+  if (!quiz.data) return <Spinner label="AI가 문제를 준비하는 중이에요 (처음 나오는 주제는 시간이 조금 걸려요)" />;
   const { topic, questions } = quiz.data;
   const active = questions.filter((q) => !reported[q.id]);
   const answered = active.filter((q) => answers[q.id] !== undefined && answers[q.id] !== null).length;
