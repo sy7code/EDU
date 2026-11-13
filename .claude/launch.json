@@ -26,6 +26,22 @@
         "dev:demo"
       ],
       "port": 5174
+    },
+    {
+      "name": "frontend-demo-alt",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "vite",
+        "frontend",
+        "--mode",
+        "demo",
+        "--port",
+        "5175",
+        "--strictPort"
+      ],
+      "port": 5175
     }
   ]
 }

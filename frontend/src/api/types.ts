@@ -31,6 +31,7 @@ export type ApiErrorCode =
   | "NOT_FOUND"
   | "FORBIDDEN"
   | "CONSENT_REQUIRED"
+  | "GUARDIAN_CONSENT_REQUIRED"
   | "SESSION_ALREADY_ACTIVE"
   | "SESSION_ALREADY_ENDED"
   | "SESSION_NOT_ACTIVE"
@@ -61,6 +62,7 @@ export function errorMessage(err: unknown): string {
     NOT_FOUND: "찾을 수 없거나 볼 수 있는 권한이 없어요.",
     FORBIDDEN: "이 작업을 할 수 있는 권한이 없어요.",
     CONSENT_REQUIRED: "이 기능을 쓰려면 동의가 필요해요. 동의 설정을 확인해 주세요.",
+    GUARDIAN_CONSENT_REQUIRED: "만 14세 미만은 보호자 동의를 받은 뒤에 '동의함'을 고를 수 있어요.",
     SESSION_ALREADY_ACTIVE: "이미 진행 중인 학습이 있어요.",
     SESSION_ALREADY_ENDED: "이미 끝난 학습이에요.",
     SESSION_NOT_ACTIVE: "진행 중인 학습에만 기록할 수 있어요.",

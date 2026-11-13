@@ -232,7 +232,7 @@ describe("권한", () => {
     await api.login("s30");
     await expectCode(
       api.saveConsents([{ kind: "AI", granted: true, byGuardian: false }]),
-      "VALIDATION",
+      "GUARDIAN_CONSENT_REQUIRED",
     );
   });
 
@@ -275,6 +275,12 @@ describe("AI", () => {
     await api.login("t1");
     const msgs = await api.listAiMessages(s.id);
     expect(msgs.map((m) => m.content).join("\n")).not.toContain("010-1234-5678");
+  });
+
+  it("AI에 동의하지 않은 학생의 세션은 요약하지 않는다 (서버 4-1)", async () => {
+    const s = await startAs("s04");
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "공개 메모", visibility: "TEACHER" });
+    await expectCode(api.summarizeSession(s.id), "CONSENT_REQUIRED");
   });
 
   it("요약의 모든 문장은 공개 기록을 근거로 가진다", async () => {

@@ -13,7 +13,7 @@ export const FEATURES = {
   manualAuth: USE_MOCK, // 선생님이 확인
   assessment: USE_MOCK, // AI·교사 교차채점
   quiz: true, // 주제별 성장·확인 테스트·신고 (백엔드 v0.5 반영됨, 2026-11-14)
-  dashboardQuizRate: USE_MOCK, // 대시보드 '최근 테스트' 열 (실제 class_dashboard RPC에 아직 값 없음)
+  dashboardQuizRate: true, // 대시보드 '최근 테스트' 열 (백엔드 v0.5.1 lastQuizRate 반영됨, 2026-11-14)
   audit: USE_MOCK, // 교사 열람 감사 로그 (실제 백엔드엔 아직 없음 → "기록이 남아요" 문구도 숨김)
 } as const;
 

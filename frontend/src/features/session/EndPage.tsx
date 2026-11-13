@@ -76,7 +76,9 @@ function AfterEnd({ session }: { session: LearningSession }) {
 function Wrapup({ session }: { session: LearningSession }) {
   const nav = useNavigate();
   const qc = useQueryClient();
-  const summary = useQuery({ queryKey: ["summary", session.id], queryFn: () => api.summarizeSession(session.id) });
+  // 요약도 기록을 AI로 보내므로 AI 동의가 없으면 부르지 않는다 (서버도 403 CONSENT_REQUIRED)
+  const aiOk = useHasConsent("AI");
+  const summary = useQuery({ queryKey: ["summary", session.id], queryFn: () => api.summarizeSession(session.id), enabled: aiOk });
   const [checks, setChecks] = useState<string[]>([]);
   const [understanding, setUnderstanding] = useState<1 | 2 | 3 | null>(null);
   const [questions, setQuestions] = useState<string[]>([]);
@@ -102,7 +104,11 @@ function Wrapup({ session }: { session: LearningSession }) {
 
       <Card>
         <h2 className="font-semibold">오늘 한 일</h2>
-        <p className="text-xs text-stone-500">내가 남긴 기록에서만 뽑았어요. 기록에 없는 내용은 만들지 않아요.</p>
+        {aiOk ? (
+          <p className="text-xs text-stone-500">내가 남긴 기록에서만 뽑았어요. 기록에 없는 내용은 만들지 않아요.</p>
+        ) : (
+          <p className="mt-1 text-sm text-stone-600">AI 이용에 동의하지 않아 기록을 AI로 정리하지 않았어요. 아래 체크리스트로 직접 돌아봐요.</p>
+        )}
         {summary.isLoading && <Spinner label="정리하는 중" />}
         {summary.error && <ErrorState error={summary.error} onRetry={() => summary.refetch()} />}
         {summary.data && (

@@ -258,6 +258,8 @@ grant select on v_topics, v_session_topics, v_quiz_attempts to authenticated;
 
 ## 4. 추가 요청 v0.5.1 (프론트 최종 리뷰 결과, 2026-11-14)
 
+- (2026-11-14 갱신) 백엔드가 4-1~4-9 모두 반영. 프론트 어댑터 연결 완료(대시보드 정답률, 동의 에러 코드 2개, `under14`, `by_guardian`).
+
 프론트 mock은 아래 규칙으로 이미 바꾸고 테스트로 고정했습니다(`frontend/src/api/mockApi.test.ts` "최종 리뷰 수정 (주제별 성장)"). 백엔드도 맞춰 주세요.
 
 | # | 우선 | 요청 | 이유 |

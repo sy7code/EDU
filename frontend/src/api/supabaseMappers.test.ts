@@ -11,6 +11,8 @@ import {
   rowToReflection,
   latestConsents,
   pickQuizQuestions,
+  rowToUser,
+  consentRows,
 } from "./supabaseMappers";
 
 describe("목표 ↔ 텍스트", () => {
@@ -140,5 +142,34 @@ describe("미룬 항목 수정 (변환)", () => {
 describe("목표 메모", () => {
   it("활동 없이 메모만 있어도 메모를 활동으로 읽지 않는다", () => {
     expect(textToGoal(goalToText({ subject: "복습", activities: [], note: "꼭짓점" }))).toEqual({ subject: "복습", activities: [], note: "꼭짓점" });
+  });
+});
+
+describe("v0.5.1 백엔드 반영", () => {
+  it("대시보드 lastQuizRate를 그대로 읽고 없으면 null", () => {
+    const base = { name: "학생", number: 1, sessionCount: 0, totalMinutes: 0, openQuestionCount: 0, lastSessionAt: null, needsAttention: false };
+    const d = mapDashboard({ classId: "c", from: "f", to: "t", students: [{ studentId: "a", ...base, lastQuizRate: 0.8 }, { studentId: "b", ...base, lastQuizRate: null }, { studentId: "c", ...base }] }, new Set());
+    expect(d.students.map((s) => s.lastQuizRate)).toEqual([0.8, null, null]);
+  });
+
+  it("AI 미동의 함수 에러는 CONSENT_REQUIRED", () => {
+    expect(mapFnError(403, { error: { code: "CONSENT_REQUIRED", message: "x" } }).code).toBe("CONSENT_REQUIRED");
+  });
+
+  it("만 14세 미만 보호자 동의 거부는 GUARDIAN_CONSENT_REQUIRED (함수·테이블 쓰기 모두)", () => {
+    expect(mapFnError(403, { error: { code: "GUARDIAN_CONSENT_REQUIRED", message: "x" } }).code).toBe("GUARDIAN_CONSENT_REQUIRED");
+    expect(mapPgError({ code: "GUARDIAN_CONSENT_REQUIRED", message: "보호자 동의가 필요해요." }).code).toBe("GUARDIAN_CONSENT_REQUIRED");
+    expect(mapPgError({ code: "P0001", message: "GUARDIAN_CONSENT_REQUIRED" }).code).toBe("GUARDIAN_CONSENT_REQUIRED");
+  });
+
+  it("v_me의 under14를 읽는다", () => {
+    expect(rowToUser({ id: "u", name: "학생30", role: "student", classId: "c", number: 30, under14: true }).under14).toBe(true);
+    expect(rowToUser({ id: "u", name: "학생01", role: "student", classId: "c", number: 1 }).under14).toBe(false);
+  });
+
+  it("동의 저장 행에 by_guardian을 넣는다", () => {
+    expect(consentRows("s", "v1", [{ kind: "AI", granted: true, byGuardian: true }])).toEqual([
+      { student_id: "s", kind: "AI", granted: true, by_guardian: true, policy_version: "v1" },
+    ]);
   });
 });

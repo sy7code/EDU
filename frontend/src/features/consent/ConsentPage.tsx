@@ -64,6 +64,8 @@ export function ConsentPage() {
   if (consents.isLoading || me.isLoading) return <Spinner />;
   const allDecided = ITEMS.every((i) => values[i.kind] !== null);
   const needGuardian = !!me.data?.under14;
+  // 거부·철회는 보호자 동의 없이도 된다 (서버 4-7과 같은 규칙). "동의해요"를 하나라도 골랐을 때만 막는다
+  const anyGranted = ITEMS.some((i) => values[i.kind] === true);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -101,7 +103,7 @@ export function ConsentPage() {
         )}
       </div>
       {save.error && <div className="mt-3"><ErrorState error={save.error} /></div>}
-      <Button className="mt-5 w-full" disabled={!allDecided || (needGuardian && !guardian) || save.isPending} onClick={() => save.mutate()}>
+      <Button className="mt-5 w-full" disabled={!allDecided || (needGuardian && anyGranted && !guardian) || save.isPending} onClick={() => save.mutate()}>
         저장하고 시작하기
       </Button>
     </div>

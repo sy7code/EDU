@@ -17,7 +17,7 @@ import type {
   Student,
   User,
 } from "../types/domain";
-import { goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, rowToReflection, textToGoal, toGrounded } from "./supabaseMappers";
+import { consentRows, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
 
 const POLICY_VERSION = "2026-11-v1";
 import { ApiError, type Api } from "./types";
@@ -128,7 +128,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       if (meCache && meCache.id === data.session.user.id) return meCache;
       const row = ok(await sb.from("v_me").select().maybeSingle()) as Row | null;
       if (!row) return null;
-      meCache = { id: String(row.id), name: String(row.name), role: row.role === "teacher" ? "teacher" : "student", classId: String(row.classId), number: (row.number as number) ?? undefined };
+      meCache = rowToUser(row);
       return meCache;
     },
 
@@ -142,7 +142,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     saveConsents: async (input) => {
       const u = await requireMe();
       if (u.role !== "student") throw new ApiError("FORBIDDEN");
-      ok(await sb.from("consents").insert(input.map((c) => ({ student_id: u.id, kind: c.kind, granted: c.granted, policy_version: POLICY_VERSION }))));
+      ok(await sb.from("consents").insert(consentRows(u.id, POLICY_VERSION, input)));
       return api.getConsents();
     },
 

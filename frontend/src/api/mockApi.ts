@@ -407,7 +407,7 @@ export function createMockApi(opts: MockOptions): Api {
         const u = me();
         if (u.role !== "student") throw new ApiError("FORBIDDEN");
         // 만 14세 미만은 보호자 동의 없이 '동의'를 저장할 수 없다 (서버에서 강제)
-        if (u.under14 && input.some((c) => c.granted && !c.byGuardian)) throw new ApiError("VALIDATION");
+        if (u.under14 && input.some((c) => c.granted && !c.byGuardian)) throw new ApiError("GUARDIAN_CONSENT_REQUIRED");
         const list: Consent[] = input.map((c) => ({
           kind: c.kind,
           granted: c.granted,
@@ -616,6 +616,8 @@ export function createMockApi(opts: MockOptions): Api {
     summarizeSession: (sessionId) =>
       run(() => {
         const s = visibleSession(sessionId);
+        // 요약도 기록을 AI로 보내므로 학생의 AI 동의가 있어야 함 (서버 4-1과 같은 규칙, 교사 요청 포함)
+        if (!hasConsent(s.studentId, "AI")) throw new ApiError("CONSENT_REQUIRED");
         const pub = isTeacherView() ? teacherEntries(s) : publicEntries(sessionId);
         return {
           activities: pub.filter((e) => e.kind !== "QUESTION").map(grounded),

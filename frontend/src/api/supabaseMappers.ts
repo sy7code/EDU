@@ -1,6 +1,6 @@
 // 프론트 형식 ↔ 백엔드(Supabase) 형식 변환. 순수 함수만 둔다.
 import { GOAL_ACTIVITIES, REFLECTION_ITEMS } from "../lib/checklists";
-import type { Consent, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion } from "../types/domain";
+import type { Consent, ConsentKind, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion, User } from "../types/domain";
 import { ApiError, type ApiErrorCode } from "./types";
 
 const SEP = " | ";
@@ -85,6 +85,7 @@ type RawDashboardRow = {
   lastSessionAt: string | null;
   needsAttention: boolean;
   hasReflectionWithoutFeedback?: boolean;
+  lastQuizRate?: number | null; // v0.5.1: 최근 응시 정답률(기록 공유 미동의면 null)
 };
 
 /** RPC class_dashboard → 프론트 Dashboard. 백엔드에 없는 값은 기본값 */
@@ -103,7 +104,7 @@ export function mapDashboard(
     needsAttention: !!s.needsAttention,
     activeNow: activeStudentIds.has(s.studentId),
     pendingAssessment: 0,
-    lastQuizRate: null,
+    lastQuizRate: typeof s.lastQuizRate === "number" ? s.lastQuizRate : null,
   }));
   return { classId: raw.classId, from: raw.from, to: raw.to, students };
 }
@@ -127,6 +128,8 @@ const FN_CODES: Record<string, ApiErrorCode> = {
   QUIZ_NOT_AVAILABLE: "QUIZ_NOT_AVAILABLE",
   QUIZ_ALREADY_TAKEN: "QUIZ_ALREADY_TAKEN",
   AI_BAD_OUTPUT: "AI_BAD_OUTPUT",
+  CONSENT_REQUIRED: "CONSENT_REQUIRED",
+  GUARDIAN_CONSENT_REQUIRED: "GUARDIAN_CONSENT_REQUIRED",
 };
 
 /** Edge Function 에러 { error: { code, message } } → ApiError (화면 문구는 프론트 사전 사용) */
@@ -144,6 +147,7 @@ export function mapPgError(err: { message?: string; code?: string }): ApiError {
   const m = err.message ?? "";
   // 수정본 백엔드: 의미 있는 에러는 code로 온다 (message는 한국어 문장)
   if (err.code === "SESSION_NOT_ACTIVE") return new ApiError("SESSION_NOT_ACTIVE");
+  if (err.code === "GUARDIAN_CONSENT_REQUIRED" || m.includes("GUARDIAN_CONSENT_REQUIRED")) return new ApiError("GUARDIAN_CONSENT_REQUIRED");
   if (err.code === "NOT_FOUND") return new ApiError("NOT_FOUND");
   if (err.code === "42501") return new ApiError("FORBIDDEN");
   if (m.includes("SESSION_NOT_ACTIVE")) return new ApiError("SESSION_NOT_ACTIVE");
@@ -198,4 +202,14 @@ export function pickQuizQuestions(raw: unknown[]): StudentQuizQuestion[] {
     if (typeof q.reported === "boolean") out.reported = q.reported;
     return out;
   });
+}
+
+/** v_me 행 → User */
+export function rowToUser(row: Record<string, unknown>): User {
+  return { id: String(row.id), name: String(row.name), role: row.role === "teacher" ? "teacher" : "student", classId: String(row.classId), number: (row.number as number) ?? undefined, under14: row.under14 === true };
+}
+
+/** 동의 입력 → consents insert 행 (snake_case) */
+export function consentRows(studentId: string, policyVersion: string, input: Array<{ kind: ConsentKind; granted: boolean; byGuardian: boolean }>) {
+  return input.map((c) => ({ student_id: studentId, kind: c.kind, granted: c.granted, by_guardian: c.byGuardian, policy_version: policyVersion }));
 }
