@@ -1,79 +1,83 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router";
 import { useLogout, useMe } from "../auth/session";
 import { FEATURES, resetMockData, USE_MOCK } from "../api";
+import { Icon } from "./Icon";
 
 export function AppLayout() {
   const { data: me } = useMe();
   const logout = useLogout();
   const nav = useNavigate();
 
-  const links =
+  // [경로, 아이콘, 이름] — 디자인은 프로토타입의 상단 바 + 왼쪽 사이드바(모바일은 아래 탭바)
+  const links: Array<[string, string, string]> =
     me?.role === "teacher"
       ? [
-          { to: "/teacher", label: "반 대시보드" },
-          { to: "/teacher/analytics", label: "반 분석" },
-          ...(FEATURES.quiz ? [{ to: "/teacher/reports", label: "신고된 문제" }] : []),
+          ["/teacher", "users", "반 대시보드"],
+          ["/teacher/analytics", "chart", "반 분석"],
+          ...(FEATURES.quiz ? ([["/teacher/reports", "alert", "신고된 문제"]] as Array<[string, string, string]>) : []),
         ]
       : me?.role === "student"
         ? [
-            { to: "/student", label: "홈" },
-            { to: "/student/records", label: "내 기록" },
-            ...(FEATURES.consent ? [{ to: "/student/consent", label: "동의 설정" }] : []),
+            ["/student", "home", "홈"],
+            ["/student/records", "book", "내 기록"],
+            ...(FEATURES.consent ? ([["/student/consent", "settings", "동의 설정"]] as Array<[string, string, string]>) : []),
           ]
         : [];
+  const signedIn = !!me;
 
   return (
-    <div className="min-h-full">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Link to="/" className="text-lg font-bold text-brand-700">
-            성장 페이스
-          </Link>
-          <nav className="flex gap-1 text-sm">
-            {links.map((l) => (
-              <NavLink
-                key={l.to}
-                to={l.to}
-                end
-                className={({ isActive }) =>
-                  `rounded-md px-3 py-1.5 ${isActive ? "bg-brand-50 font-semibold text-brand-700" : "text-stone-600 hover:bg-stone-100"}`
-                }
+    <div className={`app-shell ${signedIn ? "" : "is-login"}`}>
+      {signedIn && (
+        <>
+          <header className="topbar">
+            <Link to="/" className="brand">
+              <span className="brandmark">
+                <Icon name="leaf" size={21} />
+              </span>
+              <span>성장 페이스</span>
+            </Link>
+            <div className="top-actions">
+              <span className="user-name">
+                {me.name} {me.role === "teacher" ? "선생님" : "학생"}
+              </span>
+              <button
+                className="icon-button"
+                aria-label="로그아웃"
+                title="로그아웃"
+                onClick={async () => {
+                  await logout();
+                  nav("/");
+                }}
               >
-                {l.label}
-              </NavLink>
-            ))}
-          </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm">
-            {me && (
-              <>
-                <span className="text-stone-600">
-                  {me.name} {me.role === "teacher" ? "선생님" : ""}
-                </span>
-                <button
-                  className="text-stone-500 underline-offset-2 hover:underline"
-                  onClick={async () => {
-                    await logout();
-                    nav("/");
-                  }}
-                >
-                  로그아웃
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">
-        <Outlet />
-      </main>
-      {USE_MOCK && (
-        <footer className="mx-auto max-w-5xl px-4 pb-6 text-xs text-stone-400">
-          데모 모드 · 모든 데이터는 가짜입니다 ·{" "}
-          <button className="underline" onClick={resetMockData}>
-            데모 데이터 초기화
-          </button>
-        </footer>
+                <Icon name="logout" />
+              </button>
+            </div>
+          </header>
+          <aside className="sidebar">
+            <nav aria-label="주요 메뉴">
+              {links.map(([to, icon, label]) => (
+                <NavLink key={to} to={to} end className={({ isActive }) => (isActive ? "active" : "")}>
+                  <Icon name={icon} />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          </aside>
+        </>
       )}
+      <main>
+        <div className={signedIn ? `page ${me.role === "teacher" ? "teacher-page" : "student-page"}` : ""}>
+          <Outlet />
+        </div>
+        {USE_MOCK && (
+          <footer className="demo-footer">
+            데모 모드 · 모든 데이터는 가짜입니다 ·{" "}
+            <button className="underline" onClick={resetMockData}>
+              데모 데이터 초기화
+            </button>
+          </footer>
+        )}
+      </main>
     </div>
   );
 }

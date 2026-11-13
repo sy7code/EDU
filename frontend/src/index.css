@@ -1,13 +1,20 @@
+@import url("https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
+@import "./styles/design.css";
+@import "./styles/overrides.css";
+@import "./styles/screens-student-study.css";
+@import "./styles/screens-student-pages.css";
+@import "./styles/screens-teacher-overview.css";
+@import "./styles/screens-teacher-detail.css";
 
 @theme {
-  --color-brand-50: #eef7f3;
-  --color-brand-100: #d5ede2;
-  --color-brand-500: #1f8a5c;
-  --color-brand-600: #187049;
-  --color-brand-700: #13583a;
-  --color-ink: #1c2321;
-  --font-sans: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --color-brand-50: #e7f3ed;
+  --color-brand-100: #d3e8dd;
+  --color-brand-500: #176b4d;
+  --color-brand-600: #176b4d;
+  --color-brand-700: #0f523b;
+  --color-ink: #16251f;
+  --font-sans: "IBM Plex Sans KR", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
 }
 
 html,
@@ -17,7 +24,8 @@ body,
 }
 
 body {
-  @apply bg-stone-50 text-ink antialiased;
+  @apply text-ink antialiased;
+  background: var(--bg);
 }
 
 :focus-visible {
