@@ -19,16 +19,21 @@ export function StudentHome() {
     queryKey: ["topic-growth", studentId],
     queryFn: () => api.getTopicGrowth(studentId!),
     enabled: !!studentId && FEATURES.quiz,
+    staleTime: HOME_STALE,
   });
-  // 피드백은 세션마다 따로 불러야 해서 최근 끝낸 학습 5개만 본다
-  const fbSessions = (sessions.data ?? []).filter((s) => s.status === "ENDED").slice(0, 5);
+  // 피드백은 세션마다 따로 불러야 해서 최근 학습 5개(진행 중 포함)만 본다. 화면 문구에도 범위를 밝힌다
+  const fbSessions = (sessions.data ?? []).slice(0, 5);
   const fbQueries = useQueries({
-    queries: fbSessions.map((s) => ({ queryKey: ["feedback", s.id], queryFn: () => api.listFeedback(s.id) })),
+    queries: fbSessions.map((s) => ({ queryKey: ["feedback", s.id], queryFn: () => api.listFeedback(s.id), staleTime: HOME_STALE })),
   });
   // 최근 확인 테스트도 같은 최근 학습 5개에서 찾는다 (성장 데이터엔 날짜가 없어 순서를 알 수 없음)
   const quizQueries = useQueries({
-    queries: fbSessions.map((s) => ({ queryKey: ["quiz-attempt", s.id], queryFn: () => api.getQuizAttempt(s.id), enabled: FEATURES.quiz })),
+    queries: fbSessions.map((s) => ({ queryKey: ["quiz-attempt", s.id], queryFn: () => api.getQuizAttempt(s.id), enabled: FEATURES.quiz && s.status === "ENDED", staleTime: HOME_STALE })),
   });
+  const fbLoading = fbQueries.some((q) => q.isLoading);
+  const fbError = fbQueries.find((q) => q.error);
+  const quizLoading = quizQueries.some((q) => q.isLoading) || growth.isLoading;
+  const quizError = quizQueries.find((q) => q.error) ?? (growth.error ? growth : undefined);
   const week = summarizeWeek(sessions.data ?? [], new Date());
   const lastQuiz = latestAttempt(quizQueries.map((q) => q.data));
   const lastQuizName = growth.data?.topics.find((t) => t.topicId === lastQuiz?.topicId)?.name;
@@ -66,20 +71,25 @@ export function StudentHome() {
       {sessions.data && (
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <Card>
-            <p className="text-xs text-stone-500">이번 주 학습</p>
+            <p className="text-xs text-stone-500">최근 7일 학습</p>
             <p className="mt-1 text-2xl font-bold tabular-nums">{week.count}회</p>
-            <p className="text-sm text-stone-600">{week.count ? formatDuration(week.minutes) : "이번 주는 아직이에요"}</p>
+            <p className="text-sm text-stone-600">{week.count ? formatDuration(week.minutes) : "최근 7일 동안은 아직이에요"}</p>
           </Card>
           {FEATURES.quiz && (
             <Card>
               <p className="text-xs text-stone-500">최근 확인 테스트</p>
-              {lastQuiz ? (
+              {quizLoading ? (
+                <p className="mt-1 text-2xl font-bold">-</p>
+              ) : quizError ? (
+                <LoadFailed onRetry={() => quizQueries.forEach((q) => q.refetch())} />
+              ) : lastQuiz ? (
                 <>
                   <p className="mt-1 text-2xl font-bold tabular-nums">
                     {lastQuiz.correct} / {lastQuiz.total}
                   </p>
                   <p className="truncate text-sm text-stone-600">
-                    {lastQuizName ?? "주제"} · {formatDateTime(lastQuiz.createdAt)}
+                    {lastQuizName ? `${lastQuizName} · ` : ""}
+                    {formatDateTime(lastQuiz.createdAt)}
                   </p>
                 </>
               ) : (
@@ -87,7 +97,17 @@ export function StudentHome() {
               )}
             </Card>
           )}
-          {fb.latest ? (
+          {fbLoading ? (
+            <Card>
+              <p className="text-xs text-stone-500">선생님 피드백</p>
+              <p className="mt-1 text-2xl font-bold">-</p>
+            </Card>
+          ) : fbError ? (
+            <Card>
+              <p className="text-xs text-stone-500">선생님 피드백</p>
+              <LoadFailed onRetry={() => fbQueries.forEach((q) => q.refetch())} />
+            </Card>
+          ) : fb.latest ? (
             <Link to={`/student/records?session=${fb.latest.sessionId}`} className="block">
               <Card className="h-full border-brand-500 hover:bg-brand-50">
                 <p className="text-xs text-stone-500">
@@ -100,7 +120,7 @@ export function StudentHome() {
           ) : (
             <Card>
               <p className="text-xs text-stone-500">선생님 피드백</p>
-              <p className="mt-1 text-sm text-stone-600">최근 7일 새 피드백이 없어요</p>
+              <p className="mt-1 text-sm text-stone-600">최근 학습 5개에 최근 7일 새 피드백이 없어요</p>
             </Card>
           )}
         </div>
@@ -125,3 +145,17 @@ export function StudentHome() {
     </div>
   );
 }
+
+const HOME_STALE = 60_000; // 홈과 기록을 오갈 때 같은 요청을 1분 동안 재사용
+
+function LoadFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <p className="mt-1 text-sm text-stone-600">
+      불러오지 못했어요.{" "}
+      <button className="text-brand-700 underline" onClick={onRetry}>
+        다시 시도
+      </button>
+    </p>
+  );
+}
+

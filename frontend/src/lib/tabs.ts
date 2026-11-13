@@ -2,3 +2,9 @@
 export function parseTab<T extends string>(v: string | null, allowed: readonly T[], fallback: T): T {
   return v !== null && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
 }
+
+/** 교사 학생 상세 탭: ?tab 이 없고 ?session 만 있는 예전 링크는 학습 기록, 그 밖의 잘못된 값은 요약 */
+export function studentDetailTab(tab: string | null, session: string | null): "summary" | "records" | "questions" {
+  if (tab === null) return session ? "records" : "summary";
+  return parseTab(tab, ["summary", "records", "questions"] as const, "summary");
+}

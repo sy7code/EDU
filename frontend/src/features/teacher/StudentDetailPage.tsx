@@ -9,7 +9,7 @@ import { SessionDetail } from "../records/SessionDetail";
 import { TopicGrowthView } from "../records/TopicGrowthView";
 import { AssessmentPanel } from "./AssessmentPanel";
 import { ProfileSummary, QuestionList, useQuestionCountBySession } from "./StudentProfile";
-import { parseTab } from "../../lib/tabs";
+import { studentDetailTab } from "../../lib/tabs";
 
 const TABS = ["summary", "records", "questions"] as const;
 const TAB_LABEL: Record<(typeof TABS)[number], string> = { summary: "요약", records: "학습 기록", questions: "AI 질문" };
@@ -26,8 +26,8 @@ export function StudentDetailPage() {
   } });
 
   const qCount = useQuestionCountBySession(studentId);
-  // ?session= 만 붙은 예전 링크는 학습 기록 탭으로
-  const tab = parseTab(params.get("tab"), TABS, params.get("session") ? "records" : "summary");
+  // ?session= 만 붙은 예전 링크는 학습 기록 탭으로, 잘못된 tab 값은 요약 탭으로
+  const tab = studentDetailTab(params.get("tab"), params.get("session"));
   const go = (next: Record<string, string>) => setParams({ tab, ...(params.get("session") ? { session: params.get("session")! } : {}), ...next });
   const selectedId = params.get("session") ?? sessions.data?.[0]?.id;
   const selected = sessions.data?.find((s) => s.id === selectedId);
@@ -45,19 +45,21 @@ export function StudentDetailPage() {
       <PageTitle sub={`학생이 '교사 공개'로 남긴 기록만 보여요${FEATURES.audit ? " · 열람 기록이 남아요" : ""}`}>
         {dash.data ? `${dash.data.number}번 ${dash.data.name}` : "학생 기록"}
       </PageTitle>
-      <div className="mb-4 flex gap-1 border-b border-stone-200" role="tablist" aria-label="학생 정보">
+      <nav className="mb-4 flex gap-1 border-b border-stone-200" aria-label="학생 정보 보기">
         {TABS.map((t) => (
           <button
             key={t}
-            role="tab"
-            aria-selected={tab === t}
-            onClick={() => go({ tab: t })}
+            aria-current={tab === t ? "page" : undefined}
+            onClick={() => {
+              setHighlight([]);
+              go({ tab: t });
+            }}
             className={`-mb-px border-b-2 px-4 py-2 text-sm ${tab === t ? "border-brand-500 font-semibold text-brand-700" : "border-transparent text-stone-500 hover:text-stone-700"}`}
           >
             {TAB_LABEL[t]}
           </button>
         ))}
-      </div>
+      </nav>
 
       {tab === "summary" && (
         <>

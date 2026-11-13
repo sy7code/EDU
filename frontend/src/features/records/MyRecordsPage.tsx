@@ -18,10 +18,10 @@ export function MyRecordsPage() {
   const selected = sessions.data?.find((s) => s.id === selectedId);
   const totalMin = (sessions.data ?? []).reduce((n, s) => n + (s.durationMinutes ?? 0), 0);
   const detailRef = useRef<HTMLDivElement>(null);
-  // 피드백 배지는 홈과 같은 캐시를 쓰고, 최근 끝낸 학습 5개만 확인한다
-  const fbSessions = (sessions.data ?? []).filter((s) => s.status === "ENDED").slice(0, 5);
+  // 피드백 배지는 홈과 같은 캐시를 쓰고, 최근 학습 5개(진행 중 포함)만 확인한다
+  const fbSessions = (sessions.data ?? []).slice(0, 5);
   const fbQueries = useQueries({
-    queries: fbSessions.map((s) => ({ queryKey: ["feedback", s.id], queryFn: () => api.listFeedback(s.id) })),
+    queries: fbSessions.map((s) => ({ queryKey: ["feedback", s.id], queryFn: () => api.listFeedback(s.id), staleTime: 60_000 })),
   });
   const hasFeedback = new Set(fbSessions.filter((_, i) => (fbQueries[i]?.data?.length ?? 0) > 0).map((s) => s.id));
   const choose = (id: string) => {

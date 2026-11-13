@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTab } from "./tabs";
+import { parseTab, studentDetailTab } from "./tabs";
 
 const TABS = ["summary", "records", "questions"] as const;
 
@@ -12,3 +12,17 @@ describe("탭 값 읽기", () => {
     expect(parseTab("hack", TABS, "summary")).toBe("summary");
   });
 });
+
+describe("교사 학생 상세 기본 탭 (리뷰 I3)", () => {
+  it("tab 없이 session만 있으면 학습 기록", () => {
+    expect(studentDetailTab(null, "s1")).toBe("records");
+  });
+  it("잘못된 tab 값은 session이 있어도 요약", () => {
+    expect(studentDetailTab("hack", "s1")).toBe("summary");
+  });
+  it("둘 다 없으면 요약, 올바른 값은 그대로", () => {
+    expect(studentDetailTab(null, null)).toBe("summary");
+    expect(studentDetailTab("questions", "s1")).toBe("questions");
+  });
+});
+
