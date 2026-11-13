@@ -1,8 +1,10 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../../api";
 import { useHasConsent } from "../../auth/session";
-import { Badge, Button, Card, ErrorState, Spinner } from "../../components/ui";
+import { Badge, Button, ErrorState, Spinner } from "../../components/ui";
+import { Icon } from "../../components/Icon";
 import type { QuizAttempt, QuizReportReason, SessionTopic } from "../../types/domain";
 
 export const QUIZ_NOTICE = "테스트는 공부 확인용이에요. 성적에 들어가지 않아요.";
@@ -12,6 +14,29 @@ const REASONS: Array<{ id: QuizReportReason; label: string }> = [
   { id: "UNCLEAR", label: "문제가 이해 안 돼요" },
   { id: "UNRELATED", label: "공부한 내용과 관계없어요" },
 ];
+
+/** 체크박스(접근성 유지)를 프로토타입의 칩·체크 항목 모양으로 그린다. pill: 활동 칩, box: 체크리스트 */
+export function ChoiceChip({
+  checked,
+  onChange,
+  children,
+  variant = "pill",
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  children: ReactNode;
+  variant?: "pill" | "box";
+}) {
+  return (
+    <label className={`choice-chip ${variant} ${checked ? "checked" : ""}`}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className="choice-mark" aria-hidden>
+        {checked && <Icon name="check" size={variant === "pill" ? 15 : 14} />}
+      </span>
+      {children}
+    </label>
+  );
+}
 
 /** 마치기 화면: AI가 찾은 주제 → 하나 골라 고정 난이도 테스트 → 결과. 끝나거나 건너뛰면 onDone */
 export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: () => void }) {
@@ -29,17 +54,15 @@ export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: ()
 
   if (topics.data.length === 0) {
     return (
-      <Card>
-        <h2 className="font-semibold">오늘 공부한 주제</h2>
-        <p className="mt-2 text-sm text-stone-500">
+      <section className="card quiz-card">
+        <h2 className="quiz-card-title">오늘 공부한 주제</h2>
+        <p className="quiz-note">
           {shareOk
             ? "이번 기록에서 주제를 찾지 못했어요. 다음엔 알게 된 개념이나 궁금한 점을 한 줄씩 남겨 보세요. (교사 공개 기록만 살펴봐요)"
             : "기록 공유에 동의하지 않아 모든 기록이 '나만 보기'라서 AI가 주제를 찾을 수 없어요. 동의 설정에서 바꿀 수 있어요."}
         </p>
-        <Button className="mt-4" onClick={onDone}>
-          돌아보기로 넘어가기
-        </Button>
-      </Card>
+        <Button onClick={onDone}>돌아보기로 넘어가기</Button>
+      </section>
     );
   }
 
@@ -47,43 +70,56 @@ export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: ()
   const chosen = topics.data.find((t) => t.topicId === picked);
 
   return (
-    <Card>
-      <h2 className="font-semibold">오늘 공부한 주제</h2>
-      <p className="text-xs text-stone-500">AI가 내 기록에서 찾았어요. 다 공부한 주제를 고르면 확인 테스트(5문항)를 볼 수 있어요. {QUIZ_NOTICE}</p>
-      <div className="mt-3 space-y-2" role="radiogroup" aria-label="주제">
-        {topics.data.map((t) => (
-          <button
-            key={t.topicId}
-            role="radio"
-            aria-checked={picked === t.topicId}
-            onClick={() => setPicked(t.topicId)}
-            className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm ${picked === t.topicId ? "border-brand-500 bg-brand-50" : "border-stone-300 hover:bg-stone-50"}`}
-          >
-            <span className="font-semibold">{t.name}</span> {t.subject && <span className="text-xs text-stone-400">{t.subject}</span>}
-            <span className="mt-1 block text-xs text-stone-500">
-              근거: {t.evidenceIds.map(text).filter(Boolean).slice(0, 2).map((x) => `"${x.slice(0, 30)}"`).join(", ")}
-            </span>
-          </button>
-        ))}
+    <div>
+      <p className="quiz-intro">AI가 내 기록에서 찾았어요. 다 공부한 주제를 고르면 확인 테스트(5문항)를 볼 수 있어요. {QUIZ_NOTICE}</p>
+      <div className="topic-list" role="radiogroup" aria-label="주제">
+        {topics.data.map((t) => {
+          const evidence = t.evidenceIds
+            .map(text)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((x) => `"${x.slice(0, 30)}"`)
+            .join(", ");
+          return (
+            <button
+              key={t.topicId}
+              type="button"
+              role="radio"
+              aria-checked={picked === t.topicId}
+              onClick={() => setPicked(t.topicId)}
+              className={`card topic-card ${picked === t.topicId ? "selected" : ""}`}
+            >
+              <div>
+                <Badge tone="sky">AI 자동 분류 · 참고용</Badge>
+                <h3>{t.name}</h3>
+                {t.subject && <p>{t.subject}</p>}
+                <blockquote>근거: {evidence}</blockquote>
+              </div>
+              <span className="radio" aria-hidden>
+                {picked === t.topicId && <span />}
+              </span>
+            </button>
+          );
+        })}
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button disabled={!chosen} onClick={() => chosen && setQuizTopic(chosen)}>
-          이 주제 다 공부했어요, 테스트 보기
-        </Button>
+      <div className="sticky-actions">
         <Button variant="ghost" onClick={onDone}>
           이번엔 건너뛸게요
         </Button>
+        <Button disabled={!chosen} onClick={() => chosen && setQuizTopic(chosen)}>
+          이 주제 다 공부했어요, 테스트 보기
+        </Button>
       </div>
-    </Card>
+    </div>
   );
 }
 
 /** 오류 화면 + 돌아보기로 넘어가는 탈출구 */
 function SkippableError({ error, onRetry, onSkip, onBack }: { error: unknown; onRetry: () => void; onSkip: () => void; onBack?: () => void }) {
   return (
-    <div className="space-y-2">
+    <div className="quiz-error">
       <ErrorState error={error} onRetry={onRetry} />
-      <div className="flex flex-wrap gap-2">
+      <div className="sticky-actions">
         {onBack && (
           <Button variant="secondary" onClick={onBack}>
             주제 다시 고르기
@@ -124,12 +160,10 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
   if (alreadyTaken) {
     if (taken.data) return <QuizResult attempt={taken.data} onNext={finish} />;
     return (
-      <Card>
-        <p className="text-sm">이번 학습의 테스트는 이미 제출했어요.</p>
-        <Button className="mt-4" onClick={finish}>
-          돌아보기로 넘어가기
-        </Button>
-      </Card>
+      <section className="card quiz-card">
+        <p className="quiz-note">이번 학습의 테스트는 이미 제출했어요.</p>
+        <Button onClick={finish}>돌아보기로 넘어가기</Button>
+      </section>
     );
   }
   if (quiz.error) return <SkippableError error={quiz.error} onRetry={() => quiz.refetch()} onSkip={finish} onBack={onBack} />;
@@ -141,111 +175,139 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
   const answered = active.filter((q) => answers[q.id] !== undefined && answers[q.id] !== null).length;
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-semibold">{topic.name} 확인 테스트</h2>
-        <Badge>
+    <div>
+      <div className="page-heading quiz-heading">
+        <div>
+          <Badge tone="sky">성적에 들어가지 않아요</Badge>
+          <h2>{topic.name} 확인 테스트</h2>
+          <p>모두에게 같은 난이도로 나와요. 이상한 문제는 신고하면 채점에서 빠져요. {QUIZ_NOTICE}</p>
+        </div>
+        <strong className="question-count">
           {answered}/{active.length} 선택
-        </Badge>
+        </strong>
       </div>
-      <p className="text-xs text-stone-500">모두에게 같은 난이도로 나와요. 이상한 문제는 신고하면 채점에서 빠져요. {QUIZ_NOTICE}</p>
-      <ol className="mt-4 space-y-5">
+      <ol className="quiz-questions">
         {questions.map((q, i) => {
           const isReported = isReportedQ(q);
           return (
-            <li key={q.id} className={isReported ? "opacity-50" : ""}>
-              <p className="text-sm font-medium">
-                {i + 1}. {q.prompt} {isReported && <Badge tone="amber">신고함 · 채점 제외</Badge>}
-              </p>
-              <div className={`mt-2 grid gap-1.5 ${q.type === "OX" ? "grid-cols-2 sm:max-w-xs" : "sm:grid-cols-2"}`} role="radiogroup" aria-label={`${i + 1}번 문제`}>
+            <li key={q.id} className={`question card ${isReported ? "reported" : ""}`}>
+              <div className="question-top">
+                <Badge tone="stone">
+                  {i + 1}번 · {q.type === "OX" ? "OX" : "객관식"}
+                </Badge>
+                {isReported ? (
+                  <Badge tone="amber">신고함 · 채점 제외</Badge>
+                ) : (
+                  reporting !== q.id && (
+                    <button type="button" onClick={() => setReporting(q.id)}>
+                      <Icon name="alert" size={16} /> 이 문제 이상해요
+                    </button>
+                  )
+                )}
+              </div>
+              <h3>{q.prompt}</h3>
+              <div className={`answers ${q.type === "OX" ? "ox" : ""}`} role="radiogroup" aria-label={`${i + 1}번 문제`}>
                 {q.choices.map((c, ci) => (
                   <button
                     key={ci}
+                    type="button"
                     role="radio"
                     aria-checked={answers[q.id] === ci}
                     disabled={isReported}
                     onClick={() => setAnswers((a) => ({ ...a, [q.id]: ci }))}
-                    className={`rounded-lg border px-3 py-2 text-left text-sm disabled:cursor-not-allowed ${
-                      answers[q.id] === ci ? "border-brand-500 bg-brand-50 font-semibold text-brand-700" : "border-stone-300 hover:bg-stone-50"
-                    } ${q.type === "OX" ? "text-center text-lg" : ""}`}
+                    className={answers[q.id] === ci ? "selected" : ""}
                   >
+                    <span aria-hidden>{ci + 1}</span>
                     {c}
                   </button>
                 ))}
               </div>
-              {!isReported &&
-                (reporting === q.id ? (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {REASONS.map((r) => (
-                      <Button key={r.id} variant="secondary" className="px-2.5 py-1 text-xs" disabled={report.isPending} onClick={() => report.mutate({ questionId: q.id, reason: r.id })}>
-                        {r.label}
-                      </Button>
-                    ))}
-                    <Button variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => setReporting(null)}>
-                      취소
+              {!isReported && reporting === q.id && (
+                <div className="report-reasons">
+                  {REASONS.map((r) => (
+                    <Button key={r.id} variant="secondary" disabled={report.isPending} onClick={() => report.mutate({ questionId: q.id, reason: r.id })}>
+                      {r.label}
                     </Button>
-                  </div>
-                ) : (
-                  <button className="mt-1.5 text-xs text-stone-400 underline-offset-2 hover:underline" onClick={() => setReporting(q.id)}>
-                    이 문제 이상해요
-                  </button>
-                ))}
+                  ))}
+                  <Button variant="ghost" onClick={() => setReporting(null)}>
+                    취소
+                  </Button>
+                </div>
+              )}
             </li>
           );
         })}
       </ol>
-      {(submit.error || report.error) && <div className="mt-3"><ErrorState error={submit.error ?? report.error} /></div>}
-      <Button className="mt-5 w-full" onClick={() => submit.mutate()} disabled={submit.isPending || submit.isSuccess || report.isPending}>
-        {answered < active.length ? `제출하기 (${active.length - answered}개 안 고름)` : "제출하기"}
-      </Button>
-    </Card>
+      {(submit.error || report.error) && <ErrorState error={submit.error ?? report.error} />}
+      <div className="sticky-actions">
+        <Button onClick={() => submit.mutate()} disabled={submit.isPending || submit.isSuccess || report.isPending}>
+          {answered < active.length ? `제출하기 (${active.length - answered}개 안 고름)` : "제출하기"}
+        </Button>
+      </div>
+    </div>
   );
 }
 
 /** collapsed: 기록 화면에서는 점수만 보이고 문항은 눌러서 펼친다 */
 export function QuizResult({ attempt, onNext, collapsed = false }: { attempt: QuizAttempt; onNext?: () => void; collapsed?: boolean }) {
-  const title = `확인 테스트 결과: ${attempt.total === 0 ? "채점할 문항이 없어요" : `${attempt.correct} / ${attempt.total}`}`;
+  const score = attempt.total === 0 ? "채점할 문항이 없어요" : `${attempt.correct} / ${attempt.total}`;
+  const title = `확인 테스트 결과: ${score}`;
   const list = (
-      <ol className="mt-4 space-y-3">
-        {attempt.items.map((it, i) => (
-          <li
-            key={it.questionId}
-            className={`rounded-lg border p-3 text-sm ${it.reported || it.excluded ? "border-stone-200 bg-stone-50 text-stone-500" : it.correct ? "border-brand-100 bg-brand-50/50" : "border-amber-200 bg-amber-50/60"}`}
-          >
-            <p className="font-medium">
-              {it.reported || it.excluded ? "🚩" : it.correct ? "⭕" : "❌"} {i + 1}. {it.prompt} {it.reported && <Badge>신고함 · 채점 제외</Badge>}
-              {!it.reported && it.excluded && <Badge>문항 오류 · 채점 제외</Badge>}
-            </p>
-            <p className="mt-1 text-stone-600">
-              내 답: {it.chosen === null ? "고르지 않음" : it.choices[it.chosen]} · 정답: <strong>{it.choices[it.answerIndex]}</strong>
-            </p>
-            <p className="mt-1 text-stone-500">해설: {it.explanation}</p>
-          </li>
-        ))}
-      </ol>
+    <div className="result-list">
+      {attempt.items.map((it, i) => {
+        const out = it.reported || it.excluded;
+        const mark = out ? "제외" : it.correct ? "맞음" : "틀림";
+        return (
+          <article key={it.questionId} className={`card result-row ${out ? "excluded" : it.correct ? "" : "wrong"}`}>
+            <span className="result-mark" role="img" aria-label={mark}>
+              {out ? <Icon name="alert" size={20} /> : it.correct ? <Icon name="check" /> : "×"}
+            </span>
+            <div>
+              <small>
+                {i + 1}번 문항
+              </small>
+              <h3>{it.prompt}</h3>
+              {it.reported && <Badge tone="stone">신고함 · 채점 제외</Badge>}
+              {!it.reported && it.excluded && <Badge tone="stone">문항 오류 · 채점 제외</Badge>}
+              <strong>
+                내 답: {it.chosen === null ? "고르지 않음" : it.choices[it.chosen]} · 정답: {it.choices[it.answerIndex]}
+              </strong>
+              <p>해설: {it.explanation}</p>
+            </div>
+          </article>
+        );
+      })}
+    </div>
   );
-  return (
-    <Card>
-      {collapsed ? (
+  if (collapsed) {
+    return (
+      <section className="card quiz-card quiz-collapsed">
         <details>
-          <summary className="cursor-pointer font-semibold">
-            {title} <span className="text-xs font-normal text-stone-500">· 문항 보기</span>
+          <summary>
+            {title} <span>· 문항 보기</span>
           </summary>
-          <p className="mt-2 text-xs text-stone-500">틀린 문제는 해설을 보고 다음 학습 때 다시 살펴봐요. {QUIZ_NOTICE}</p>
+          <p className="quiz-note">틀린 문제는 해설을 보고 다음 학습 때 다시 살펴봐요. {QUIZ_NOTICE}</p>
           {list}
         </details>
-      ) : (
-        <>
-          <h2 className="font-semibold">{title}</h2>
-          <p className="text-xs text-stone-500">틀린 문제는 해설을 보고 다음 학습 때 다시 살펴봐요. {QUIZ_NOTICE}</p>
-          {list}
-        </>
-      )}
+      </section>
+    );
+  }
+  return (
+    <div>
+      <div className="page-heading result-heading">
+        <div>
+          <p className="eyebrow">확인 테스트 결과</p>
+          <h2>{score}</h2>
+          <p>틀린 문제는 해설을 보고 다음 학습 때 다시 살펴봐요. {QUIZ_NOTICE}</p>
+        </div>
+        <Badge tone="sky">성적에 반영되지 않아요</Badge>
+      </div>
+      {list}
       {onNext && (
-        <Button className="mt-4 w-full" onClick={onNext}>
-          돌아보기로 넘어가기
-        </Button>
+        <div className="sticky-actions">
+          <Button onClick={onNext}>돌아보기로 넘어가기</Button>
+        </div>
       )}
-    </Card>
+    </div>
   );
 }

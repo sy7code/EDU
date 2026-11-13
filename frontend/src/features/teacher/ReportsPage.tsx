@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../api";
 import { useMe } from "../../auth/session";
-import { Badge, Button, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
+import { Icon } from "../../components/Icon";
+import { Badge, Button, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { formatDateTime } from "../../lib/time";
 import type { ReportedQuestion } from "../../types/domain";
 
@@ -36,45 +37,66 @@ export function ReportsPage() {
   const open = list.data.filter((r) => r.status === "OPEN").length;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <PageTitle sub="학생이 확인 테스트 중 '이 문제 이상해요'로 신고한 AI 생성 문항이에요. 신고한 문항은 일단 채점에서 빠져 있어요.">
-        신고된 문제 {open > 0 && <Badge tone="amber">확인 필요 {open}</Badge>}
-      </PageTitle>
+    <div className="page teacher-page">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">확인 테스트 관리</p>
+          <h1>신고된 문제</h1>
+          <p>학생이 확인 테스트 중 '이 문제 이상해요'로 신고한 AI 생성 문항이에요. 신고한 문항은 일단 채점에서 빠져 있어요.</p>
+        </div>
+        {open > 0 && <Badge tone="amber">확인 필요 {open}</Badge>}
+      </div>
       {list.data.length === 0 && <EmptyState title="신고된 문제가 없어요" />}
       {resolve.error && <div className="mb-3"><ErrorState error={resolve.error} /></div>}
-      <ul className="space-y-3">
+      <ul className="report-list">
         {list.data.map((r) => (
           <li key={r.reportId}>
-            <Card>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
-                <Badge tone="sky">{r.topicName}</Badge>
-                <span className="text-stone-500">
-                  {r.studentNumber === null ? "학생(기록 비공개)" : `${r.studentNumber}번 학생`} · {REASON[r.reason]} · {formatDateTime(r.createdAt)}
-                </span>
-                {r.studentReportCount !== null && r.studentReportCount >= 3 && <Badge tone="amber">이 학생 신고 {r.studentReportCount}건</Badge>}
+            <article className="card report-card">
+              <div className="report-head">
+                <div>
+                  <Badge tone="sky">{r.topicName}</Badge>
+                  <small>{formatDateTime(r.createdAt)}</small>
+                </div>
+                <div>
+                  {r.studentReportCount !== null && r.studentReportCount >= 3 && <Badge tone="amber">이 학생 신고 {r.studentReportCount}건</Badge>}
+                  <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
+                </div>
               </div>
-              <p className="mt-2 font-medium">{r.prompt}</p>
-              <ol className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
-                {r.choices.map((c, i) => (
-                  <li key={i} className={i === r.answerIndex ? "font-semibold text-brand-700" : "text-stone-600"}>
-                    {i === r.answerIndex ? "✓ " : `${i + 1}. `}
-                    {c}
-                  </li>
-                ))}
-              </ol>
-              <p className="mt-2 text-sm text-stone-500">해설: {r.explanation}</p>
+              <h2>{r.prompt}</h2>
+              <div className="answer-box">
+                <ol className="choices">
+                  {r.choices.map((c, i) => (
+                    <li key={i} className={i === r.answerIndex ? "correct" : undefined}>
+                      {i === r.answerIndex ? "✓ " : `${i + 1}. `}
+                      {c}
+                    </li>
+                  ))}
+                </ol>
+                <p>해설: {r.explanation}</p>
+              </div>
+              <div className="report-meta">
+                <span>
+                  <Icon name="alert" />
+                  <small>신고 이유</small>
+                  <strong>{REASON[r.reason]}</strong>
+                </span>
+                <span>
+                  <Icon name={r.studentNumber === null ? "lock" : "users"} />
+                  <small>신고 학생</small>
+                  <strong>{r.studentNumber === null ? "학생(기록 비공개)" : `${r.studentNumber}번 학생`}</strong>
+                </span>
+              </div>
               {r.status === "OPEN" && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button className="px-3 py-1.5 text-xs" disabled={resolve.isPending} onClick={() => resolve.mutate({ id: r.reportId, action: "KEEP_EXCLUDED" })}>
+                <div className="report-actions">
+                  <Button variant="secondary" disabled={resolve.isPending} onClick={() => resolve.mutate({ id: r.reportId, action: "KEEP_EXCLUDED" })}>
                     문항이 잘못됐어요 · 앞으로 제외
                   </Button>
-                  <Button variant="secondary" className="px-3 py-1.5 text-xs" disabled={resolve.isPending} onClick={() => resolve.mutate({ id: r.reportId, action: "DISMISS" })}>
+                  <Button disabled={resolve.isPending} onClick={() => resolve.mutate({ id: r.reportId, action: "DISMISS" })}>
                     문항은 괜찮아요 · 신고 기각(재채점)
                   </Button>
                 </div>
               )}
-            </Card>
+            </article>
           </li>
         ))}
       </ul>

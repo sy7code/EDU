@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "../../auth/session";
 import { api, FEATURES } from "../../api";
+import { Icon } from "../../components/Icon";
 import { Badge, Card, ErrorState, METHOD_LABEL, Spinner } from "../../components/ui";
 import { goalLabel, reflectionLabel, UNDERSTANDING_LABELS } from "../../lib/checklists";
 import { formatDateTime, formatDuration, formatTime } from "../../lib/time";
@@ -79,45 +80,42 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
   const r = refl.data;
 
   return (
-    <div className="space-y-4">
+    <div className="session-stack">
       <Card>
-        <p className="text-xs text-stone-500">{formatDateTime(session.startedAt)}</p>
-        <p className={`mt-1 text-lg font-semibold ${hl.has("goal") ? "rounded bg-amber-100 px-1" : ""}`}>
-          {goalLabel(session.goal)}
-        </p>
-        {session.goal.note && <p className="text-sm text-stone-600">{session.goal.note}</p>}
-        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+        <div className="session-badges">
           <Badge tone="brand">{session.status === "ACTIVE" ? "학습 중" : formatDuration(session.durationMinutes ?? 0)}</Badge>
-          <Badge>시작 {formatTime(session.startedAt)} · {METHOD_LABEL[session.startAuth]}</Badge>
-          {session.endedAt && session.endAuth && (
-            <Badge>종료 {formatTime(session.endedAt)} · {METHOD_LABEL[session.endAuth]}</Badge>
-          )}
+        </div>
+        <p className="session-when">{formatDateTime(session.startedAt)}</p>
+        <h2 className={`session-goal ${hl.has("goal") ? "is-highlight" : ""}`}>{goalLabel(session.goal)}</h2>
+        {session.goal.note && <p className="session-note">{session.goal.note}</p>}
+        <div className="info-line">
+          <span>시작 {formatTime(session.startedAt)} · {METHOD_LABEL[session.startAuth]}</span>
+          {session.endedAt && session.endAuth && <span>종료 {formatTime(session.endedAt)} · {METHOD_LABEL[session.endAuth]}</span>}
         </div>
       </Card>
 
       <Card>
-        <h3 className="font-semibold">학습 과정</h3>
-        {items.length === 0 && <p className="mt-2 text-sm text-stone-400">공개된 기록이 없어요</p>}
-        <ol className="mt-3 space-y-2 border-l-2 border-stone-200 pl-4">
+        <h3 className="session-h3">학습 과정</h3>
+        {items.length === 0 && <p className="session-empty">공개된 기록이 없어요</p>}
+        <ol className="mini-timeline">
           {items.map((i) => (
-            <li
-              key={i.id}
-              id={`ev-${i.id}`}
-              className={`relative rounded-md p-2 text-sm ${hl.has(i.id) ? "bg-amber-50 ring-2 ring-amber-300" : ""}`}
-            >
-              <span className="absolute -left-[23px] top-3 h-2.5 w-2.5 rounded-full bg-stone-300" />
-              <div className="flex items-center gap-2 text-xs text-stone-500">
+            <li key={i.id} id={`ev-${i.id}`} className={`timeline-item ${hl.has(i.id) ? "is-highlight" : ""} ${i.type === "ai" ? "is-ai" : ""}`}>
+              <div className="timeline-meta">
                 <span>{formatTime(i.at)}</span>
                 {i.type === "entry" ? (
                   <>
                     <Badge tone={i.kind === "QUESTION" ? "amber" : "stone"}>{KIND[i.kind]}</Badge>
-                    {i.isPrivate && <span>🔒 나만 보기</span>}
+                    {i.isPrivate && (
+                      <span className="timeline-private">
+                        <Icon name="lock" size={13} /> 나만 보기
+                      </span>
+                    )}
                   </>
                 ) : (
                   <Badge tone="sky">{i.role === "ai" ? "AI 도우미" : "AI에게 질문"}</Badge>
                 )}
               </div>
-              <p className={`mt-1 whitespace-pre-wrap ${i.type === "ai" && i.role === "ai" ? "text-stone-500" : ""}`}>
+              <p className={i.type === "ai" && i.role === "ai" ? "is-muted" : ""}>
                 {i.content || (i.type === "entry" && i.kind === "PAPER" ? "공책·학습지에 직접 정리" : "")}
               </p>
             </li>
@@ -125,36 +123,36 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
         </ol>
       </Card>
 
-      <Card className={hl.has("reflection") ? "ring-2 ring-amber-300" : ""}>
-        <h3 className="font-semibold">돌아보기</h3>
+      <Card className={hl.has("reflection") ? "is-highlight-card" : ""}>
+        <h3 className="session-h3">돌아보기</h3>
         {refl.isLoading && <Spinner />}
-        {!refl.isLoading && !r && <p className="mt-2 text-sm text-stone-400">아직 돌아보기를 하지 않았어요</p>}
+        {!refl.isLoading && !r && <p className="session-empty">아직 돌아보기를 하지 않았어요</p>}
         {r && (
-          <div className="mt-2 space-y-2 text-sm">
+          <div className="reflection-body">
             {r.understanding ? (
               <p>
                 이해도: <strong>{UNDERSTANDING_LABELS[r.understanding]}</strong>
               </p>
             ) : (
-              r.legacyText && <p className="whitespace-pre-wrap rounded bg-stone-50 p-2">{r.legacyText}</p>
+              r.legacyText && <p className="reflection-box">{r.legacyText}</p>
             )}
-            <div className="flex flex-wrap gap-1.5">
-              {r.checks.length === 0 && r.understanding && <span className="text-stone-400">체크한 항목 없음</span>}
+            <div className="reflection-chips">
+              {r.checks.length === 0 && r.understanding && <span className="session-empty">체크한 항목 없음</span>}
               {r.checks.map((c) => (
                 <Badge key={c} tone="brand">✓ {reflectionLabel(c)}</Badge>
               ))}
             </div>
             {r.remainingQuestions.length > 0 && (
               <div>
-                <p className="text-xs text-stone-500">남은 궁금증</p>
-                <ul className="list-inside list-disc">
+                <p className="session-sub">남은 궁금증</p>
+                <ul className="reflection-list">
                   {r.remainingQuestions.map((q) => (
                     <li key={q}>{q}</li>
                   ))}
                 </ul>
               </div>
             )}
-            {r.note && <p className="rounded bg-stone-50 p-2 text-stone-600">참고: {r.note}</p>}
+            {r.note && <p className="reflection-box">참고: {r.note}</p>}
           </div>
         )}
       </Card>
@@ -162,19 +160,17 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
       {quiz.data && <QuizResult attempt={quiz.data} collapsed />}
 
       <div ref={setFbEl}>
-      <Card>
-        <h3 className="font-semibold">선생님 피드백</h3>
-        {fb.data?.length === 0 && <p className="mt-2 text-sm text-stone-400">아직 피드백이 없어요</p>}
-        <ul className="mt-2 space-y-2">
+        <Card>
+          <h3 className="session-h3">선생님 피드백</h3>
+          {fb.data?.length === 0 && <p className="session-empty">아직 피드백이 없어요</p>}
           {fb.data?.map((f) => (
-            <li key={f.id} className="rounded-lg bg-brand-50 p-3 text-sm">
+            <div key={f.id} className="feedback">
               {newIds.has(f.id) && <Badge tone="brand">새 피드백</Badge>}
-              <p className="whitespace-pre-wrap">{f.content}</p>
-              <p className="mt-1 text-xs text-stone-500">{formatDateTime(f.createdAt)}</p>
-            </li>
+              <p className="feedback-text">{f.content}</p>
+              <small className="feedback-date">{formatDateTime(f.createdAt)}</small>
+            </div>
           ))}
-        </ul>
-      </Card>
+        </Card>
       </div>
     </div>
   );

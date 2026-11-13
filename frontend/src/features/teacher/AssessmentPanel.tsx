@@ -32,9 +32,9 @@ export function AssessmentPanel({ session, onEvidence }: { session: LearningSess
 
   if (session.status !== "ENDED") {
     return (
-      <Card>
-        <h3 className="font-semibold">관찰 평가</h3>
-        <p className="mt-1 text-sm text-stone-500">학습이 끝나면 평가할 수 있어요.</p>
+      <Card className="assess-panel">
+        <h3>관찰 평가</h3>
+        <p className="assess-note">학습이 끝나면 평가할 수 있어요.</p>
       </Card>
     );
   }
@@ -60,20 +60,20 @@ export function AssessmentPanel({ session, onEvidence }: { session: LearningSess
   }
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-semibold">{r.title}</h3>
+    <Card className="assess-panel">
+      <div className="assess-head">
+        <h3>{r.title}</h3>
         {finalized ? <Badge tone="brand">확정됨</Badge> : <Badge tone="sky">확정 전</Badge>}
-        <Button variant="secondary" className="ml-auto px-3 py-1.5 text-xs" onClick={() => askAi.mutate()} disabled={askAi.isPending}>
+        <Button variant="secondary" onClick={() => askAi.mutate()} disabled={askAi.isPending}>
           {ai ? "AI 채점안 다시 받기" : "AI 채점안 받기"}
         </Button>
       </div>
-      <p className="mt-1 text-xs text-stone-500">
+      <p className="assess-note">
         AI는 학생이 공개한 기록만 근거로 제안해요. 근거가 없으면 비워 둬요. 최종 판단은 선생님이 해요. 학생에게는 확정본만 보여요.
       </p>
       {askAi.error && <div className="mt-2"><ErrorState error={askAi.error} /></div>}
 
-      <div className="mt-4 space-y-3">
+      <div className="assess-list">
         {r.criteria.map((c) => (
           <CriterionRow
             key={c.id}
@@ -87,7 +87,7 @@ export function AssessmentPanel({ session, onEvidence }: { session: LearningSess
       </div>
 
       {finalize.error && <div className="mt-2"><ErrorState error={finalize.error} /></div>}
-      <Button className="mt-4 w-full" onClick={submit} disabled={finalize.isPending}>
+      <Button className="assess-submit" onClick={submit} disabled={finalize.isPending}>
         {finalized ? "수정해서 다시 확정" : "선생님 판단으로 확정"}
       </Button>
     </Card>
@@ -109,29 +109,28 @@ function CriterionRow({
 }) {
   const differs = ai && ai.level !== null && value !== null && ai.level !== value;
   return (
-    <div className={`rounded-lg border p-3 ${differs ? "border-amber-300 bg-amber-50/50" : "border-stone-200"}`}>
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="font-medium">{criterion.label}</p>
+    <div className={`criterion${differs ? " differs" : ""}`}>
+      <div className="criterion-title">
+        <p>{criterion.label}</p>
         {differs && <Badge tone="amber">AI와 판단 다름</Badge>}
       </div>
       {ai && (
-        <div className="mt-1.5 text-xs text-stone-600">
+        <div className="criterion-ai">
           AI 제안: <strong>{ai.level === null ? "근거 부족 — 판단 보류" : criterion.levels[ai.level]}</strong> · {ai.reason}
           {ai.evidenceIds.length > 0 && (
-            <button className="ml-2 text-brand-700 underline" onClick={() => onEvidence(ai.evidenceIds)}>
+            <button onClick={() => onEvidence(ai.evidenceIds)}>
               근거 {ai.evidenceIds.length}개 보기
             </button>
           )}
         </div>
       )}
-      <div className="mt-2 flex flex-wrap gap-1.5" role="radiogroup" aria-label={`${criterion.label} 교사 판단`}>
+      <div className="criterion-levels" role="radiogroup" aria-label={`${criterion.label} 교사 판단`}>
         {criterion.levels.map((l, i) => (
           <button
             key={l}
             role="radio"
             aria-checked={value === i}
             onClick={() => onChange(i)}
-            className={`rounded-md border px-3 py-1.5 text-sm ${value === i ? "border-brand-500 bg-brand-50 font-semibold text-brand-700" : "border-stone-300"}`}
           >
             {l}
           </button>
@@ -140,7 +139,7 @@ function CriterionRow({
           role="radio"
           aria-checked={value === null}
           onClick={() => onChange(null)}
-          className={`rounded-md border px-3 py-1.5 text-sm ${value === null ? "border-stone-500 bg-stone-100" : "border-stone-300 text-stone-500"}`}
+          className="hold"
         >
           판단 보류
         </button>
@@ -155,11 +154,11 @@ export function AssessmentView({ sessionId, scores }: { sessionId: string; score
   const rubric = useQuery({ queryKey: ["rubric", me.data?.classId, sessionId], queryFn: () => api.getRubric(me.data!.classId), enabled: !!me.data });
   if (!rubric.data) return null;
   return (
-    <ul className="mt-3 space-y-1.5 text-sm">
+    <ul className="assess-view">
       {rubric.data.criteria.map((c) => {
         const s = scores.find((x) => x.criterionId === c.id);
         return (
-          <li key={c.id} className="flex justify-between gap-3">
+          <li key={c.id}>
             <span>{c.label}</span>
             <strong>{s?.level == null ? "-" : c.levels[s.level]}</strong>
           </li>

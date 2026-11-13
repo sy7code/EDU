@@ -2,13 +2,14 @@ import { useCallback, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
 import { api, FEATURES } from "../../api";
-import { Button, Card, CheckChip, ErrorState, PageTitle, Spinner } from "../../components/ui";
+import { Badge, Button, ErrorState, PageTitle, Spinner } from "../../components/ui";
+import { Icon } from "../../components/Icon";
 import { REFLECTION_ITEMS, UNDERSTANDING_LABELS } from "../../lib/checklists";
 import { formatDuration, formatTime } from "../../lib/time";
 import type { AuthEvent, GroundedItem, LearningSession } from "../../types/domain";
 import { AuthWait } from "./AuthWait";
 import { useHasConsent } from "../../auth/session";
-import { TopicStep } from "./TopicQuiz";
+import { ChoiceChip, TopicStep } from "./TopicQuiz";
 
 export function EndPage() {
   const { id = "" } = useParams();
@@ -36,7 +37,7 @@ export function EndPage() {
 
   if (s.status === "ACTIVE") {
     return (
-      <div className="mx-auto max-w-xl">
+      <div>
         <PageTitle sub="인증하면 학습 시간이 기록돼요">학습 마치기</PageTitle>
         {end.error ? <ErrorState error={end.error} onRetry={() => end.reset()} /> : <AuthWait purpose="end" onAuth={onAuth} />}
       </div>
@@ -61,7 +62,7 @@ function AfterEnd({ session }: { session: LearningSession }) {
     if (attempt.isLoading) return <Spinner />;
     if (!attempt.data) {
       return (
-        <div className="mx-auto max-w-2xl space-y-4">
+        <div>
           <PageTitle sub={`${formatTime(session.startedAt)} ~ ${formatTime(session.endedAt!)}`}>
             오늘 {formatDuration(session.durationMinutes ?? 0)} 공부했어요
           </PageTitle>
@@ -97,17 +98,24 @@ function Wrapup({ session }: { session: LearningSession }) {
   const toggleQ = (q: string, on: boolean) => setQuestions((list) => (on ? [...list, q] : list.filter((x) => x !== q)));
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <PageTitle sub={`${formatTime(session.startedAt)} ~ ${formatTime(session.endedAt!)}`}>
-        오늘 {formatDuration(session.durationMinutes ?? 0)} 공부했어요
-      </PageTitle>
+    <div>
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">학습 돌아보기</p>
+          <h1>오늘 {formatDuration(session.durationMinutes ?? 0)} 공부했어요</h1>
+          <p>{formatTime(session.startedAt)} ~ {formatTime(session.endedAt!)}</p>
+        </div>
+      </div>
 
-      <Card>
-        <h2 className="font-semibold">오늘 한 일</h2>
+      <section className="card reflection">
+        <div className="reflection-head">
+          <h2>오늘 한 일</h2>
+          {aiOk && <Badge tone="sky">AI 요약 · 근거 포함</Badge>}
+        </div>
         {aiOk ? (
-          <p className="text-xs text-stone-500">내가 남긴 기록에서만 뽑았어요. 기록에 없는 내용은 만들지 않아요.</p>
+          <p className="reflection-note">내가 남긴 기록에서만 뽑았어요. 기록에 없는 내용은 만들지 않아요.</p>
         ) : (
-          <p className="mt-1 text-sm text-stone-600">AI 이용에 동의하지 않아 기록을 AI로 정리하지 않았어요. 아래 체크리스트로 직접 돌아봐요.</p>
+          <p className="reflection-note">AI 이용에 동의하지 않아 기록을 AI로 정리하지 않았어요. 아래 체크리스트로 직접 돌아봐요.</p>
         )}
         {summary.isLoading && <Spinner label="정리하는 중" />}
         {summary.error && <ErrorState error={summary.error} onRetry={() => summary.refetch()} />}
@@ -116,59 +124,60 @@ function Wrapup({ session }: { session: LearningSession }) {
             <GroundedList items={summary.data.activities} empty="교사 공개 기록이 없어 정리할 활동이 없어요" />
             {summary.data.remainingQuestions.length > 0 && (
               <>
-                <h3 className="mt-4 text-sm font-semibold">남긴 질문 — 아직 궁금한 것을 골라 주세요</h3>
-                <div className="mt-2 space-y-1.5">
+                <h2>남긴 질문 — 아직 궁금한 것을 골라 주세요</h2>
+                <div className="checklist">
                   {summary.data.remainingQuestions.map((q) => (
-                    <CheckChip key={q.text} checked={questions.includes(q.text)} onChange={(v) => toggleQ(q.text, v)}>
+                    <ChoiceChip key={q.text} variant="box" checked={questions.includes(q.text)} onChange={(v) => toggleQ(q.text, v)}>
                       {q.text}
-                    </CheckChip>
+                    </ChoiceChip>
                   ))}
                 </div>
               </>
             )}
           </>
         )}
-      </Card>
 
-      <Card>
-        <h2 className="font-semibold">돌아보기</h2>
-        <p className="text-xs text-stone-500">해당하는 것만 체크하세요</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <h2>오늘 나는</h2>
+        <p className="reflection-hint">해당하는 것만 체크하세요</p>
+        <div className="checklist">
           {REFLECTION_ITEMS.map((r) => (
-            <CheckChip
+            <ChoiceChip
               key={r.id}
+              variant="box"
               checked={checks.includes(r.id)}
               onChange={(v) => setChecks((c) => (v ? [...c, r.id] : c.filter((x) => x !== r.id)))}
             >
               {r.label}
-            </CheckChip>
+            </ChoiceChip>
           ))}
         </div>
 
-        <h3 className="mt-5 text-sm font-semibold">오늘 내용, 얼마나 이해했나요?</h3>
-        <div className="mt-2 grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="이해도">
+        <h2>오늘 내용, 얼마나 이해했나요?</h2>
+        <div className="understanding" role="radiogroup" aria-label="이해도">
           {([1, 2, 3] as const).map((n) => (
             <button
               key={n}
+              type="button"
               role="radio"
               aria-checked={understanding === n}
               onClick={() => setUnderstanding(n)}
-              className={`rounded-lg border px-3 py-2.5 text-sm ${understanding === n ? "border-brand-500 bg-brand-50 font-semibold text-brand-700" : "border-stone-300"}`}
+              className={understanding === n ? "selected" : ""}
             >
               {UNDERSTANDING_LABELS[n]}
             </button>
           ))}
         </div>
 
-        <details className="mt-5">
-          <summary className="cursor-pointer text-sm text-stone-600">더 남기고 싶은 말이 있나요? (선택)</summary>
-          <div className="mt-2 flex gap-2">
+        <details className="reflection-more">
+          <summary>더 남기고 싶은 말이 있나요? (선택)</summary>
+          <div className="reflection-add">
             <input
               value={newQ}
               maxLength={200}
               onChange={(e) => setNewQ(e.target.value)}
               placeholder="새로 생긴 궁금증"
-              className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm"
+              aria-label="새로 생긴 궁금증"
+              className="reflection-input"
             />
             <Button
               variant="secondary"
@@ -182,7 +191,7 @@ function Wrapup({ session }: { session: LearningSession }) {
             </Button>
           </div>
           {questions.length > 0 && (
-            <ul className="mt-2 list-inside list-disc text-sm text-stone-600">
+            <ul className="reflection-qs">
               {questions.map((q) => (
                 <li key={q}>{q}</li>
               ))}
@@ -193,27 +202,27 @@ function Wrapup({ session }: { session: LearningSession }) {
             maxLength={500}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
+            aria-label="참고 메모"
             placeholder="참고 메모 (선생님께 하고 싶은 말 등)"
-            className="mt-2 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
           />
         </details>
-      </Card>
 
-      {save.error && <ErrorState error={save.error} />}
-      <Button className="w-full" disabled={understanding === null || save.isPending} onClick={() => save.mutate()}>
-        저장하기
-      </Button>
+        {save.error && <ErrorState error={save.error} />}
+        <Button className="full" disabled={understanding === null || save.isPending} onClick={() => save.mutate()}>
+          저장하기
+        </Button>
+      </section>
     </div>
   );
 }
 
 export function GroundedList({ items, empty }: { items: GroundedItem[]; empty: string }) {
-  if (items.length === 0) return <p className="mt-2 text-sm text-stone-400">{empty}</p>;
+  if (items.length === 0) return <p className="grounded-empty">{empty}</p>;
   return (
-    <ul className="mt-2 space-y-1 text-sm">
+    <ul className="grounded-list">
       {items.map((i, idx) => (
-        <li key={`${idx}-${i.text}`} className="flex gap-2">
-          <span className="text-brand-600">•</span>
+        <li key={`${idx}-${i.text}`}>
+          <Icon name="check" size={15} />
           <span>{i.text}</span>
         </li>
       ))}

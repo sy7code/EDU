@@ -1,8 +1,10 @@
+import type { ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api } from "../../api";
 import { useMe } from "../../auth/session";
-import { Badge, ButtonLink, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
+import { Icon } from "../../components/Icon";
+import { Badge, ButtonLink, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import { activityLabel, goalLabel } from "../../lib/checklists";
 import { elapsedLabel, formatDateTime, formatDuration } from "../../lib/time";
 import { latestAttempt, summarizeWeek, unreadFeedback } from "../../lib/studentHome";
@@ -48,101 +50,155 @@ export function StudentHome() {
       ) : active.error ? (
         <ErrorState error={active.error} onRetry={() => active.refetch()} />
       ) : active.data ? (
-        <Card className="border-brand-500 bg-brand-50">
-          <Badge tone="brand">학습 중</Badge>
-          <p className="mt-2 text-lg font-semibold">
-            {goalLabel(active.data.goal)}
-          </p>
-          <p className="text-sm text-stone-600">{elapsedLabel(active.data.startedAt)} 째 공부하고 있어요</p>
-          <ButtonLink to={`/student/session/${active.data.id}`} className="mt-4">
-            학습 화면으로
-          </ButtonLink>
-        </Card>
+        <div className="start-card home-active">
+          <span className="start-icon">
+            <Icon name="clock" size={26} />
+          </span>
+          <span>
+            <small>
+              <Badge tone="brand">학습 중</Badge>
+            </small>
+            <strong>{goalLabel(active.data.goal)}</strong>
+            <em>{elapsedLabel(active.data.startedAt)} 째 공부하고 있어요</em>
+          </span>
+          <ButtonLink to={`/student/session/${active.data.id}`}>학습 화면으로</ButtonLink>
+        </div>
       ) : (
-        <Card>
-          <p className="font-semibold">새 학습 시작하기</p>
-          <p className="mt-1 text-sm text-stone-500">목표를 고르고, 자습실 단말기에서 인증하면 시작돼요.</p>
-          <ButtonLink to="/student/start" className="mt-4">
-            학습 시작
-          </ButtonLink>
-        </Card>
-      )}
-
-      {sessions.data && (
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <Card>
-            <p className="text-xs text-stone-500">최근 7일 학습</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">{week.count}회</p>
-            <p className="text-sm text-stone-600">{week.count ? formatDuration(week.minutes) : "최근 7일 동안은 아직이에요"}</p>
-          </Card>
-          {FEATURES.quiz && (
-            <Card>
-              <p className="text-xs text-stone-500">최근 확인 테스트</p>
-              {quizLoading ? (
-                <p className="mt-1 text-2xl font-bold">-</p>
-              ) : quizError ? (
-                <LoadFailed onRetry={() => quizQueries.forEach((q) => q.refetch())} />
-              ) : lastQuiz ? (
-                <>
-                  <p className="mt-1 text-2xl font-bold tabular-nums">
-                    {lastQuiz.correct} / {lastQuiz.total}
-                  </p>
-                  <p className="truncate text-sm text-stone-600">
-                    {lastQuizName ? `${lastQuizName} · ` : ""}
-                    {formatDateTime(lastQuiz.createdAt)}
-                  </p>
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-stone-600">학습을 마치고 확인 테스트를 보면 여기 나와요</p>
-              )}
-            </Card>
-          )}
-          {fbLoading ? (
-            <Card>
-              <p className="text-xs text-stone-500">선생님 피드백</p>
-              <p className="mt-1 text-2xl font-bold">-</p>
-            </Card>
-          ) : fbError ? (
-            <Card>
-              <p className="text-xs text-stone-500">선생님 피드백</p>
-              <LoadFailed onRetry={() => fbQueries.forEach((q) => q.refetch())} />
-            </Card>
-          ) : fb.latest ? (
-            <Link to={`/student/records?session=${fb.latest.sessionId}`} className="block">
-              <Card className="h-full border-brand-500 hover:bg-brand-50">
-                <p className="text-xs text-stone-500">
-                  선생님 피드백 <Badge tone="brand">새 피드백 {fb.count}개</Badge>
-                </p>
-                <p className="mt-2 line-clamp-2 text-sm">{fb.latest.content}</p>
-                <p className="mt-1 text-xs text-brand-700">기록에서 보기 →</p>
-              </Card>
-            </Link>
-          ) : (
-            <Card>
-              <p className="text-xs text-stone-500">선생님 피드백</p>
-              <p className="mt-1 text-sm text-stone-600">최근 학습 5개에 새 피드백이 없어요</p>
-            </Card>
-          )}
+        <div className="start-card home-start">
+          <span className="start-icon">
+            <Icon name="pen" size={26} />
+          </span>
+          <span>
+            <small>오늘의 학습</small>
+            <strong>새 학습 시작하기</strong>
+            <em>목표를 고르고, 자습실 단말기에서 인증하면 시작돼요.</em>
+          </span>
+          <ButtonLink to="/student/start">학습 시작</ButtonLink>
         </div>
       )}
 
-      <h2 className="mb-2 mt-8 font-semibold">최근 학습</h2>
-      {sessions.isLoading && <Spinner />}
-      {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
-      {sessions.data && recent.length === 0 && <EmptyState title="아직 끝낸 학습이 없어요" />}
-      <div className="grid gap-3 sm:grid-cols-3">
-        {recent.map((s) => (
-          <Link key={s.id} to={`/student/records?session=${s.id}`}>
-            <Card className="h-full hover:border-brand-500">
-              <p className="text-xs text-stone-500">{formatDateTime(s.startedAt)}</p>
-              <p className="mt-1 font-semibold">{s.goal.subject}</p>
-              <p className="text-sm text-stone-600">{s.goal.activities.map(activityLabel).join(", ")}</p>
-              <p className="mt-2 text-sm text-brand-700">{formatDuration(s.durationMinutes ?? 0)}</p>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      {sessions.data && (
+        <section>
+          <div className="section-title">
+            <h2>나의 학습 요약</h2>
+            <span>최근 7일</span>
+          </div>
+          <div className="stats-grid">
+            <StatCard label="최근 7일 학습" icon="clock">
+              <strong className="stat-value">{week.count}회</strong>
+              <p>{week.count ? formatDuration(week.minutes) : "최근 7일 동안은 아직이에요"}</p>
+            </StatCard>
+            {FEATURES.quiz && (
+              <StatCard label="최근 확인 테스트" icon="check" tone="blue-tone">
+                {quizLoading ? (
+                  <strong className="stat-value">-</strong>
+                ) : quizError ? (
+                  <LoadFailed onRetry={() => quizQueries.forEach((q) => q.refetch())} />
+                ) : lastQuiz ? (
+                  <>
+                    <strong className="stat-value">
+                      {lastQuiz.correct} / {lastQuiz.total}
+                    </strong>
+                    <p className="truncate">
+                      {lastQuizName ? `${lastQuizName} · ` : ""}
+                      {formatDateTime(lastQuiz.createdAt)}
+                    </p>
+                  </>
+                ) : (
+                  <p className="stat-empty">학습을 마치고 확인 테스트를 보면 여기 나와요</p>
+                )}
+              </StatCard>
+            )}
+            {fbLoading ? (
+              <StatCard label="선생님 피드백" icon="message" tone="orange-tone">
+                <strong className="stat-value">-</strong>
+              </StatCard>
+            ) : fbError ? (
+              <StatCard label="선생님 피드백" icon="message" tone="orange-tone">
+                <LoadFailed onRetry={() => fbQueries.forEach((q) => q.refetch())} />
+              </StatCard>
+            ) : fb.latest ? (
+              <Link to={`/student/records?session=${fb.latest.sessionId}`} className="stat-link">
+                <StatCard
+                  label="선생님 피드백"
+                  icon="message"
+                  tone="orange-tone"
+                  badge={<Badge tone="brand">새 피드백 {fb.count}개</Badge>}
+                >
+                  <p className="line-clamp-2 stat-quote">{fb.latest.content}</p>
+                  <p className="stat-more">기록에서 보기 →</p>
+                </StatCard>
+              </Link>
+            ) : (
+              <StatCard label="선생님 피드백" icon="message" tone="orange-tone">
+                <p className="stat-empty">최근 학습 5개에 새 피드백이 없어요</p>
+              </StatCard>
+            )}
+          </div>
+        </section>
+      )}
+
+      <section>
+        <div className="section-title">
+          <h2>최근 학습</h2>
+        </div>
+        {sessions.isLoading && <Spinner />}
+        {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
+        {sessions.data && recent.length === 0 && <EmptyState title="아직 끝낸 학습이 없어요" />}
+        {recent.length > 0 && (
+          <div className="record-list card">
+            {recent.map((s) => {
+              const d = new Date(s.startedAt);
+              return (
+                <Link key={s.id} to={`/student/records?session=${s.id}`} className="record-row">
+                  <span className="date-box">
+                    <strong>{d.getDate()}</strong>
+                    <small>{d.getMonth() + 1}월</small>
+                  </span>
+                  <span className="record-main">
+                    <small>{formatDateTime(s.startedAt)}</small>
+                    <strong>{s.goal.subject}</strong>
+                    <span>
+                      <Icon name="clock" size={15} />
+                      {formatDuration(s.durationMinutes ?? 0)}
+                      {s.goal.activities.length > 0 && ` · ${s.goal.activities.map(activityLabel).join(", ")}`}
+                    </span>
+                  </span>
+                  <Icon name="chevron" size={18} />
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
+  );
+}
+
+function StatCard({
+  label,
+  icon,
+  tone = "",
+  badge,
+  children,
+}: {
+  label: string;
+  icon: string;
+  tone?: string;
+  badge?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <article className={`card stat-card ${tone}`}>
+      <div className="stat-head">
+        <span className="stat-icon">
+          <Icon name={icon} />
+        </span>
+        <span>{label}</span>
+        {badge}
+      </div>
+      {children}
+    </article>
   );
 }
 
@@ -150,12 +206,11 @@ const HOME_STALE = 60_000; // 홈과 기록을 오갈 때 같은 요청을 1분 
 
 function LoadFailed({ onRetry }: { onRetry: () => void }) {
   return (
-    <p className="mt-1 text-sm text-stone-600">
+    <p className="stat-empty">
       불러오지 못했어요.{" "}
-      <button className="text-brand-700 underline" onClick={onRetry}>
+      <button className="stat-retry" onClick={onRetry}>
         다시 시도
       </button>
     </p>
   );
 }
-

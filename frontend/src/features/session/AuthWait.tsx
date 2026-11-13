@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, FEATURES, USE_MOCK } from "../../api";
 import { useHasConsent, useMe } from "../../auth/session";
-import { Button, Card, ErrorState, METHOD_LABEL } from "../../components/ui";
+import { Button, ErrorState, METHOD_LABEL } from "../../components/ui";
+import { Icon } from "../../components/Icon";
 import type { AuthEvent } from "../../types/domain";
 
 const DEMO_DEVICE = "kiosk-study-room-1";
@@ -40,18 +41,23 @@ export function AuthWait({ purpose, onAuth }: { purpose: "start" | "end"; onAuth
   });
 
   return (
-    <Card className="text-center">
-      <div className="mx-auto mb-3 h-10 w-10 animate-pulse rounded-full bg-brand-100" aria-hidden />
-      <h2 className="text-lg font-semibold">
-        자습실 단말기에서 {purpose === "start" ? "학습 시작" : "학습 종료"} 인증을 해 주세요
-      </h2>
-      <p className="mt-1 text-sm text-stone-500">
+    <section className="card auth-card">
+      <div className="auth-pulse">
+        <span>
+          <Icon name={purpose === "start" ? "users" : "check"} size={32} />
+        </span>
+      </div>
+      <h2>자습실 단말기에서 {purpose === "start" ? "학습 시작" : "학습 종료"} 인증을 해 주세요</h2>
+      <p>
         {faceOk ? `${METHOD_LABEL.FACEPASS}, ` : ""}QR, 학생증 바코드로 인증하면 이 화면이 자동으로 넘어가요.
       </p>
-      <p className="mt-1 text-xs text-stone-400">기기를 쓰기 어렵다면 선생님께 확인을 요청할 수 있어요.</p>
+      <div className="waiting" role="status">
+        <span className="spinner" aria-hidden /> 인증을 기다리고 있어요
+      </div>
+      <p className="subtle">기기를 쓰기 어렵다면 선생님께 확인을 요청할 수 있어요.</p>
 
       {FEATURES.codeAuth && (
-        <div className="mt-4">
+        <div className="study-qr">
           {qr ? (
             <QrBox token={qr.token} expiresAt={qr.expiresAt} onExpired={clearQr} />
           ) : (
@@ -59,14 +65,14 @@ export function AuthWait({ purpose, onAuth }: { purpose: "start" | "end"; onAuth
               단말기에 보여줄 QR 만들기
             </Button>
           )}
-          {issueQr.error && <div className="mt-2"><ErrorState error={issueQr.error} /></div>}
+          {issueQr.error && <div className="study-err"><ErrorState error={issueQr.error} /></div>}
         </div>
       )}
 
-      {pending.error && <div className="mt-3"><ErrorState error={pending.error} /></div>}
+      {pending.error && <div className="study-err"><ErrorState error={pending.error} /></div>}
       {/* 데모 인증: mock·실제 백엔드(/dev/facepass/simulate) 모두 지원 */}
-      <div className="mt-5 flex flex-wrap justify-center gap-2 border-t border-dashed border-stone-200 pt-4">
-        <span className="w-full text-xs text-stone-400">데모 전용 버튼{USE_MOCK ? "" : " (실제 단말기 연동 전)"}</span>
+      <div className="demo-box">
+        <span className="demo-note">데모 전용 버튼{USE_MOCK ? "" : " (실제 단말기 연동 전)"}</span>
         {(faceOk || !FEATURES.codeAuth) && ( /* 대체 수단(QR)이 없는 실제 모드에선 막히지 않게 항상 표시 */
           <Button variant="secondary" onClick={() => simulate.mutate("face")} disabled={simulate.isPending}>
             단말기 얼굴 인증 흉내
@@ -78,8 +84,8 @@ export function AuthWait({ purpose, onAuth }: { purpose: "start" | "end"; onAuth
           </Button>
         )}
       </div>
-      {simulate.error && <div className="mt-2"><ErrorState error={simulate.error} /></div>}
-    </Card>
+      {simulate.error && <div className="study-err"><ErrorState error={simulate.error} /></div>}
+    </section>
   );
 }
 
@@ -95,10 +101,10 @@ function QrBox({ token, expiresAt, onExpired }: { token: string; expiresAt: stri
     return () => clearInterval(t);
   }, [expiresAt, onExpired]);
   return (
-    <div className="mx-auto max-w-xs rounded-lg border-2 border-dashed border-stone-300 p-4">
-      <p className="text-xs text-stone-500">단말기 카메라에 이 코드를 보여 주세요 · 한 번만 쓸 수 있어요</p>
-      <p className="mt-2 break-all font-mono text-sm">{token}</p>
-      <p className="mt-2 text-xs text-amber-700">{Math.max(0, left)}초 뒤 만료</p>
+    <div className="qr-box">
+      <p className="qr-help">단말기 카메라에 이 코드를 보여 주세요 · 한 번만 쓸 수 있어요</p>
+      <p className="qr-token">{token}</p>
+      <p className="qr-left">{Math.max(0, left)}초 뒤 만료</p>
     </div>
   );
 }

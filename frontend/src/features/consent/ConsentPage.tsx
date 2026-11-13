@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { api, FEATURES } from "../../api";
 import { useConsents, useMe } from "../../auth/session";
-import { Button, Card, ErrorState, PageTitle, Spinner } from "../../components/ui";
+import { Icon } from "../../components/Icon";
+import { Button, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import type { ConsentKind } from "../../types/domain";
 import { formatDateTime } from "../../lib/time";
 
@@ -30,6 +31,8 @@ const ITEMS: Array<{ kind: ConsentKind; title: string; body: string; ifNo: strin
     ifNo: "동의하지 않으면 모든 기록이 '나만 보기'로 저장돼요.",
   },
 ];
+
+const ICON: Record<ConsentKind, string> = { FACEPASS: "users", AI: "spark", LEARNING_RECORD: "book" };
 
 export function ConsentPage() {
   const me = useMe();
@@ -69,44 +72,50 @@ export function ConsentPage() {
   const anyGranted = ITEMS.some((i) => values[i.kind] === true);
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="consent-page">
       <PageTitle sub="항목마다 따로 고를 수 있고, 언제든 이 화면에서 바꿀 수 있어요.">이용 동의</PageTitle>
-      <div className="space-y-3">
+      <div className="card consent-card">
         {ITEMS.map((i) => (
-          <Card key={i.kind}>
-            <h2 className="font-semibold">{i.title}</h2>
-            <p className="mt-1 text-sm text-stone-600">{i.body}</p>
-            <p className="mt-1 text-xs text-stone-500">{i.ifNo}</p>
-            <div className="mt-3 flex gap-2" role="radiogroup" aria-label={i.title}>
+          <div className="consent-row" key={i.kind}>
+            <span className="consent-icon">
+              <Icon name={ICON[i.kind]} />
+            </span>
+            <div>
+              <h2>{i.title}</h2>
+              <p>{i.body}</p>
+              <small>{i.ifNo}</small>
+            </div>
+            <div className="segmented" role="radiogroup" aria-label={i.title}>
               {[true, false].map((v) => (
                 <button
                   key={String(v)}
+                  type="button"
                   role="radio"
                   aria-checked={values[i.kind] === v}
                   onClick={() => setValues((s) => ({ ...s, [i.kind]: v }))}
-                  className={`rounded-lg border px-4 py-2 text-sm ${
-                    values[i.kind] === v ? "border-brand-500 bg-brand-50 font-semibold text-brand-700" : "border-stone-300"
-                  }`}
+                  className={values[i.kind] === v ? (v ? "active" : "active no") : ""}
                 >
                   {v ? "동의해요" : "동의하지 않아요"}
                 </button>
               ))}
             </div>
-          </Card>
+          </div>
         ))}
         {needGuardian && (
-          <Card className="border-amber-300 bg-amber-50">
-            <label className="flex items-start gap-2 text-sm">
-              <input type="checkbox" className="mt-1 accent-brand-600" checked={guardian} onChange={(e) => setGuardian(e.target.checked)} />
-              만 14세 미만이라 보호자 동의를 받았어요. (실제 서비스에서는 보호자 본인 확인 절차를 거쳐요)
-            </label>
-          </Card>
+          <label className="guardian">
+            <input type="checkbox" checked={guardian} onChange={(e) => setGuardian(e.target.checked)} />
+            <span>만 14세 미만이라 보호자 동의를 받았어요. (실제 서비스에서는 보호자 본인 확인 절차를 거쳐요)</span>
+          </label>
         )}
+        {save.error && (
+          <div className="consent-error">
+            <ErrorState error={save.error} />
+          </div>
+        )}
+        <Button className="w-full consent-save" disabled={!allDecided || (needGuardian && anyGranted && !guardian) || save.isPending} onClick={() => save.mutate()}>
+          저장하고 시작하기
+        </Button>
       </div>
-      {save.error && <div className="mt-3"><ErrorState error={save.error} /></div>}
-      <Button className="mt-5 w-full" disabled={!allDecided || (needGuardian && anyGranted && !guardian) || save.isPending} onClick={() => save.mutate()}>
-        저장하고 시작하기
-      </Button>
       {FEATURES.audit && consents.data && consents.data.length > 0 && <ViewLog />}
     </div>
   );
@@ -116,20 +125,30 @@ export function ConsentPage() {
 function ViewLog() {
   const logs = useQuery({ queryKey: ["audit-logs"], queryFn: () => api.listAuditLogs() });
   return (
-    <Card className="mt-8">
-      <h2 className="font-semibold">내 기록을 본 사람</h2>
-      <p className="text-xs text-stone-500">선생님이 '학생 상세' 화면에서 내 기록을 열면 남아요 (최근 10개). 반 전체 통계·대시보드를 볼 때는 남지 않아요.</p>
-      {logs.isLoading && <Spinner />}
-      {logs.error && <ErrorState error={logs.error} onRetry={() => logs.refetch()} />}
-      {logs.data?.length === 0 && <p className="mt-2 text-sm text-stone-500">아직 없어요</p>}
-      <ul className="mt-2 divide-y divide-stone-100 text-sm">
+    <section className="view-log">
+      <div className="section-title">
+        <h2>내 기록을 본 사람</h2>
+        <span>최근 10개</span>
+      </div>
+      <p className="view-log-note">선생님이 '학생 상세' 화면에서 내 기록을 열면 남아요 (최근 10개). 반 전체 통계·대시보드를 볼 때는 남지 않아요.</p>
+      <div className="card access-list">
+        {logs.isLoading && <Spinner />}
+        {logs.error && <ErrorState error={logs.error} onRetry={() => logs.refetch()} />}
+        {logs.data?.length === 0 && (
+          <div>
+            <p>아직 없어요</p>
+          </div>
+        )}
         {logs.data?.map((l) => (
-          <li key={l.id} className="flex justify-between gap-2 py-2">
-            <span>{l.actorName ? `${l.actorName} 선생님` : "선생님"}이 내 기록을 봤어요</span>
-            <span className="text-xs text-stone-500">{formatDateTime(l.createdAt)}</span>
-          </li>
+          <div key={l.id}>
+            <span>
+              <Icon name="users" />
+            </span>
+            <p>{l.actorName ? `${l.actorName} 선생님` : "선생님"}이 내 기록을 봤어요</p>
+            <small className="access-time">{formatDateTime(l.createdAt)}</small>
+          </div>
         ))}
-      </ul>
-    </Card>
+      </div>
+    </section>
   );
 }

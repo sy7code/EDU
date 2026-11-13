@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api";
+import { Icon } from "../../components/Icon";
 import { Badge, Card, ErrorState, Spinner } from "../../components/ui";
 import { UNDERSTANDING_LABELS } from "../../lib/checklists";
 import { formatDuration } from "../../lib/time";
@@ -29,55 +30,69 @@ export function TopicGrowthView({ studentId, viewer }: { studentId: string; view
 
   if (!shared) {
     return (
-      <Card className="mb-5 border-amber-200 bg-amber-50 text-sm text-amber-800">
-        이 학생은 기록 공유에 동의하지 않아 주제별 성장은 보이지 않아요. 전체 {total.sessions}회 · {formatDuration(total.minutes)} 학습했어요.
+      <Card className="growth-section">
+        <div className="conversation-signal">
+          <Icon name="message" />
+          <span>
+            이 학생은 기록 공유에 동의하지 않아 주제별 성장은 보이지 않아요. 전체 {total.sessions}회 · {formatDuration(total.minutes)} 학습했어요.
+          </span>
+        </div>
       </Card>
     );
   }
 
   return (
-    <Card className="mb-5 p-0">
-      <div className="flex flex-wrap items-baseline gap-2 border-b border-stone-200 px-5 py-3">
-        <h2 className="font-semibold">{viewer === "student" ? "내 성장" : "주제별 성장"}</h2>
-        <span className="text-xs text-stone-500">
-          AI가 기록에서 찾은 주제별 · 확인 테스트는 모두에게 같은 난이도 · 성적에 들어가지 않아요
-        </span>
+    <section className="growth-section">
+      <div className="section-title">
+        <h2>{viewer === "student" ? "내 성장" : "주제별 성장"}</h2>
+        <span>AI가 기록에서 찾은 주제별 · 확인 테스트는 모두에게 같은 난이도 · 성적에 들어가지 않아요</span>
       </div>
       {topics.length === 0 ? (
-        <p className="px-5 py-4 text-sm text-stone-400">아직 주제가 없어요. 학습을 마치면 AI가 기록에서 주제를 찾아요.</p>
+        <p className="card growth-empty">아직 주제가 없어요. 학습을 마치면 AI가 기록에서 주제를 찾아요.</p>
       ) : (
-        <ul className="divide-y divide-stone-100">
+        <div className="growth-list">
           {topics.map((t) => {
             const up = t.firstRate !== null && t.lastRate !== null && t.attempts > 1 ? t.lastRate - t.firstRate : null;
             return (
-              <li key={t.topicId} className={`px-5 py-3 ${t.signal ? "bg-amber-50/50" : ""}`}>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{t.name}</span>
-                  {t.subject && <span className="text-xs text-stone-400">{t.subject}</span>}
-                  {t.signal && <Badge tone="amber">{SIGNAL[t.signal].label}</Badge>}
+              <div key={t.topicId} className="card growth-card">
+                <div className="growth-badges">
+                  <Badge tone="sky">{t.name}</Badge>
+                  {t.subject && <span className="growth-subject">{t.subject}</span>}
                 </div>
-                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-stone-600">
-                  <span>{t.sessions}회 · {formatDuration(t.minutes)}</span>
-                  <span>
-                    확인 테스트 {t.attempts}번 · {t.attempts > 1 ? `${pct(t.firstRate)} → ${pct(t.lastRate)}` : pct(t.lastRate)}
-                    {t.lastTotal !== null && t.lastTotal < 5 && <span className="ml-1 text-xs text-stone-400">(최근 {t.lastTotal}문항 기준)</span>}
+                <h3>{t.sessions}회 · {formatDuration(t.minutes)}</h3>
+                <div className="growth-row">
+                  <span>확인 테스트 {t.attempts}번</span>
+                  <strong>
+                    {t.attempts > 1 ? `${pct(t.firstRate)} → ${pct(t.lastRate)}` : pct(t.lastRate)}
+                    {t.lastTotal !== null && t.lastTotal < 5 && <small className="growth-note">(최근 {t.lastTotal}문항 기준)</small>}
                     {up !== null && up !== 0 && (
-                      <strong className={up > 0 ? "ml-1 text-brand-700" : "ml-1 text-amber-700"}>
+                      <em className={up > 0 ? "growth-up" : "growth-down"}>
                         {up > 0 ? "▲" : "▼"}
                         {Math.abs(Math.round(up * 100))}%p
-                      </strong>
+                      </em>
                     )}
-                  </span>
-                  {t.lastUnderstanding && <span className="text-xs">스스로: {UNDERSTANDING_LABELS[t.lastUnderstanding]}</span>}
+                  </strong>
                 </div>
-                {t.signal && (
-                  <p className="mt-1 text-xs text-amber-800">{viewer === "teacher" ? SIGNAL[t.signal].teacherHint : SIGNAL[t.signal].studentHint}</p>
+                {t.lastUnderstanding && (
+                  <div className="growth-row">
+                    <span>스스로 이해도</span>
+                    <strong>{UNDERSTANDING_LABELS[t.lastUnderstanding]}</strong>
+                  </div>
                 )}
-              </li>
+                {t.signal && (
+                  <div className="conversation-signal">
+                    <Icon name="message" />
+                    <span>
+                      <strong>{SIGNAL[t.signal].label}</strong>
+                      {viewer === "teacher" ? SIGNAL[t.signal].teacherHint : SIGNAL[t.signal].studentHint}
+                    </span>
+                  </div>
+                )}
+              </div>
             );
           })}
-        </ul>
+        </div>
       )}
-    </Card>
+    </section>
   );
 }

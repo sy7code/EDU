@@ -42,3 +42,23 @@ a.button {
     padding: 0 16px 90px;
   }
 }
+
+/* 프로토타입은 좁은 화면에서 일부를 숨기지만, 우리 앱에선 기능이 담긴 요소라 보이게 둔다 */
+@media (max-width: 1100px) {
+  /* 사이드바를 빼면 300px 목록 + 상세가 들어갈 폭이 안 돼 상세가 찌그러진다 → 목록 위, 상세 아래 */
+  .split-record {
+    grid-template-columns: 1fr;
+  }
+  .split-record .session-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+}
+@media (max-width: 640px) {
+  .session-detail {
+    display: block; /* 교사 학습 기록 상세 */
+  }
+  .record-row > .badge {
+    display: inline-flex; /* 학생 기록 목록의 '새 피드백' 배지 */
+  }
+}

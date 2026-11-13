@@ -1,1 +1,208 @@
 /* 화면 묶음 전용 보완 스타일 (teacher-detail). 공용 규칙은 design.css·overrides.css */
+.profile-types {
+  padding: 22px;
+  margin-bottom: 22px;
+}
+.profile-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+.question-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.question-rows .question-row {
+  grid-template-columns: 170px 1fr 220px;
+  gap: 12px;
+  padding: 10px 0;
+}
+.question-rows .question-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.question-more {
+  margin-top: 14px;
+}
+.student-back {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.student-back:hover {
+  text-decoration: underline;
+}
+.session-list-note {
+  color: var(--muted);
+  font-size: 11px;
+  padding: 0 18px 10px;
+}
+.split-record .session-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.split-record .session-list button {
+  border-radius: 0;
+}
+.split-record .session-list-wrap {
+  min-width: 0;
+}
+.session-detail {
+  min-width: 0;
+}
+.session-detail > * + * {
+  margin-top: 16px;
+}
+.session-detail .feedback-compose {
+  margin-bottom: 0;
+}
+.session-detail .feedback-compose p {
+  color: var(--muted);
+  font-size: 12px;
+}
+.feedback-compose .button {
+  width: 100%;
+}
+.assess-panel {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+.assess-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.assess-head .button {
+  margin-left: auto;
+}
+.assess-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+.assess-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.assess-submit {
+  width: 100%;
+  margin-top: 14px;
+}
+.criterion {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 13px;
+}
+.criterion.differs {
+  border-color: var(--orange);
+  background: var(--orange-bg);
+}
+.criterion-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.criterion-ai {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+}
+.criterion-ai button {
+  border: 0;
+  background: transparent;
+  color: var(--green);
+  text-decoration: underline;
+  margin-left: 8px;
+  padding: 0;
+}
+.criterion-levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.criterion-levels button {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+}
+.criterion-levels button[aria-checked="true"] {
+  border-color: var(--green);
+  background: var(--green-2);
+  color: var(--green-3);
+  font-weight: 700;
+}
+.criterion-levels button.hold {
+  color: var(--muted);
+}
+.criterion-levels button.hold[aria-checked="true"] {
+  border-color: var(--muted);
+  background: var(--bg);
+}
+.assess-view {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+.assess-view li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.report-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.report-card .choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 14px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+.report-card .choices .correct {
+  color: var(--green);
+  font-weight: 700;
+}
+.report-card .report-meta {
+  margin: 15px 0 0;
+}
+.report-card .report-actions {
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+@media (max-width: 767px) {
+  .question-rows .question-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .split-record {
+    grid-template-columns: 1fr;
+  }
+  .split-record .session-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .session-detail {
+    padding: 14px;
+  }
+  .report-card .choices {
+    grid-template-columns: 1fr;
+  }
+  .report-card .report-meta {
+    grid-template-columns: 1fr;
+  }
+}

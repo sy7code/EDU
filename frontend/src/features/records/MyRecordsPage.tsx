@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router";
 import { api, FEATURES } from "../../api";
 import { useMe } from "../../auth/session";
 import { TopicGrowthView } from "./TopicGrowthView";
+import { Icon } from "../../components/Icon";
 import { Badge, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import { goalLabel } from "../../lib/checklists";
 import { formatDateTime, formatDuration } from "../../lib/time";
@@ -27,8 +28,8 @@ export function MyRecordsPage() {
   const hasUnread = new Set(fbSessions.filter((_, i) => fbQueries[i]?.data?.some((f) => !f.readAt)).map((s) => s.id));
   const choose = (id: string) => {
     setParams({ session: id });
-    // 좁은 화면에서는 목록 아래에 상세가 있어 골라도 반응이 없어 보이므로 상세로 내려간다
-    if (window.matchMedia("(max-width: 767px)").matches) {
+    // 목록과 상세가 위아래로 쌓이는 폭(1100px 이하, styles 참고)에서는 목록 아래에 상세가 있어 골라도 반응이 없어 보이므로 상세로 내려간다
+    if (window.matchMedia("(max-width: 1100px)").matches) {
       requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     }
   };
@@ -43,39 +44,35 @@ export function MyRecordsPage() {
       {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
       {sessions.data?.length === 0 && <EmptyState title="아직 기록이 없어요">홈에서 첫 학습을 시작해 보세요.</EmptyState>}
       {sessions.data && sessions.data.length > 0 && (
-        <div className="grid gap-5 md:grid-cols-[260px_1fr]">
-          <ul className="space-y-1.5">
-            {sessions.data.map((s) => (
-              <li key={s.id}>
-                <button
-                  onClick={() => choose(s.id)}
-                  className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-                    s.id === selectedId ? "border-brand-500 bg-brand-50" : "border-stone-200 bg-white hover:bg-stone-50"
-                  }`}
-                >
-                  <p className="text-xs text-stone-500">{formatDateTime(s.startedAt)}</p>
-                  <p className="font-medium">
-                    {goalLabel(s.goal)}
-                  </p>
-                  <p className="text-xs text-brand-700">
-                    {s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}
-                    {hasFeedback.has(s.id) && (
-                      <span className="ml-1">
-                        <Badge tone={hasUnread.has(s.id) ? "brand" : "stone"}>{hasUnread.has(s.id) ? "새 피드백" : "피드백"}</Badge>
-                      </span>
-                    )}
-                  </p>
+        <section>
+          <div className="section-title">
+            <h2>학습 목록</h2>
+            <span>{sessions.data.length}개</span>
+          </div>
+          <div className="my-records">
+            <div className="card record-list compact">
+              {sessions.data.map((s) => (
+                <button key={s.id} onClick={() => choose(s.id)} className={`record-row ${s.id === selectedId ? "selected" : ""}`}>
+                  <span className="record-main">
+                    <small>{formatDateTime(s.startedAt)}</small>
+                    <strong>{goalLabel(s.goal)}</strong>
+                    <span>{s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}</span>
+                  </span>
+                  {hasFeedback.has(s.id) && (
+                    <Badge tone={hasUnread.has(s.id) ? "brand" : "stone"}>{hasUnread.has(s.id) ? "새 피드백" : "피드백"}</Badge>
+                  )}
+                  <Icon name="chevron" />
                 </button>
-              </li>
-            ))}
-          </ul>
-          {selected && (
-            <div ref={detailRef} className="min-w-0 scroll-mt-4 space-y-4">
-              <SessionDetail session={selected} />
-              <StudentAssessment sessionId={selected.id} />
+              ))}
             </div>
-          )}
-        </div>
+            {selected && (
+              <div ref={detailRef} className="my-records-detail">
+                <SessionDetail session={selected} />
+                <StudentAssessment sessionId={selected.id} />
+              </div>
+            )}
+          </div>
+        </section>
       )}
     </div>
   );
@@ -86,8 +83,8 @@ function StudentAssessment({ sessionId }: { sessionId: string }) {
   if (!a.data?.teacher) return null;
   return (
     <Card>
-      <h3 className="font-semibold">선생님 관찰 평가</h3>
-      <p className="text-xs text-stone-500">선생님이 확정한 내용이에요</p>
+      <h3 className="records-card-title">선생님 관찰 평가</h3>
+      <p className="records-card-sub">선생님이 확정한 내용이에요</p>
       <AssessmentView sessionId={sessionId} scores={a.data.teacher} />
     </Card>
   );

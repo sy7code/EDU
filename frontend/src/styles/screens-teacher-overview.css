@@ -1,1 +1,109 @@
 /* 화면 묶음 전용 보완 스타일 (teacher-overview). 공용 규칙은 design.css·overrides.css */
+
+/* 대시보드 통계 카드: 필터 버튼이라 button 기본 모양을 지운다 */
+button.stat-card {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button.stat-card.selected {
+  border-color: var(--green);
+  box-shadow: 0 0 0 1px var(--green);
+}
+button.stat-card:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.teacher-stats .stat-card .stat-value {
+  font-size: 24px;
+}
+@media (max-width: 760px) {
+  .teacher-stats.four .stat-card:last-child {
+    grid-column: auto;
+  }
+}
+
+/* 표: 공용 min-width(850px)를 풀고, 좁은 화면에서는 table-wrap 안에서 가로 스크롤 */
+.overview-table {
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.overview-table th,
+.overview-table td {
+  padding-inline: 13px;
+}
+.overview-table .cell-sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+.overview-table .cell-muted {
+  color: var(--muted);
+}
+.overview-table .cell-right {
+  text-align: right;
+}
+.overview-table a {
+  font-weight: 700;
+}
+.overview-table a:hover {
+  text-decoration: underline;
+}
+.overview-table .badge + .badge {
+  margin-left: 4px;
+}
+.table-empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 24px 12px;
+}
+.table-card .filter-row {
+  justify-content: flex-end;
+}
+.table-note {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 분석 화면 */
+.period-toggle {
+  flex-shrink: 0;
+}
+.dist-empty strong {
+  display: block;
+  font-size: 20px;
+  margin: 15px 0 6px;
+}
+.dist-empty p {
+  color: var(--muted);
+  font-size: 13px;
+}
+.topic-table {
+  min-width: 0;
+  font-size: 14px;
+}
+.topic-table th {
+  padding: 9px 8px;
+}
+.topic-table td {
+  padding: 11px 8px;
+}
+.empty-line {
+  color: var(--muted);
+  font-size: 14px;
+}
+.ratio-note {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.analysis-grid > .card {
+  min-width: 0;
+}
+.analysis-stack > * + * {
+  margin-top: 18px;
+}

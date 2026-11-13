@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Badge, Card, ErrorState, Spinner } from "../../components/ui";
+import { Icon } from "../../components/Icon";
+import { Badge, Button, Card, ErrorState, Spinner } from "../../components/ui";
 import { goalLabel } from "../../lib/checklists";
 import { classifyQuestion, QUESTION_TYPE_LABEL } from "../../lib/questionType";
 import { formatDateTime } from "../../lib/time";
@@ -9,16 +10,21 @@ import { countText, minutesText, pct, TypeBar, useClassAnalytics } from "./Analy
 const PAGE = 20;
 
 /** 학생 값 옆에 반 평균과 높고 낮음. 비교할 값이 없으면 화살표 없음 */
-function Compare({ label, value, avg, format }: { label: string; value: number | null; avg: number | null; format: (v: number | null) => string }) {
+function Compare({ label, value, avg, format, icon, tone = "" }: { label: string; value: number | null; avg: number | null; format: (v: number | null) => string; icon: string; tone?: string }) {
   const arrow = value === null || avg === null || value === avg ? "" : value > avg ? "▲" : "▼";
   return (
-    <div>
-      <p className="text-xs text-stone-500">{label}</p>
-      <p className="mt-0.5 text-xl font-bold tabular-nums">{format(value)}</p>
-      <p className="text-xs text-stone-500">
-        반 평균 {format(avg)} {arrow && <span className="text-stone-600">{arrow}</span>}
+    <article className={`card stat-card ${tone}`}>
+      <div className="stat-head">
+        <span className="stat-icon">
+          <Icon name={icon} />
+        </span>
+        <span>{label}</span>
+      </div>
+      <strong className="stat-value">{format(value)}</strong>
+      <p>
+        반 평균 {format(avg)} {arrow && <span>{arrow}</span>}
       </p>
-    </div>
+    </article>
   );
 }
 
@@ -31,23 +37,27 @@ export function ProfileSummary({ studentId }: { studentId: string }) {
   const st = summary?.students.find((s) => s.studentId === studentId);
   if (!summary || !st) return null;
   return (
-    <Card className="mb-5">
-      <h2 className="font-semibold">최근 4주 종합</h2>
-      <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Compare label="학습 횟수" value={st.sessionCount} avg={avg(summary.students.map((s) => s.sessionCount))} format={(v) => (v === null ? "-" : `${Math.round(v * 10) / 10}회`)} />
-        <Compare label="학습 시간" value={st.minutes} avg={summary.minutes.mean} format={minutesText} />
-        {st.shared && <Compare label="확인 테스트 정답률" value={st.quizRate} avg={summary.quizRate.mean} format={pct} />}
-        {st.shared && <Compare label="AI 질문 수" value={st.questionCount} avg={summary.questions.mean} format={countText} />}
+    <>
+      <div className="teacher-stats four">
+        <Compare icon="book" label="학습 횟수" value={st.sessionCount} avg={avg(summary.students.map((s) => s.sessionCount))} format={(v) => (v === null ? "-" : `${Math.round(v * 10) / 10}회`)} />
+        <Compare icon="clock" label="학습 시간" value={st.minutes} avg={summary.minutes.mean} format={minutesText} />
+        {st.shared && <Compare icon="check" tone="blue-tone" label="확인 테스트 정답률" value={st.quizRate} avg={summary.quizRate.mean} format={pct} />}
+        {st.shared && <Compare icon="message" tone="orange-tone" label="AI 질문 수" value={st.questionCount} avg={summary.questions.mean} format={countText} />}
       </div>
-      {!st.shared ? (
-        <p className="mt-4 text-sm text-stone-500">기록 공유에 동의하지 않아 질문·정답률은 보이지 않아요.</p>
-      ) : (
-        <>
-          <h3 className="mt-5 text-sm font-semibold">AI에 어떻게 물었나</h3>
-          <div className="mt-2">{st.types && <TypeBar types={st.types} />}</div>
-        </>
-      )}
-    </Card>
+      <section className="card ratio-card profile-types">
+        <div className="card-heading">
+          <div>
+            <h2>최근 4주 종합</h2>
+            {st.shared && <p>AI에 어떻게 물었나</p>}
+          </div>
+        </div>
+        {!st.shared ? (
+          <p className="profile-note">기록 공유에 동의하지 않아 질문·정답률은 보이지 않아요.</p>
+        ) : (
+          st.types && <TypeBar types={st.types} />
+        )}
+      </section>
+    </>
   );
 }
 
@@ -61,39 +71,45 @@ export function QuestionList({ studentId }: { studentId: string }) {
   const { raw, summary } = q.data;
   const st = summary.students.find((s) => s.studentId === studentId);
   if (!st) return null;
-  if (!st.shared) return <Card><p className="text-sm text-stone-500">기록 공유에 동의하지 않아 질문은 보이지 않아요.</p></Card>;
+  if (!st.shared) return <Card><p className="profile-note">기록 공유에 동의하지 않아 질문은 보이지 않아요.</p></Card>;
   const goalOf = new Map(raw.sessions.map((s) => [s.id, goalLabel(s.goal)]));
   const questions = raw.questions.filter((x) => x.studentId === studentId).sort(byNewest);
   return (
-    <Card>
-      <h2 className="font-semibold">AI에 한 질문 (최근 4주 {questions.length}개, 최근 순)</h2>
-      <p className="text-[11px] text-stone-400">유형은 자동 분류 · 참고용</p>
+    <section className="card question-list">
+      <div className="card-heading">
+        <div>
+          <h2>AI에 한 질문 (최근 4주 {questions.length}개, 최근 순)</h2>
+          <p>유형은 자동 분류 · 참고용</p>
+        </div>
+      </div>
       {questions.length === 0 ? (
-        <p className="mt-3 text-sm text-stone-500">AI에 한 질문이 없어요</p>
+        <p className="profile-note">AI에 한 질문이 없어요</p>
       ) : (
         <>
-          <ul className="mt-2 divide-y divide-stone-100">
+          <ul className="question-rows">
             {questions.slice(0, shown).map((x) => {
               const t = x.questionType ?? classifyQuestion(x.content);
               return (
-                <li key={x.id} className="flex flex-wrap items-start gap-2 py-2 text-sm">
-                  <Badge tone={t === "ANSWER" ? "amber" : t === "CHECK" ? "sky" : t === "CONCEPT" ? "brand" : "stone"}>{QUESTION_TYPE_LABEL[t]}</Badge>
-                  <span className="min-w-0 flex-1 break-words">{x.content}</span>
-                  <span className="text-xs text-stone-400">
-                    {goalOf.get(x.sessionId) ?? ""} · {formatDateTime(x.createdAt)}
+                <li key={x.id} className="question-row">
+                  <span>
+                    <Badge tone={t === "ANSWER" ? "amber" : t === "CHECK" ? "sky" : t === "CONCEPT" ? "brand" : "stone"}>{QUESTION_TYPE_LABEL[t]}</Badge>
                   </span>
+                  <strong>{x.content}</strong>
+                  <small>
+                    {goalOf.get(x.sessionId) ?? ""} · {formatDateTime(x.createdAt)}
+                  </small>
                 </li>
               );
             })}
           </ul>
           {questions.length > shown && (
-            <button className="mt-2 text-sm text-brand-700 hover:underline" onClick={() => setShown((n) => n + PAGE)}>
+            <Button variant="secondary" className="question-more" onClick={() => setShown((n) => n + PAGE)}>
               더 보기 ({questions.length - shown}개 남음)
-            </button>
+            </Button>
           )}
         </>
       )}
-    </Card>
+    </section>
   );
 }
 
