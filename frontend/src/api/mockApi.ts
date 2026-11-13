@@ -16,8 +16,10 @@ import type {
   LearningEntry,
   LearningSession,
   QuizAttempt,
+  ReportedQuestion,
   SessionTopic,
   StudentQuizQuestion,
+  TopicGrowth,
   User,
 } from "../types/domain";
 import type { Db, ServedQuestion } from "./mockData";
@@ -338,6 +340,13 @@ export function createMockApi(opts: MockOptions): Api {
       .filter((a) => a.studentId === studentId && (!topicId || a.topicId === topicId) && a.total > 0)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return list[0] ?? null;
+  }
+  /** 차이 신호: 스스로 '설명할 수 있다(3)'인데 60% 미만 → OVERCONFIDENT, 그 외 40% 미만 → LOW_SCORE */
+  function quizSignal(rate: number | null, understanding: number | null): TopicGrowth["signal"] {
+    if (rate === null) return null;
+    if (understanding === 3 && rate < 0.6) return "OVERCONFIDENT";
+    if (rate < 0.4) return "LOW_SCORE";
+    return null;
   }
   function lastQuizRate(studentId: string, topicId?: string): number | null {
     const a = lastAttempt(studentId, topicId);
@@ -770,6 +779,102 @@ export function createMockApi(opts: MockOptions): Api {
         const s = visibleSession(sessionId);
         if (isTeacherView() && !sharedWithTeacher(s.studentId)) return null;
         return db.quizAttempts.find((a) => a.sessionId === sessionId) ?? null;
+      }),
+
+    // ---------- 주제별 성장·신고 문제 ----------
+    getTopicGrowth: (studentId) =>
+      run(() => {
+        const u = me();
+        const target = userById(studentId);
+        const allowed = u.role === "student" ? u.id === studentId : target?.classId === u.classId && target.role === "student";
+        if (!allowed) throw new ApiError("NOT_FOUND");
+        if (u.role === "teacher") audit("VIEW_TOPIC_GROWTH", studentId);
+        const mine = db.sessions.filter((x) => x.studentId === studentId);
+        const minutesOf = (list: LearningSession[]) => list.reduce((n, x) => n + (x.durationMinutes ?? 0), 0);
+        const total = { sessions: mine.length, minutes: minutesOf(mine) };
+        // 공유 미동의 학생을 교사가 보면: 주제 이름도 기록 내용이므로 숨기고 전체 횟수·시간만
+        if (u.role === "teacher" && !sharedWithTeacher(studentId)) return { studentId, shared: false, topics: [], total };
+        const topicIds = [...new Set(mine.flatMap((x) => (db.sessionTopics[x.id] ?? []).map((t) => t.topicId)))];
+        const topics: TopicGrowth[] = topicIds.map((topicId) => {
+          const topic = db.topics.find((t) => t.id === topicId)!;
+          const list = mine.filter((x) => (db.sessionTopics[x.id] ?? []).some((t) => t.topicId === topicId));
+          const attempts = db.quizAttempts
+            .filter((a) => a.studentId === studentId && a.topicId === topicId && a.total > 0)
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+          const rate = (a?: QuizAttempt) => (a ? a.correct / a.total : null);
+          const last = attempts[attempts.length - 1];
+          const lastEnded = [...list].filter((x) => x.status === "ENDED").sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+          const und = lastEnded ? (db.reflections.find((r) => r.sessionId === lastEnded.id)?.understanding ?? null) : null;
+          // 신호는 같은 세션의 응시 결과와 이해도 짝으로만
+          const pairedUnd = last ? (db.reflections.find((r) => r.sessionId === last.sessionId)?.understanding ?? null) : null;
+          return {
+            topicId,
+            name: topic.name,
+            subject: topic.subject,
+            sessions: list.length,
+            minutes: minutesOf(list),
+            attempts: attempts.length,
+            firstRate: rate(attempts[0]),
+            lastRate: rate(last),
+            lastUnderstanding: und,
+            signal: quizSignal(rate(last), pairedUnd),
+          };
+        });
+        topics.sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name));
+        return { studentId, shared: true, topics, total };
+      }),
+
+    listReportedQuestions: (classId) =>
+      run(() => {
+        const t = teacher();
+        if (t.classId !== classId) throw new ApiError("NOT_FOUND");
+        const reports = db.quizReports.filter((r) => r.classId === classId);
+        return reports
+          .map((r): ReportedQuestion => {
+            const q = db.topicQuestions.find((x) => x.id === r.questionId)!;
+            const topic = db.topics.find((x) => x.id === q.topicId);
+            return {
+              reportId: r.id,
+              topicName: topic?.name ?? "",
+              prompt: q.prompt,
+              choices: [...q.choices],
+              answerIndex: q.answerIndex,
+              explanation: q.explanation,
+              reason: r.reason,
+              status: r.status,
+              studentNumber: userById(r.studentId)?.number ?? 0,
+              studentReportCount: reports.filter((x) => x.studentId === r.studentId).length,
+              createdAt: r.createdAt,
+            };
+          })
+          .sort((a, b) => (a.status === "OPEN" ? 0 : 1) - (b.status === "OPEN" ? 0 : 1) || b.createdAt.localeCompare(a.createdAt));
+      }),
+
+    resolveReport: (reportId, action) =>
+      run(() => {
+        const t = teacher();
+        const r = db.quizReports.find((x) => x.id === reportId);
+        if (!r || r.classId !== t.classId) throw new ApiError("NOT_FOUND");
+        if (action !== "KEEP_EXCLUDED" && action !== "DISMISS") throw new ApiError("VALIDATION");
+        r.status = action === "KEEP_EXCLUDED" ? "KEEP_EXCLUDED" : "DISMISSED";
+        if (action === "KEEP_EXCLUDED") {
+          const q = db.topicQuestions.find((x) => x.id === r.questionId);
+          if (q) q.excluded = true; // 다음 출제부터 빠짐
+        } else {
+          // 기각: 출제 스냅샷의 신고 표시를 풀고, 이미 제출했으면 재채점
+          const serve = db.quizServes[r.sessionId];
+          const sq = serve?.questions.find((x) => x.id === r.questionId);
+          if (sq) sq.reported = false;
+          const attempt = db.quizAttempts.find((a) => a.sessionId === r.sessionId);
+          if (attempt) {
+            const item = attempt.items.find((i) => i.questionId === r.questionId);
+            if (item) item.reported = false;
+            const scored = attempt.items.filter((i) => !i.reported);
+            attempt.total = scored.length;
+            attempt.correct = scored.filter((i) => i.correct).length;
+          }
+        }
+        audit(action === "KEEP_EXCLUDED" ? "REPORT_KEEP_EXCLUDED" : "REPORT_DISMISS", r.studentId);
       }),
 
     getRubric: (classId) =>

@@ -543,3 +543,98 @@ describe("자유 입력 목표", () => {
     await expectCode(api.startSession({ goal: { subject: "   ", activities: [] }, authEventId: ev.id }), "VALIDATION");
   });
 });
+
+describe("주제별 성장·신고 문제", () => {
+  async function topicRun(studentId: string, content: string, opts: { correct?: boolean; reportFirst?: boolean; understanding?: 1 | 2 | 3 } = {}) {
+    await api.login(studentId);
+    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const s = await api.startSession({ goal: { subject: "공부", activities: [] }, authEventId: ev.id });
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content, visibility: "TEACHER" });
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    const [topic] = await api.extractTopics(s.id);
+    const quiz = await api.getQuiz(s.id, topic.topicId);
+    if (opts.reportFirst) await api.reportQuestion(s.id, quiz.questions[0].id, "WRONG_ANSWER");
+    const pool = TOPIC_DICTIONARY.flatMap((d) => d.pool);
+    const answers = Object.fromEntries(
+      quiz.questions.map((q) => {
+        const src = pool.find((x) => x.prompt === q.prompt)!;
+        return [q.id, opts.correct ? q.choices.indexOf(src.choices[src.answerIndex]) : null];
+      }),
+    );
+    const attempt = await api.submitQuiz(s.id, answers);
+    if (opts.understanding) await api.saveReflection({ sessionId: s.id, checks: [], understanding: opts.understanding, remainingQuestions: [] });
+    advance(60_000);
+    return { s, topic, quiz, attempt };
+  }
+
+  it("처음과 최근 정답률로 성장을 보여 준다", async () => {
+    const first = await topicRun("s01", "부등식", { correct: false });
+    await topicRun("s01", "부등호", { correct: true });
+    const g = (await api.getTopicGrowth("s01")).topics.find((t) => t.topicId === first.topic.topicId)!;
+    expect(g).toMatchObject({ attempts: 2, firstRate: 0, lastRate: 1 });
+  });
+
+  it("이해도 3인데 같은 세션 정답률이 60% 미만이면 OVERCONFIDENT", async () => {
+    const r = await topicRun("s02", "관계대명사", { correct: false, understanding: 3 });
+    await api.login("t1");
+    const g = (await api.getTopicGrowth("s02")).topics.find((t) => t.topicId === r.topic.topicId)!;
+    expect(g.signal).toBe("OVERCONFIDENT");
+  });
+
+  it("공유 미동의 학생은 교사에게 주제 없이 전체 횟수·시간만", async () => {
+    await topicRun("s01", "꼭짓점", { correct: true });
+    await api.saveConsents([
+      { kind: "FACEPASS", granted: true, byGuardian: false },
+      { kind: "AI", granted: true, byGuardian: false },
+      { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
+    ]);
+    await api.login("t1");
+    const g = await api.getTopicGrowth("s01");
+    expect(g.shared).toBe(false);
+    expect(g.topics).toEqual([]);
+    expect(g.total.sessions).toBeGreaterThan(0);
+  });
+
+  it("학생은 다른 학생 성장을 볼 수 없다", async () => {
+    await api.login("s01");
+    await expectCode(api.getTopicGrowth("s02"), "NOT_FOUND");
+  });
+
+  it("교사는 자기 반 신고 문제만 본다", async () => {
+    await topicRun("s01", "꼭짓점", { reportFirst: true });
+    await api.login("t1");
+    expect((await api.listReportedQuestions("c1")).length).toBe(1);
+    await api.login("t2");
+    await expectCode(api.listReportedQuestions("c1"), "NOT_FOUND");
+  });
+
+  it("신고를 기각하면 그 응시를 다시 채점한다", async () => {
+    const r = await topicRun("s01", "꼭짓점", { correct: true, reportFirst: true });
+    expect(r.attempt.total).toBe(4);
+    await api.login("t1");
+    const [rep] = await api.listReportedQuestions("c1");
+    await api.resolveReport(rep.reportId, "DISMISS");
+    await api.login("s01");
+    const after = await api.getQuizAttempt(r.s.id);
+    expect(after).toMatchObject({ total: 5, correct: 5 });
+  });
+
+  it("제외를 유지하면 그 문항은 다음 출제부터 빠진다", async () => {
+    const r = await topicRun("s01", "부등식", { reportFirst: true });
+    const excludedId = r.quiz.questions[0].id;
+    await api.login("t1");
+    const [rep] = await api.listReportedQuestions("c1");
+    await api.resolveReport(rep.reportId, "KEEP_EXCLUDED");
+    const next = await topicRun("s02", "부등호", {});
+    expect(next.quiz.questions.map((q) => q.id)).not.toContain(excludedId);
+  });
+
+  it("학생은 신고를 처리할 수 없다", async () => {
+    await topicRun("s01", "꼭짓점", { reportFirst: true });
+    await api.login("t1");
+    const [rep] = await api.listReportedQuestions("c1");
+    await api.login("s01");
+    await expectCode(api.resolveReport(rep.reportId, "DISMISS"), "FORBIDDEN");
+  });
+});

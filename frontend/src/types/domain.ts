@@ -72,6 +72,37 @@ export type QuizResultItem = {
   reported: boolean; // 학생이 신고한 문항 → 채점(total)에서 제외
 };
 
+/** 주제별 성장 (학생 본인·교사). 정답률은 신고 제외 후 채점 문항이 있는 응시만 */
+export type TopicGrowth = {
+  topicId: string;
+  name: string;
+  subject?: string;
+  sessions: number;
+  minutes: number;
+  attempts: number;
+  firstRate: number | null;
+  lastRate: number | null;
+  lastUnderstanding: 1 | 2 | 3 | null;
+  signal: "OVERCONFIDENT" | "LOW_SCORE" | null;
+};
+
+/** 기록 공유 미동의 학생을 교사가 볼 때는 shared=false, topics=[] (주제 이름도 기록 내용이므로), 전체 횟수·시간만 */
+export type GrowthReport = { studentId: string; shared: boolean; topics: TopicGrowth[]; total: { sessions: number; minutes: number } };
+
+export type ReportedQuestion = {
+  reportId: string;
+  topicName: string;
+  prompt: string;
+  choices: string[];
+  answerIndex: number;
+  explanation: string;
+  reason: QuizReportReason;
+  status: "OPEN" | "KEEP_EXCLUDED" | "DISMISSED";
+  studentNumber: number;
+  studentReportCount: number; // 이 학생의 전체 신고 수 (남발 판단용)
+  createdAt: string;
+};
+
 export type QuizAttempt = {
   id: string;
   sessionId: string;

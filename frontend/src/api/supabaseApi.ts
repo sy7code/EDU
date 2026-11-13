@@ -9,7 +9,9 @@ import type {
   Feedback,
   LearningEntry,
   LearningSession,
+  GrowthReport,
   QuizAttempt,
+  ReportedQuestion,
   Reflection,
   SessionTopic,
   StudentQuizQuestion,
@@ -257,6 +259,13 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       await fn("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz/report`, { questionId, reason });
     },
     submitQuiz: async (sessionId, answers) => fn<QuizAttempt>("POST", `/sessions/${encodeURIComponent(sessionId)}/quiz/submit`, { answers }),
+
+    // 주제별 성장·신고 (명세 v0.5: RPC + 함수)
+    getTopicGrowth: async (studentId) => ok(await sb.rpc("student_topic_growth", { p_student_id: studentId })) as GrowthReport,
+    listReportedQuestions: async (classId) => (ok(await sb.rpc("class_reported_questions", { p_class_id: classId })) as ReportedQuestion[]) ?? [],
+    resolveReport: async (reportId, action) => {
+      await fn("POST", `/quiz/reports/${encodeURIComponent(reportId)}/resolve`, { action });
+    },
 
     // ---------- 백엔드에 없는 기능: 화면에서 숨김. 공통 화면이 부르는 조회는 빈 값 ----------
     getQuizAttempt: async (sessionId) => {

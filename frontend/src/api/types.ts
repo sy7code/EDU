@@ -7,7 +7,9 @@ import type {
   Rubric,
   SessionTopic,
   StudentQuizQuestion,
+  GrowthReport,
   QuizReportReason,
+  ReportedQuestion,
   SessionGoal,
   Consent,
   ConsentKind,
@@ -140,6 +142,14 @@ export interface Api {
   submitQuiz(sessionId: string, answers: Record<string, number | null>): Promise<QuizAttempt>;
   /** 학생 본인 / 교사(기록 공유 동의 시) */
   getQuizAttempt(sessionId: string): Promise<QuizAttempt | null>;
+
+  // 주제별 성장·신고 문제
+  /** 학생 본인 또는 같은 반 교사. 공유 미동의 학생을 교사가 보면 shared=false */
+  getTopicGrowth(studentId: string): Promise<GrowthReport>;
+  /** 교사: 자기 반 신고 문항 (정답·해설 포함) */
+  listReportedQuestions(classId: string): Promise<ReportedQuestion[]>;
+  /** 교사: KEEP_EXCLUDED → 풀에서 제외 / DISMISS → 그 응시 재채점 */
+  resolveReport(reportId: string, action: "KEEP_EXCLUDED" | "DISMISS"): Promise<void>;
 
   // 교차채점 (AI 제안 → 교사 확정)
   getRubric(classId: string): Promise<Rubric>;
