@@ -64,7 +64,7 @@ function Tabs({ label, items, value, onSelect }: { label: string; items: Array<{
   );
 }
 
-/** /teacher/subject: (과목이 둘 이상이면 과목 탭) → 반 탭 → 그 반·과목 내용 */
+/** /teacher/subject: 과목 탭(하나여도 보임) → 반 탭 → 그 반·과목 내용 */
 export function SubjectPage() {
   const [params, setParams] = useSearchParams();
   const asg = useQuery({ queryKey: ["my-assignments"], queryFn: () => api.listMyAssignments() });
@@ -84,11 +84,9 @@ export function SubjectPage() {
 
   return (
     <div className="subj-page">
-      <h1>{subjects.length > 1 ? "맡은 과목" : subject}</h1>
+      <h1>맡은 과목</h1>
       <p className="subj-lead">내가 맡은 반</p>
-      {subjects.length > 1 && (
-        <Tabs label="과목" items={subjects.map((s) => ({ id: s, label: s }))} value={subject} onSelect={(s) => select(s, all.find((a) => a.subject === s)!.classId)} />
-      )}
+      <Tabs label="과목" items={subjects.map((s) => ({ id: s, label: s }))} value={subject} onSelect={(s) => select(s, all.find((a) => a.subject === s)!.classId)} />
       <Tabs label="반" items={classes.map((c) => ({ id: c, label: classLabel(c) }))} value={classId} onSelect={(c) => select(subject, c)} />
       <div role="tabpanel" id="panel-class" aria-labelledby={`tab-반-${classId}`}>
         <SubjectClassView classId={classId} subject={subject} />
