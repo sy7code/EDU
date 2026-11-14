@@ -21,17 +21,18 @@
 |---|---|---|
 | `listMyAssignments()` | 교사 | 내 **현재 학기** 배정만 `TeacherAssignment[]`. 학생은 `403 FORBIDDEN` |
 | `getReviewInputs(studentId)` | 학생 본인 | 내 세션(과목·시작 시각)·세션 주제·응시·이해도. 교사·다른 학생은 `403 FORBIDDEN` |
-| `getSubjectSummary(classId, subject)` | 교과 교사 | **이번 주(서울 월 00:00~일 23:59)** 반·과목 집계 `SubjectWeekSummary`. 동의 학생·그 과목 세션만 집계. 배정 없으면 `404 NOT_FOUND` |
+| `getSubjectSummary(classId, subject)` | 교과 교사 | **이번 주(서울 월 00:00~일 23:59)** 반·과목 집계 `SubjectWeekSummary`. 동의 학생(`listSubjectStudents` 결과와 같은 허용 학생)·그 과목·현재 학기에 시작한 세션만 집계. `few`(학습 학생 1~2명)면 `sessionCount=0`·주제·문항 빈 배열. `hardQuestions`는 학생별 마지막 응답(세션 시작 시각 기준). 배정 없으면 `404 NOT_FOUND` |
 | `listSubjectStudents(classId, subject)` | 교과 교사 | 그 반의 동의(`LEARNING_RECORD`+`SUBJECT_SHARE`) 학생, 번호순. 배정 없으면 `404` |
 | `listSessions({ studentId, subject? })` | 변경 | 담임: 자기 반 학생 전체(`subject` 주면 그 과목만). 교과 교사: `subject` 필수(없으면 `404`), 권한 밖(배정·동의·과목 불일치)은 **빈 배열** |
-| `logStudentView(studentId, subject?)` | 변경 | 담임: 자기 반. 교과 교사: `subject` 필수, 열람 조건을 만족해야 함(아니면 `404`). audit 행에 `subject` 기록 |
-| `getSession`·`listEntries`·`getReflection`·`listFeedback`·`getQuizAttempt`·`summarizeSession` | 변경 | 세션 접근 = 본인 OR 담임 OR 교과 교사 열람 조건. 아니면 `404`. 교과 교사에게 기록은 TEACHER 공개분만. `getSession` audit(`VIEW_SESSION`)에 교과 교사면 과목 기록 |
-| `addFeedback(sessionId, content)` | 변경 | 작성자가 그 학생의 담임이 아니면 `authorSubject = session.goal.subject`, 담임이면 `null` |
-| `listAiMessages` | 변경 | 교과 교사에게는 빈 배열 (AI 대화는 담임만) |
+| `logStudentView(studentId, subject?)` | 변경 | 담임: 자기 반. 교과 교사: `subject` 필수, 열람 조건을 만족해야 함(아니면 `404`). audit 행에 `subject` 기록. 프론트는 `listSubjectStudents`에 없는 학생이면 호출하지 않음. 서버 측 로깅은 백엔드 요청서 열린 질문 |
+| `getSession`·`listEntries`·`getReflection`·`listFeedback`·`getQuizAttempt`·`summarizeSession` | 변경 | 세션 접근 = 본인 OR 담임 OR 교과 교사 열람 조건. 아니면 `404`. 교과 교사에게 기록(`listEntries`)은 TEACHER 공개분만, 돌아보기·확인 테스트 결과는 담임 규칙 그대로 보임. 교과 교사도 담임이 쓴 피드백을 봄. `summarizeSession`은 교과 교사도 허용(실제 서버 함수에도 요청, 백엔드 요청서 v0.9). `getSession` audit(`VIEW_SESSION`)에 교과 교사면 과목 기록 |
+| `addFeedback(sessionId, content)` | 변경 | 교과 교사는 열람 조건을 만족하는(볼 수 있는) 그 과목 학습이면 돌아보기가 없어도 작성 가능, 아니면 `404`. 작성자가 그 학생의 담임이 아니면 `authorSubject = session.goal.subject`, 담임이면 `null` |
+| `listAiMessages` | 변경 | 교과 교사에게는 빈 배열 (AI 대화는 담임만, 교차채점·평가도 담임만) |
 | `getAssessment` / `requestAiAssessment` / `finalizeAssessment` | 변경 | 담임만. 교과 교사: `getAssessment`는 `null`, 나머지는 `403 FORBIDDEN` |
 | `listStudents`·`getDashboard`·`getClassAnalytics`·`listReportedQuestions`·`resolveReport`·`submitManualAuth`·`getTopicGrowth`·`getPaceInputs`·`getRubric` | 변경 없음(담임 전용) | `classId ""`는 어떤 반과도 맞지 않음 → 교과만 맡은 교사는 `404` |
 
 ### 필드
+- `User.classId`: 교과만 맡은 교사는 `""`(DB `users.class_id` NULL을 `rowToUser`가 변환).
 - `Feedback.authorSubject?: string | null` — 교과 교사 피드백의 과목. 담임·학생 모두 받음.
 - `AuditLog.subject?: string | null` — 교과 교사 열람이면 과목, 담임이면 `null`.
 

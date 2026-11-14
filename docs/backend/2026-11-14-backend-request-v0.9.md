@@ -453,8 +453,15 @@ grant execute on function subject_week_summary(uuid, text), subject_students(uui
 
 ## 이 요청에서 확인되지 않은 것 (프론트가 가정한 것)
 
-- (해결) 교과만 맡은 교사는 DB `profiles.class_id`가 NULL이다. 프론트가 NULL을 `""`로 바꿔 `User.classId`(string)에 넣는다. 백엔드는 NULL 그대로 두면 된다. 정책·함수는 `class_id is not null` 조건으로 NULL을 어떤 반과도 맞지 않게 처리한다(위 SQL).
+- (해결) 교과만 맡은 교사는 DB `users.class_id`가 NULL이다. 프론트가 NULL을 `""`로 바꿔 `User.classId`(string)에 넣는다(`frontend/src/api/supabaseMappers.ts`의 `rowToUser`, 테스트 `classId가 NULL이면 빈 문자열`). 백엔드는 NULL 그대로 두면 된다. 정책·함수는 `class_id is not null` 조건으로 NULL을 어떤 반과도 맞지 않게 처리한다(위 SQL).
 - `app_role()`, `owns_session()`, `teaches_shared_session()`, `shares_record()`, `teaches_student()`, `users.number`·`users.name`, `reflections.understanding`, `quiz_attempts.items`의 `questionId`·`prompt`·`correct`·`reported` 키는 v0.5 요청서와 프론트 타입 기준이다. 다르면 알려 주세요.
 - 한국어 이름 정렬: 프론트는 `localeCompare("ko")`. DB 정렬 규칙(`"ko-KR-x-icu"`)이 없으면 `name` 정렬 순서가 조금 다를 수 있다(같은 `reviewCount`·학습 학생 수일 때만 영향).
+
+- **추가 요청: `summarizeSession` 서버 함수**: 교과 교사에게도 C의 열람 조건과 같은 규칙으로 허용해 주세요. mock은 허용하고(`docs/api-spec.md` 교과 교사 표), 서버 함수가 담임만 허용하면 실제 모드에서 동작이 달라집니다. 허용 시에도 교과 교사에게 내려가는 입력은 TEACHER 공개 기록과 돌아보기·확인 테스트 결과뿐이고 AI 대화는 제외입니다.
+- **정렬 기준 확인**: `hardQuestions`의 "학생별 마지막 응답"은 프론트 코드와 같이 세션 `started_at` 기준입니다(위 F-2 SQL이 `ws.started_at desc, qa.created_at desc, i.ord desc`). 다르게 구현하려면 알려 주세요.
+
+## 열린 질문
+
+- 서버 측 열람 로깅 검토: 지금 열람 기록은 프론트가 학생 상세를 열 때 `log_student_view`를 호출하는 데 의존한다. 클라이언트가 호출을 건너뛰면 기록이 남지 않는다. 읽기 정책(RPC·뷰) 쪽에서 서버가 직접 남기는 방식이 가능한지 검토해 주세요.
 
 질문이나 다르게 하고 싶은 부분은 프론트에 알려 주세요.
