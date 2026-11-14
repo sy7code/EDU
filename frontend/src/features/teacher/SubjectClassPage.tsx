@@ -1,15 +1,24 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 import { api, FEATURES } from "../../api";
 import { isRetryable } from "../../lib/retryable";
-import { Card, EmptyState, ErrorState, Spinner } from "../../components/ui";
+import { Badge, Button, Card, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { classLabel } from "../../lib/classLabel";
+import { themesHeaderLabel } from "../../lib/themesLabel";
 
 export function SubjectClassPage() {
   const { classId = "", subject = "" } = useParams();
   const title = `${classLabel(classId)} ${subject}`;
   const summary = useQuery({ queryKey: ["subject-summary", classId, subject], queryFn: () => api.getSubjectSummary(classId, subject), enabled: FEATURES.subjectTeacher });
   const students = useQuery({ queryKey: ["subject-students", classId, subject], queryFn: () => api.listSubjectStudents(classId, subject), enabled: FEATURES.subjectTeacher });
+  const qc = useQueryClient();
+  const themesKey = ["subj", "question-themes", classId, subject];
+  const themes = useQuery({ queryKey: themesKey, queryFn: () => api.getQuestionThemes(classId, subject), enabled: FEATURES.subjectTeacher && FEATURES.questionThemes });
+  const generate = useMutation({
+    mutationFn: () => api.generateQuestionThemes(classId, subject),
+    onSuccess: (data) => qc.setQueryData(themesKey, data),
+  });
+  const t = generate.data ?? themes.data;
   const s = summary.data;
   return (
     <div className="subj-page">
@@ -60,6 +69,46 @@ export function SubjectClassPage() {
           </>
         )}
       </Card>
+
+      {FEATURES.questionThemes && (
+        <Card className="subj-card">
+          <div className="qth-head">
+            <h2 className="subj-title">이번 주 질문 핵심</h2>
+            {t && (
+              <Button variant="secondary" onClick={() => generate.mutate()} disabled={generate.isPending} aria-busy={generate.isPending}>
+                {generate.isPending ? "만드는 중…" : t.status === "EMPTY" ? "요약 만들기" : "새로 만들기"}
+              </Button>
+            )}
+          </div>
+          <div aria-live="polite">
+            {themes.isLoading && <Spinner />}
+            {themes.error && <ErrorState error={themes.error} onRetry={isRetryable(themes.error) ? () => themes.refetch() : undefined} />}
+            {generate.error && <ErrorState error={generate.error} onRetry={isRetryable(generate.error) ? () => generate.mutate() : undefined} />}
+            {t?.status === "EMPTY" && <p className="subj-empty">아직 요약이 없어요</p>}
+            {t?.status === "FEW" && <p className="subj-empty">질문한 학생이 적어 요약하지 않았어요</p>}
+            {t?.status === "OK" && (
+              <>
+                <p className="qth-meta">{themesHeaderLabel(t.generatedAt)}</p>
+                {t.themes.length === 0 ? (
+                  <p className="subj-empty">공통으로 묶이는 질문이 아직 없어요</p>
+                ) : (
+                  <ul className="qth-list">
+                    {t.themes.map((th, i) => (
+                      <li key={`${th.title}-${i}`} className="qth-item">
+                        <strong className="qth-core">{th.title}</strong>
+                        <Badge tone="brand">학생 {th.studentCount}명</Badge>
+                        {th.topicName && <Badge tone="sky">{th.topicName}</Badge>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {t.hiddenCount > 0 && <p className="qth-note">학생이 적은 묶음 {t.hiddenCount}개는 보이지 않아요</p>}
+              </>
+            )}
+            {t && <p className="qth-note">학생 이름과 원래 질문은 보여 주지 않아요</p>}
+          </div>
+        </Card>
+      )}
 
       {s && !s.few && (
         <Card className="subj-card">

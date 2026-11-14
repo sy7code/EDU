@@ -196,3 +196,44 @@
   gap: 6px;
   margin: 6px 0;
 }
+
+/* 이번 주 질문 핵심 (qth-) */
+.qth-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+.qth-meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.qth-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.qth-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line, #e5e5e5);
+}
+.qth-core {
+  font-weight: 700;
+  font-size: 15px;
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.qth-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 8px;
+}
