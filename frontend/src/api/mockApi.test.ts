@@ -1473,3 +1473,46 @@ describe("교과 교사", () => {
     expect(seed.entries.every((e) => e.createdAt <= monday.toISOString())).toBe(true);
   });
 });
+
+describe("과목 질문 핵심 요약 (mock)", () => {
+  it("생성 전 getQuestionThemes는 EMPTY", async () => {
+    await api.login("t3");
+    const r = await api.getQuestionThemes("c1", "수학");
+    expect(r.status).toBe("EMPTY");
+    expect(r.themes).toEqual([]);
+    expect(r.generatedAt).toBeNull();
+  });
+
+  it("교과 교사는 학생 4명·3명 묶음을 받고 2명 묶음은 숨긴다 (s02·PRIVATE 질문 제외)", async () => {
+    await api.login("t3");
+    const r = await api.generateQuestionThemes("c1", "수학");
+    expect(r.status).toBe("OK");
+    expect(r.themes.map((x) => x.studentCount)).toEqual([4, 3]);
+    expect(r.hiddenCount).toBeGreaterThanOrEqual(1);
+    expect(r.generatedAt).not.toBeNull();
+    // s02(교과 공유 미동의)·s20 PRIVATE 질문이 들어갔다면 꼭짓점 묶음이 5명이 된다
+    expect(r.themes.map((x) => x.topicName)).toEqual(["꼭짓점 구하는 순서", "판별식과 꼭짓점 관계"]);
+    expect(JSON.stringify(r)).not.toMatch(/s\d\d/);
+  });
+
+  it("생성 결과는 저장되어 getQuestionThemes로 다시 나온다", async () => {
+    await api.login("t3");
+    const g = await api.generateQuestionThemes("c1", "수학");
+    expect(await api.getQuestionThemes("c1", "수학")).toEqual(g);
+  });
+
+  it("배정 없는 과목·반은 NOT_FOUND, 학생은 FORBIDDEN", async () => {
+    await api.login("t3");
+    await expectCode(api.generateQuestionThemes("c1", "국어"), "NOT_FOUND");
+    await expectCode(api.getQuestionThemes("c3", "수학"), "NOT_FOUND");
+    await api.login("s01");
+    await expectCode(api.generateQuestionThemes("c1", "수학"), "FORBIDDEN");
+  });
+
+  it("질문한 학생이 3명 미만인 반(c2)은 FEW, 묶음 없음", async () => {
+    await api.login("t3");
+    const r = await api.generateQuestionThemes("c2", "수학");
+    expect(r.status).toBe("FEW");
+    expect(r.themes).toEqual([]);
+  });
+});

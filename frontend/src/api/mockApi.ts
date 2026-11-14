@@ -7,7 +7,8 @@ import { activityLabel, goalParts } from "../lib/checklists";
 import { quizSignal } from "../lib/topicSignal";
 import { activeAssignments, canSubjectTeacherSee, isHomeroomTeacher, subjectShareActive } from "../lib/subjectAccess";
 import { SUBJECTS } from "../lib/checklists";
-import { currentTerm, seoulWeekStart } from "../lib/schoolCalendar";
+import { currentTerm, isInSeoulWeek, seoulWeekStart } from "../lib/schoolCalendar";
+import { finalizeThemes, mockThemeGroups } from "../lib/questionThemes";
 import { subjectWeekSummary } from "../lib/subjectSummary";
 import type {
   AiMessage,
@@ -23,6 +24,7 @@ import type {
   LearningSession,
   QuizAttempt,
   ReportedQuestion,
+  QuestionThemes,
   SessionTopic,
   StudentQuizQuestion,
   TopicGrowth,
@@ -50,7 +52,7 @@ export type MockOptions = {
 export const MOCK_FAIL_KEY = "growth-pace-mock-fail-next";
 /** mock 전용: 이 키에 밀리초를 넣으면 다음 테스트 출제(getQuiz) 한 번이 그만큼 늦게 끝남 (대기 문구 확인용, 최대 30초) */
 export const MOCK_SLOW_KEY = "growth-pace-mock-slow-next";
-export const STORAGE_KEY = "growth-pace-mock-db-v9"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
+export const STORAGE_KEY = "growth-pace-mock-db-v10"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
 export const SESSION_USER_KEY = "growth-pace-mock-user";
 const AUTH_EVENT_TTL_MS = 120_000;
 const QR_TTL_MS = 60_000;
@@ -227,6 +229,12 @@ export function createMockApi(opts: MockOptions): Api {
     return db.users
       .filter((x) => x.role === "student" && x.classId === classId && subjectShareActive(subjectConsents(x.id)))
       .sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
+  }
+  function themesKey(classId: string, subject: string, weekStart = seoulWeekStart(now())) {
+    return `${classId}|${subject}|${weekStart}`;
+  }
+  function emptyThemes(classId: string, subject: string): QuestionThemes {
+    return { classId, subject, weekStart: seoulWeekStart(now()), generatedAt: null, status: "EMPTY", themes: [], hiddenCount: 0 };
   }
   /** 본인 세션, 담임, 또는 그 세션 과목을 볼 수 있는 교과 교사일 때만. 아니면 존재를 숨기고 NOT_FOUND */
   function visibleSession(sessionId: string): LearningSession {
@@ -840,6 +848,36 @@ export function createMockApi(opts: MockOptions): Api {
           items: attempts.flatMap((a) => a.items.map((i) => ({ sessionId: a.sessionId, questionId: i.questionId, prompt: i.prompt, correct: i.correct, reported: !isScored(i) }))),
         });
       }),
+    getQuestionThemes: (classId, subject) =>
+      run(() => {
+        const t = teacher();
+        if (!hasAssignment(t, classId, subject)) throw new ApiError("NOT_FOUND");
+        return db.questionThemes?.[themesKey(classId, subject)] ?? emptyThemes(classId, subject);
+      }),
+    generateQuestionThemes: async (classId, subject) => {
+      if (latency > 0) await new Promise((r) => setTimeout(r, 950)); // AI 요약 대기 흉내 (run의 지연과 합쳐 1~2초)
+      return run(() => {
+        const t = teacher();
+        if (!hasAssignment(t, classId, subject)) throw new ApiError("NOT_FOUND");
+        // 권한은 AI(묶음) 전에 거른다: 기록·교과 공유·AI 동의 학생의 교사 공개 질문, 이번 주, 그 반·과목만
+        const weekStart = seoulWeekStart(now());
+        const allowed = new Set(subjectStudentsOf(classId).filter((x) => hasConsent(x.id, "AI")).map((x) => x.id));
+        const sessions = new Map(db.sessions.filter((x) => allowed.has(x.studentId) && x.goal.subject === subject).map((x) => [x.id, x]));
+        const qs = db.entries.filter((e) => e.kind === "QUESTION" && e.visibility === "TEACHER" && sessions.has(e.sessionId) && isInSeoulWeek(e.createdAt, weekStart) && e.content.trim() !== "");
+        const ownerOf: Record<string, string> = {};
+        for (const e of qs) ownerOf[e.id] = sessions.get(e.sessionId)!.studentId;
+        const base = { classId, subject, weekStart, generatedAt: iso() };
+        let result: QuestionThemes;
+        if (new Set(Object.values(ownerOf)).size < 3) {
+          result = { ...base, status: "FEW", themes: [], hiddenCount: 0 };
+        } else {
+          const groups = mockThemeGroups(qs.map((e) => ({ id: e.id, text: maskPii(e.content), topicName: db.sessionTopics[e.sessionId]?.[0]?.name ?? null })));
+          result = { ...base, status: "OK", ...finalizeThemes(groups, ownerOf) };
+        }
+        db.questionThemes = { ...(db.questionThemes ?? {}), [themesKey(classId, subject, weekStart)]: result };
+        return result;
+      });
+    },
     listSubjectStudents: (classId, subject) =>
       run(() => {
         const t = teacher();

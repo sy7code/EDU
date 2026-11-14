@@ -15,6 +15,7 @@ import type {
   Reflection,
   Rubric,
   SessionTopic,
+  QuestionThemes,
   TeacherAssignment,
   Topic,
   User,
@@ -48,6 +49,8 @@ export type Db = {
   topics: Array<Topic & { key: string }>;
   /** 세션별 추출 주제 캐시 */
   sessionTopics: Record<string, SessionTopic[]>;
+  /** 반·과목·주마다 1개 저장되는 질문 핵심 요약 (키: classId|subject|weekStart) */
+  questionThemes?: Record<string, QuestionThemes>;
 };
 
 export type TopicQuestion = {
@@ -386,6 +389,45 @@ export function createSeed(now: Date): Db {
     quizAttempts.push({ id: nextId("quiz"), sessionId: sid, topicId: vertexId, studentId: v.studentId, correct: items.filter((i) => i.correct).length, total: items.length, createdAt: iso(end), items });
   });
 
+  // 과목 질문 핵심 요약 데모(이번 주 3반 수학 질문, 기존 난수 뒤에 붙여 기존 시드 값은 그대로):
+  // 꼭짓점 4명 · 주제 없는 판별식 3명 · 일차부등식 2명(3명 미만이라 숨김) + 제외 확인용(교과 공유 미동의 s02, PRIVATE 질문)
+  const themeSpan = Math.max(0, now.getTime() - (weekStartMs + 60_000));
+  const themeRuns: Array<{ studentId: string; question: string; topic: "order" | "disc" | "sign"; visibility: "TEACHER" | "PRIVATE" }> = [
+    { studentId: "s08", question: "꼭짓점은 어떤 순서로 구해야 해?", topic: "order", visibility: "TEACHER" },
+    { studentId: "s09", question: "꼭짓점 좌표를 구하는 순서가 헷갈려. 어떻게 해?", topic: "order", visibility: "TEACHER" },
+    { studentId: "s10", question: "완전제곱식으로 바꾼 다음 꼭짓점은 어떻게 읽어?", topic: "order", visibility: "TEACHER" },
+    { studentId: "s11", question: "꼭짓점 구하는 순서를 왜 이렇게 해?", topic: "order", visibility: "TEACHER" },
+    { studentId: "s12", question: "판별식이 0이면 꼭짓점이 x축에 닿는 이유가 뭐야?", topic: "disc", visibility: "TEACHER" },
+    { studentId: "s13", question: "판별식과 꼭짓점은 무슨 관계야?", topic: "disc", visibility: "TEACHER" },
+    { studentId: "s14", question: "판별식으로 꼭짓점 위치를 알 수 있어?", topic: "disc", visibility: "TEACHER" },
+    { studentId: "s16", question: "부등호 방향은 언제 바뀌는지 어떻게 알아?", topic: "sign", visibility: "TEACHER" },
+    { studentId: "s18", question: "음수로 나누면 왜 부등호가 뒤집혀?", topic: "sign", visibility: "TEACHER" },
+    { studentId: "s02", question: "꼭짓점 구하는 순서 좀 알려 줘", topic: "order", visibility: "TEACHER" }, // 교과 공유 미동의: 제외
+    { studentId: "s20", question: "나만 아는 개인 질문이야", topic: "order", visibility: "PRIVATE" }, // 비공개: 제외
+  ];
+  // 데모 전용 세부 주제(문항 풀 없음): 난수 시드의 같은 사전 주제 질문과 섞이지 않게 따로 둔다
+  const themeTopics = {
+    order: { id: "topic-c1-demo-vertex-order", name: "꼭짓점 구하는 순서" },
+    disc: { id: "topic-c1-demo-discriminant", name: "판별식과 꼭짓점 관계" },
+    sign: { id: "topic-c1-demo-ineq-sign", name: "부등호 방향 바뀌는 때" },
+  } as const;
+  for (const [k, v] of Object.entries(themeTopics)) topics.push({ id: v.id, classId: "c1", key: "demo-" + k, name: v.name, subject: "수학" });
+  themeRuns.forEach((t, order) => {
+    const frac = (order + 1) / (themeRuns.length + 1);
+    const start = new Date(Math.min(now.getTime(), weekStartMs + 60_000 + themeSpan * frac * 0.9));
+    const end = new Date(Math.min(start.getTime() + Math.min(20 * 60000, themeSpan * 0.03), now.getTime()));
+    const sid = nextId("sess");
+    sessions.push({ id: sid, studentId: t.studentId, goal: { subject: "수학", activities: ["concept"] }, startedAt: iso(start), endedAt: iso(end), startAuth: "QR", endAuth: "QR", status: "ENDED", durationMinutes: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)) });
+    entries.push({ id: nextId("entry"), sessionId: sid, kind: "QUESTION", content: t.question, visibility: t.visibility, createdAt: iso(end) });
+    reflections.push({ sessionId: sid, checks: ["goal_done"], understanding: 2, remainingQuestions: [], updatedAt: iso(end) });
+    if (t.topic) {
+      const dict = themeTopics[t.topic];
+      const evId = nextId("entry");
+      entries.push({ id: evId, sessionId: sid, kind: "MEMO", content: dict.name + " 정리", visibility: "TEACHER", createdAt: iso(end) });
+      sessionTopics[sid] = [{ topicId: dict.id, name: dict.name, subject: "수학", evidenceIds: [evId] }];
+    }
+  });
+
   return {
     users,
     assignments,
@@ -406,5 +448,6 @@ export function createSeed(now: Date): Db {
     quizServes: {},
     topics,
     sessionTopics,
+    questionThemes: {},
   };
 }

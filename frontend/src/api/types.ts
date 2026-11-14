@@ -11,6 +11,7 @@ import type {
   SessionTopic,
   StudentQuizQuestion,
   SubjectWeekSummary,
+  QuestionThemes,
   TeacherAssignment,
   GrowthReport,
   QuizReportReason,
@@ -164,6 +165,10 @@ export interface Api {
   getReviewInputs(studentId: string): Promise<ReviewInputs>;
   /** 이번 주(서울) 반·과목 집계. 현재 학기 배정 없으면 NOT_FOUND. 교과 공유 동의 학생만 들어감 */
   getSubjectSummary(classId: string, subject: string): Promise<SubjectWeekSummary>;
+  /** 저장된 이번 주 질문 핵심 요약(없으면 status EMPTY). 교과 배정 없으면 NOT_FOUND. AI 요약·참고용 */
+  getQuestionThemes(classId: string, subject: string): Promise<QuestionThemes>;
+  /** 새로 만들어 저장. 입력은 기록·교과 공유·AI 동의 + 교사 공개 + 이번 주 + 그 과목 질문만. 질문한 학생 3명 미만이면 FEW */
+  generateQuestionThemes(classId: string, subject: string): Promise<QuestionThemes>;
   /** 배정된 반·과목의 교과 공유 동의 학생, 번호순. 배정 없으면 NOT_FOUND */
   listSubjectStudents(classId: string, subject: string): Promise<Student[]>;
 

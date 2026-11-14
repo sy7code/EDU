@@ -301,3 +301,19 @@ export type SubjectSummaryInputs = ReviewInputs & {
   sessionOwners: Array<{ sessionId: string; studentId: string }>;
   items: Array<{ sessionId: string; questionId: string; prompt: string; correct: boolean; reported: boolean }>;
 };
+
+// ---------- 과목 질문 핵심 요약 (AI 묶음 요약, 참고용) ----------
+/** 묶음 하나: AI가 다시 쓴 핵심 한 줄(학생 원문 아님) + 질문한 서로 다른 학생 수(서버가 계산) */
+export type QuestionTheme = { title: string; studentCount: number; topicName: string | null };
+export type QuestionThemes = {
+  classId: string;
+  subject: string;
+  weekStart: string;
+  /** 저장된 결과가 없으면 null */
+  generatedAt: string | null;
+  /** FEW: 질문한 학생이 3명 미만이라 요약하지 않음 / EMPTY: 아직 만들지 않음 */
+  status: "OK" | "FEW" | "EMPTY";
+  themes: QuestionTheme[];
+  /** 학생 3명 미만이라 숨긴 묶음 수 */
+  hiddenCount: number;
+};
