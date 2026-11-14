@@ -1,5 +1,5 @@
 import { SUBJECTS } from "./checklists";
-import { quizSignal, SIGNAL_MIN_TOTAL } from "./topicSignal";
+import { LOW_SCORE_RATE, quizSignal, SIGNAL_MIN_TOTAL } from "./topicSignal";
 import type { ReviewInputs, ReviewTopic, SubjectReview } from "../types/domain";
 
 const MAX_PER_SUBJECT = 3;
@@ -31,6 +31,6 @@ export function reviewTopicsBySubject(i: ReviewInputs): SubjectReview[] {
 }
 
 export function sessionReviewLine(subject: string, topicName: string, correct: number, total: number): string | null {
-  if (total < SIGNAL_MIN_TOTAL || correct / total >= 0.4) return null;
+  if (total < SIGNAL_MIN_TOTAL || correct / total >= LOW_SCORE_RATE) return null;
   return `${subject} - ${topicName}`;
 }

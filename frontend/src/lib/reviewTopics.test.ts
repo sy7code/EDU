@@ -45,6 +45,73 @@ describe("reviewTopicsBySubject", () => {
     });
     expect(r.map((x) => x.topics.map((t) => t.signal))).toEqual([["OVERCONFIDENT"]]);
   });
+
+  it("SUBJECTS 밖 과목은 기타로 묶여 마지막에 온다", () => {
+    const r = reviewTopicsBySubject({
+      ...empty,
+      sessions: [
+        { id: "s1", subject: "음악", startedAt: "2026-11-01T00:00:00Z" },
+        { id: "s2", subject: "과학", startedAt: "2026-11-01T00:00:00Z" },
+      ],
+      sessionTopics: [
+        { sessionId: "s1", topicId: "a", name: "A" },
+        { sessionId: "s2", topicId: "b", name: "B" },
+      ],
+      attempts: [
+        { sessionId: "s1", topicId: "a", correct: 0, total: 5, createdAt: "2026-11-02T00:00:00Z" },
+        { sessionId: "s2", topicId: "b", correct: 0, total: 5, createdAt: "2026-11-01T00:00:00Z" },
+      ],
+    });
+    expect(r.map((x) => x.subject)).toEqual(["과학", "기타"]);
+  });
+
+  it("최신 응시가 total 0이면 그 이전 유효 응시로 판단한다", () => {
+    const r = reviewTopicsBySubject({
+      ...empty,
+      sessions: [{ id: "s1", subject: "수학", startedAt: "2026-11-01T00:00:00Z" }],
+      sessionTopics: [{ sessionId: "s1", topicId: "T", name: "T" }],
+      attempts: [
+        { sessionId: "s1", topicId: "T", correct: 0, total: 5, createdAt: "2026-11-01T00:00:00Z" },
+        { sessionId: "s1", topicId: "T", correct: 0, total: 0, createdAt: "2026-11-02T00:00:00Z" },
+      ],
+    });
+    expect(r[0].topics.map((t) => [t.topicId, t.lastAt])).toEqual([["T", "2026-11-01T00:00:00Z"]]);
+  });
+
+  it("이해도는 마지막 응시와 같은 세션 것만 쓴다", () => {
+    const r = reviewTopicsBySubject({
+      sessions: [
+        { id: "s1", subject: "수학", startedAt: "2026-11-01T00:00:00Z" },
+        { id: "s2", subject: "수학", startedAt: "2026-11-02T00:00:00Z" },
+      ],
+      sessionTopics: [
+        { sessionId: "s1", topicId: "T", name: "T" },
+        { sessionId: "s2", topicId: "T", name: "T" },
+      ],
+      attempts: [
+        { sessionId: "s1", topicId: "T", correct: 1, total: 5, createdAt: "2026-11-01T01:00:00Z" },
+        { sessionId: "s2", topicId: "T", correct: 5, total: 10, createdAt: "2026-11-02T01:00:00Z" },
+      ],
+      reflections: [
+        { sessionId: "s1", understanding: 3 },
+        { sessionId: "s2", understanding: 1 },
+      ],
+    });
+    expect(r).toEqual([]);
+  });
+
+  it("같은 과목·주제 응시가 여럿이면 가장 최근 것으로 판단한다", () => {
+    const r = reviewTopicsBySubject({
+      ...empty,
+      sessions: [{ id: "s1", subject: "수학", startedAt: "2026-11-01T00:00:00Z" }],
+      sessionTopics: [{ sessionId: "s1", topicId: "T", name: "T" }],
+      attempts: [
+        { sessionId: "s1", topicId: "T", correct: 0, total: 5, createdAt: "2026-11-01T00:00:00Z" },
+        { sessionId: "s1", topicId: "T", correct: 5, total: 5, createdAt: "2026-11-02T00:00:00Z" },
+      ],
+    });
+    expect(r).toEqual([]);
+  });
 });
 
 describe("sessionReviewLine", () => {
