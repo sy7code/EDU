@@ -16,7 +16,7 @@ export const FEATURES = {
   audit: true, // 교사 열람 기록 (백엔드 log_student_view·v_audit_logs 반영됨, 2026-11-14)
   mileageDemo: USE_MOCK, // 성장 마일리지 예시 화면 (로직 없는 보여 주기 화면, 실제 모드에서 숨김)
   subjectTeacher: true, // 교과 교사 배정·과목 집계 (백엔드 v0.9 반영됨, 2026-11-14)
-  questionThemes: USE_MOCK, // 과목 질문 핵심 요약 (백엔드 미반영 — 실제 모드에서 숨김)
+  questionThemes: true, // 과목 질문 핵심 요약 (백엔드 v1.1 반영됨, 2026-11-14)
 } as const;
 
 function createRealApi(): Api {

@@ -4,6 +4,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
   AiMessage,
+  QuestionThemes,
   SubjectWeekSummary,
   AuthEvent,
   Consent,
@@ -348,13 +349,11 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     // 배정 없으면 서버 404 NOT_FOUND. 응답은 SubjectWeekSummary 그대로
     getSubjectSummary: async (classId, subject) => ok(await sb.rpc("subject_week_summary", { p_class_id: classId, p_subject: subject })) as SubjectWeekSummary,
-    // 백엔드 반영 전: 화면은 FEATURES.questionThemes로 숨김
-    getQuestionThemes: async () => {
-      throw new ApiError("UNKNOWN", "question themes not deployed");
-    },
-    generateQuestionThemes: async () => {
-      throw new ApiError("UNKNOWN", "question themes not deployed");
-    },
+    // 백엔드 v1.1: 조회는 저장된 결과만(AI 안 부름), 생성은 교사가 누를 때만. 배정 없음 404, 하루 5회·분당 10회 429
+    getQuestionThemes: async (classId, subject) =>
+      ok(await sb.rpc("question_themes", { p_class_id: classId, p_subject: subject })) as QuestionThemes,
+    generateQuestionThemes: async (classId, subject) =>
+      fn<QuestionThemes>("POST", `/classes/${encodeURIComponent(classId)}/subjects/${encodeURIComponent(subject)}/question-themes`),
     listSubjectStudents: async (classId, subject) => {
       const rows = (ok(await sb.rpc("subject_students", { p_class_id: classId, p_subject: subject })) as Row[] | null) ?? [];
       return rows.map((r): Student => ({ id: String(r.id), name: String(r.name), classId: String(r.classId), number: (r.number as number) ?? 0 }));

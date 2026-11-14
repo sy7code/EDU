@@ -74,7 +74,9 @@
 
 ---
 
-## v1.1 과목 질문 핵심 요약 (추가, 2026-11-14 · 백엔드 요청서 v1.1, 실제 모드 미배포: `FEATURES.questionThemes = USE_MOCK`)
+## v1.1 과목 질문 핵심 요약 (추가, 2026-11-14 · 백엔드 요청서 v1.1, 백엔드 배포·실제 연결됨: `FEATURES.questionThemes = true`)
+
+- 실제 이름: 조회 `rpc("question_themes", { p_class_id, p_subject })`(AI 안 부름), 생성 `POST /functions/v1/api/classes/:classId/subjects/:subject/question-themes`(본문 없음). 하루 5회(반+과목, FEW·실패 포함)·분당 10회 → 429, AI 형식 오류 → 502 AI_BAD_OUTPUT(기존 결과 유지), 20초 초과 → 504. 동의 철회 시 조회 EMPTY. 데모 반은 시드 동의·교과 교사 계정이 생기기 전까지 FEW.
 
 교과 교사가 반·과목 화면에서 이번 주 학생 질문을 AI가 묶은 핵심 3~5개로 본다. 담임 화면은 범위 밖. 요청서: `docs/backend/2026-11-14-backend-request-v1.1-question-themes.md`.
 
