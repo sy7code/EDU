@@ -21,7 +21,7 @@ export function SubjectStudentPage() {
   const sessions = useQuery({
     queryKey: ["subj", "sessions", studentId, subject],
     queryFn: () => api.listSessions({ studentId, subject }),
-    enabled: FEATURES.subjectTeacher && !notAllowed,
+    enabled: FEATURES.subjectTeacher && !!student,
   });
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -50,11 +50,12 @@ export function SubjectStudentPage() {
 
       {students.isLoading && <Spinner />}
       {notAllowed && <EmptyState title="이 반·과목에서 볼 수 있는 학생이 아니에요">목록에서 학생을 골라 주세요.</EmptyState>}
-      {!notAllowed && sessions.isLoading && <Spinner />}
-      {!notAllowed && sessions.error && <ErrorState error={sessions.error} onRetry={isRetryable(sessions.error) ? () => sessions.refetch() : undefined} />}
-      {!notAllowed && sessions.data?.length === 0 && <EmptyState title={`열람할 ${subject} 학습 기록이 없어요`}>학생이 동의하지 않았거나 이번 학기 기록이 없어요.</EmptyState>}
-      {!notAllowed && sessions.data && sessions.data.length > 0 && <h2 className="sr-only">{subject} 학습 목록</h2>}
-      {!notAllowed && sessions.data && sessions.data.length > 0 && (
+      {students.error && <ErrorState error={students.error} onRetry={isRetryable(students.error) ? () => students.refetch() : undefined} />}
+      {!!student && sessions.isLoading && <Spinner />}
+      {!!student && sessions.error && <ErrorState error={sessions.error} onRetry={isRetryable(sessions.error) ? () => sessions.refetch() : undefined} />}
+      {!!student && sessions.data?.length === 0 && <EmptyState title={`열람할 ${subject} 학습 기록이 없어요`}>학생이 동의하지 않았거나 이번 학기 기록이 없어요.</EmptyState>}
+      {!!student && sessions.data && sessions.data.length > 0 && <h2 className="sr-only">{subject} 학습 목록</h2>}
+      {!!student && sessions.data && sessions.data.length > 0 && (
         <ul className="subj-sessions" aria-label={`${subject} 학습 목록`}>
           {sessions.data.map((s) => (
             <li key={s.id} className="card">

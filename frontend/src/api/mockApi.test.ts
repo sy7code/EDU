@@ -1456,7 +1456,9 @@ describe("교과 교사", () => {
       await a.login("t3");
       return (await a.getSubjectSummary("c1", "수학")).sessionCount;
     };
-    expect(await count(true)).toBe(await count(false));
+    const base = await count(false);
+    expect(base).toBeGreaterThan(0);
+    expect(await count(true)).toBe(base);
   });
 
   it("시드: 김가온 다시 볼 주제에 수학 - 이차함수 꼭짓점", async () => {
