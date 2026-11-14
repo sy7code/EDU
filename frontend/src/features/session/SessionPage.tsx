@@ -60,10 +60,13 @@ export function SessionPage() {
         </ButtonLink>
       </div>
 
+      {/* 데스크톱: 왼쪽 입력·기록, 오른쪽 AI / 좁은 화면: 입력 → AI → 기록 (기록이 쌓여도 AI를 찾으려고 끝까지 내리지 않게) */}
       <div className="study-layout">
-        <div>
+        <div className="study-composer">
           <EntryComposer sessionId={s.id} shareOk={shareOk} />
+        </div>
 
+        <section className="study-records" aria-label="오늘의 기록">
           <div className="study-records-head">
             <h2 className="subheading">오늘의 기록</h2>
             <label className="teacher-view-toggle">
@@ -85,7 +88,7 @@ export function SessionPage() {
               ))}
             </ul>
           )}
-        </div>
+        </section>
 
         {aiOk ? <AiPanel sessionId={s.id} /> : <AiDisabled />}
       </div>

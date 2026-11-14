@@ -46,12 +46,32 @@
 .live-header h2 { margin: 2px 0 0; }
 .live-meta { color: var(--muted); font-size: 12px; }
 .live-note { color: var(--muted); font-size: 13px; }
-.study-layout > div { min-width: 0; }
+.study-layout > * { min-width: 0; }
+/* 배치: 데스크톱은 입력·기록 | AI, 좁은 화면은 입력 → AI → 기록 */
+.study-layout { grid-template-areas: "composer ai" "records ai"; grid-template-rows: auto 1fr; }
+.study-composer { grid-area: composer; }
+.study-records { grid-area: records; }
+.study-layout > .ai-card { grid-area: ai; }
+/* AI 도우미: 위 학습 바(top 80px, 높이 약 85px) 아래에 붙고, 화면 높이 안에서 대화만 스크롤 */
+.study-layout > .ai-card { top: 184px; display: flex; flex-direction: column; max-height: calc(100vh - 200px); }
+.study-layout > .ai-card .ai-messages { flex: 1 1 auto; min-height: 120px; max-height: none; }
+@media (max-width: 900px) {
+  .study-layout { display: grid; grid-template-columns: 1fr; grid-template-areas: "composer" "ai" "records"; grid-template-rows: auto; gap: 16px; }
+  .study-layout > .ai-card { position: static; max-height: none; margin-top: 0; }
+  .study-layout > .ai-card .ai-messages { max-height: 46vh; }
+}
+/* 기록 종류 탭: 좁은 화면에서 글자가 줄바꿈되지 않게 가로 스크롤 */
+.composer .tabs { overflow-x: auto; scrollbar-width: none; }
+.composer .tabs::-webkit-scrollbar { display: none; }
+.composer .tabs button { flex: none; white-space: nowrap; }
+@media (max-width: 640px) {
+  .composer .tabs button { padding: 0 10px; }
+}
 .composer textarea { display: block; }
 .scope-note { font-size: 12px; color: var(--muted); }
 .composer-foot { flex-wrap: wrap; gap: 10px; }
 .study-records-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-.study-records-head .subheading { margin: 24px 0 12px; }
+.study-records-head .subheading { margin: 6px 0 12px; } /* 위 간격은 grid gap(18px)이 맡음 */
 .teacher-view-toggle { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); min-height: 44px; }
 .teacher-view-toggle input { accent-color: var(--green); width: 18px; height: 18px; }
 ul.timeline { list-style: none; margin-top: 0; margin-bottom: 0; }
