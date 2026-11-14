@@ -14,6 +14,7 @@ export const FEATURES = {
   quiz: true, // 주제별 성장·확인 테스트·신고 (백엔드 v0.5 반영됨, 2026-11-14)
   dashboardQuizRate: true, // 대시보드 '최근 테스트' 열 (백엔드 v0.5.1 lastQuizRate 반영됨, 2026-11-14)
   audit: true, // 교사 열람 기록 (백엔드 log_student_view·v_audit_logs 반영됨, 2026-11-14)
+  mileageDemo: USE_MOCK, // 성장 마일리지 예시 화면 (로직 없는 보여 주기 화면, 실제 모드에서 숨김)
   subjectTeacher: true, // 교과 교사 배정·과목 집계 (백엔드 v0.9 반영됨, 2026-11-14)
 } as const;
 

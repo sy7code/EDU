@@ -35,6 +35,7 @@ export function AppLayout() {
           ["/student", "home", "홈"],
           ["/student/start", "pen", "학습하기"],
           ["/student/records", "book", "내 기록"],
+          ...(FEATURES.mileageDemo ? ([["/student/mileage", "spark", "성장 마일리지"]] as Array<[string, string, string]>) : []),
           ...(FEATURES.consent ? ([["/student/consent", "settings", "동의 설정"]] as Array<[string, string, string]>) : []),
         ]
       : [];

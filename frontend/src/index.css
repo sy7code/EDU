@@ -10,6 +10,7 @@
 @import "./styles/screens-paper.css";
 @import "./styles/screens-help.css";
 @import "./styles/screens-subject.css";
+@import "./styles/screens-mileage.css";
 
 @theme {
   --color-brand-50: #fff0f5;

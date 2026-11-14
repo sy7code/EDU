@@ -1,0 +1,29 @@
+/* 성장 마일리지(데모 전용, 로직 없음) */
+.mile-page { display: grid; gap: 16px; min-width: 0; }
+.mile-back { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 600; min-height: 44px; width: fit-content; }
+.mile-notice { display: flex; gap: 10px; align-items: flex-start; margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--orange-bg); color: var(--orange); font-weight: 700; overflow-wrap: anywhere; }
+.mile-notice svg { flex: none; margin-top: 2px; }
+.mile-total { display: grid; gap: 6px; justify-items: start; }
+.mile-total small { color: var(--muted); font-weight: 600; }
+.mile-total strong { font-size: 44px; line-height: 1.1; color: var(--green); }
+.mile-total strong span { font-size: 20px; margin-left: 4px; }
+.mile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.mile-grid h2 { margin: 0 0 8px; font-size: 17px; }
+.mile-sub { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+.mile-list { list-style: none; margin: 0; padding: 0; }
+.mile-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.mile-list li:first-child { border-top: 0; }
+.mile-list li span { display: grid; min-width: 0; }
+.mile-list small { color: var(--muted); }
+.mile-list em { font-style: normal; font-weight: 800; color: var(--green); flex: none; }
+.mile-uses { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.mile-use { display: grid; gap: 8px; justify-items: start; }
+.mile-use p { margin: 0; color: var(--muted); font-size: 13px; }
+.mile-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgba(36, 35, 42, 0.5); }
+.mile-dialog { width: min(100%, 380px); max-height: 100%; overflow: auto; background: #fff; border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); outline: none; }
+.mile-dialog h2 { margin: 0 0 8px; font-size: 18px; }
+.mile-actions { display: grid; gap: 8px; margin-top: 12px; }
+.mile-actions .button { justify-content: center; text-align: center; }
+@media (max-width: 640px) {
+  .mile-grid { grid-template-columns: minmax(0, 1fr); }
+}

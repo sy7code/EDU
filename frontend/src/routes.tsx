@@ -17,6 +17,7 @@ import { SubjectClassPage } from "./features/teacher/SubjectClassPage";
 import { SubjectStudentPage } from "./features/teacher/SubjectStudentPage";
 import { StudentDetailPage } from "./features/teacher/StudentDetailPage";
 import { ReportsPage } from "./features/teacher/ReportsPage";
+import { MileagePage } from "./features/student/MileagePage";
 import { HelpPage } from "./features/help/HelpPage";
 
 export const router = createBrowserRouter([
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
           { path: "session/:id", element: <SessionPage /> },
           { path: "session/:id/end", element: <EndPage /> },
           { path: "records", element: <MyRecordsPage /> },
+          { path: "mileage", element: FEATURES.mileageDemo ? <MileagePage /> : <Navigate to="/student" replace /> },
         ],
       },
       {

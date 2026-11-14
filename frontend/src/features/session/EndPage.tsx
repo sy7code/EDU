@@ -9,6 +9,7 @@ import { formatDuration, formatTime } from "../../lib/time";
 import type { AuthEvent, GroundedItem, LearningSession } from "../../types/domain";
 import { AuthWait } from "./AuthWait";
 import { useHasConsent } from "../../auth/session";
+import { MileageEarnDialog } from "../mileage/MileageEarnDialog";
 import { ChoiceChip, StudySteps, TopicStep } from "./TopicQuiz";
 
 export function EndPage() {
@@ -93,12 +94,17 @@ function Wrapup({ session, withQuiz }: { session: LearningSession; withQuiz: boo
   const [newQ, setNewQ] = useState("");
   const [note, setNote] = useState("");
 
+  const [earned, setEarned] = useState(false);
+  const goRecords = () => nav(`/student/records?session=${session.id}`);
+
   const save = useMutation({
     mutationFn: () =>
       api.saveReflection({ sessionId: session.id, checks, understanding: understanding!, remainingQuestions: questions, note: note.trim() || undefined }),
     onSuccess: async () => {
       await qc.invalidateQueries();
-      nav(`/student/records?session=${session.id}`);
+      // 데모: 성장 마일리지 적립 예시 안내를 먼저 보여 주고, 닫으면 원래대로 기록으로 간다
+      if (FEATURES.mileageDemo) setEarned(true);
+      else goRecords();
     },
   });
 
@@ -222,6 +228,7 @@ function Wrapup({ session, withQuiz }: { session: LearningSession; withQuiz: boo
           돌아보기 저장하기
         </Button>
       </section>
+      {earned && <MileageEarnDialog onClose={goRecords} />}
     </div>
   );
 }
