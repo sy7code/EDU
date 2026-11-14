@@ -46,8 +46,15 @@ function statusText(r: DashboardRow): string {
   return parts.join(" · ");
 }
 
-/** 대시보드 표를 CSV로 (엑셀이 한글을 읽도록 UTF-8 BOM, 줄 끝 CRLF) */
-export function buildStudentCsv(rows: DashboardRow[]): string {
+/** 최근 테스트(%) 열 위치 */
+const QUIZ_COL = HEADER.indexOf("최근 테스트(%)");
+
+/**
+ * 대시보드 표를 CSV로 (엑셀이 한글을 읽도록 UTF-8 BOM, 줄 끝 CRLF)
+ * quizRate: false면 최근 테스트 열을 뺀다 (표에서 FEATURES.dashboardQuizRate로 숨길 때 맞춤)
+ */
+export function buildStudentCsv(rows: DashboardRow[], opts: { quizRate?: boolean } = {}): string {
+  const keep = (_: unknown, i: number) => opts.quizRate !== false || i !== QUIZ_COL;
   const body = rows.map((r) => [
     r.number,
     r.name,
@@ -58,7 +65,7 @@ export function buildStudentCsv(rows: DashboardRow[]): string {
     r.lastSessionAt ? seoulStamp(r.lastSessionAt) : "",
     r.shared ? statusText(r) : "기록 비공개",
   ]);
-  return BOM + [HEADER, ...body].map((cells) => cells.map(csvCell).join(",") + "\r\n").join("");
+  return BOM + [HEADER, ...body].map((cells) => cells.filter(keep).map(csvCell).join(",") + "\r\n").join("");
 }
 
 /** 내려받을 파일 이름: 학습현황_YYYY-MM-DD.csv (서울 날짜) */

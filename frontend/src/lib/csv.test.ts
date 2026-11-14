@@ -62,6 +62,31 @@ describe("buildStudentCsv 기록 비공개", () => {
   });
 });
 
+describe("buildStudentCsv 최근 테스트 열 끄기", () => {
+  it("quizRate: false면 머리글과 행에서 최근 테스트 열을 뺀다 (표의 dashboardQuizRate 플래그와 맞춤)", () => {
+    const lines = buildStudentCsv([row()], { quizRate: false }).split("\r\n");
+    expect(lines[0]).toBe("﻿번호,이름,학습 횟수,학습 시간(분),남은 질문,최근 학습,상태");
+    expect(lines[1]).toBe("3,김민수,4,95,2,2026-11-14 00:30,학습 중 · 피드백 기다림");
+  });
+});
+
+describe("csvCell 경계 값", () => {
+  it("탭·CR로 시작하는 글자도 '를 붙이고, CR은 따옴표로 감싼다", () => {
+    expect(csvCell("\tx")).toBe("'\tx");
+    expect(csvCell("\rx")).toBe(`"'\rx"`);
+  });
+  it("null·undefined는 빈 칸", () => {
+    expect(csvCell(null)).toBe("");
+    expect(csvCell(undefined)).toBe("");
+  });
+  it("글자 '-' 하나도 수식 시작으로 보고 '를 붙인다", () => {
+    expect(csvCell("-")).toBe("'-");
+  });
+  it("' 접두와 줄바꿈 따옴표가 함께 쓰인다", () => {
+    expect(csvCell("=a\nb")).toBe(`"'=a\nb"`);
+  });
+});
+
 describe("studentCsvFileName", () => {
   it("서울 날짜로 이름을 짓는다 (UTC로는 전날이어도)", () => {
     expect(studentCsvFileName(new Date("2026-11-13T15:30:00Z"))).toBe("학습현황_2026-11-14.csv");

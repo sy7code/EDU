@@ -36,10 +36,14 @@
   button {
     cursor: pointer;
   }
+  a:focus-visible,
   button:focus-visible,
   input:focus-visible,
-  textarea:focus-visible {
-    outline: 3px solid rgba(194, 24, 91, 0.24);
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    /* 흰 바탕에서 보이도록 불투명한 링 (비텍스트 대비 3:1 이상) */
+    outline: 2px solid var(--green);
     outline-offset: 2px;
   }
   h1,
@@ -1231,6 +1235,11 @@ main {
   background: transparent;
   outline: 0;
 }
+/* 안의 input은 테두리를 끄므로 바깥 상자에 포커스 링을 보인다 */
+.search:focus-within {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
 .filter-button {
   height: 42px;
   border: 1px solid var(--line);
@@ -2320,7 +2329,7 @@ td {
   inset: auto 12px -1px;
 }
 .nav-label {
-  color: #9a98a0;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;

@@ -33,14 +33,16 @@ type TodayItem = { label: string; text: string; action: string; count: number; f
 
 /** 지금 보이는(거른·검색한) 학생 표를 CSV 파일로 내려받는다 */
 function downloadCsv(rows: Parameters<typeof buildStudentCsv>[0]) {
-  const url = URL.createObjectURL(new Blob([buildStudentCsv(rows)], { type: "text/csv;charset=utf-8" }));
+  const csv = buildStudentCsv(rows, { quizRate: FEATURES.dashboardQuizRate });
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const a = document.createElement("a");
   a.href = url;
   a.download = studentCsvFileName(new Date());
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  // 바로 풀면 일부 브라우저에서 내려받기가 취소된다
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 export function ClassDashboard() {
@@ -64,6 +66,7 @@ export function ClassDashboard() {
   useEffect(() => setPage(1), [filter, query]);
   const [bannerIdx, setBannerIdx] = useState(0);
   const tableRef = useRef<HTMLDivElement>(null);
+  const tableTitleRef = useRef<HTMLHeadingElement>(null);
   const [manualMsg, setManualMsg] = useState<string | null>(null);
   const [confirmedId, setConfirmedId] = useState<string | null>(null);
   const manual = useMutation({
@@ -102,6 +105,8 @@ export function ClassDashboard() {
   const showFilter = (key: DashboardFilter) => {
     setFilter(key);
     tableRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    // 키보드·화면 읽기 사용자도 거른 표로 옮겨 간다
+    tableTitleRef.current?.focus({ preventScroll: true });
   };
 
   // 배너는 실제 숫자가 있는 항목만 보여주고, 자동으로 넘기지 않는다
@@ -322,7 +327,9 @@ export function ClassDashboard() {
       <div className="card table-card dash-table-card" ref={tableRef}>
         <div className="table-title">
           <div>
-            <h2>학생 학습 현황</h2>
+            <h2 ref={tableTitleRef} tabIndex={-1}>
+              학생 학습 현황
+            </h2>
             <p>학생별 최근 기록을 확인할 수 있어요.</p>
           </div>
           <div className="filter-row">

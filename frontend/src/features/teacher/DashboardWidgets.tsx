@@ -54,13 +54,15 @@ export function MemoWidget({ teacherId }: { teacherId: string }) {
     setMemos(loadMemos(browserStorage(), teacherId));
   }
 
-  const commit = (next: Memo[]) => {
+  /** 저장했으면 true. 실패하면 화면 상태를 그대로 두고 false */
+  const commit = (next: Memo[]): boolean => {
     if (saveMemos(browserStorage(), teacherId, next)) {
       setMemos(next);
       setError(null);
-    } else {
-      setError("이 브라우저에 저장하지 못했어요. 사생활 보호 모드인지 확인해 주세요.");
+      return true;
     }
+    setError("이 브라우저에 저장하지 못했어요. 사생활 보호 모드인지 확인해 주세요.");
+    return false;
   };
 
   const submit = (e: FormEvent) => {
@@ -70,8 +72,8 @@ export function MemoWidget({ teacherId }: { teacherId: string }) {
       if (memos.length >= MEMO_MAX) setError(`메모는 ${MEMO_MAX}개까지 남길 수 있어요. 다 쓴 메모를 지워 주세요.`);
       return;
     }
-    commit(next);
-    setDraft("");
+    // 저장에 실패하면 적은 글을 지우지 않는다
+    if (commit(next)) setDraft("");
   };
 
   const full = memos.length >= MEMO_MAX;

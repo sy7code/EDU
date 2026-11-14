@@ -141,11 +141,8 @@ export function StudentHome() {
               </p>
             </>
           )}
-          {active.data ? (
-            <ButtonLink to={`/student/session/${active.data.id}`}>
-              이어서 학습하기 <Icon name="chevron" size={16} />
-            </ButtonLink>
-          ) : (
+          {/* 학습 중인지 모를 때(불러오는 중·오류)는 새 시작을 권하지 않는다. 학습 중이면 위 카드에 '학습 화면으로'가 있다 */}
+          {!active.isLoading && !active.error && !active.data && (
             <ButtonLink to="/student/start">
               학습 시작 <Icon name="chevron" size={16} />
             </ButtonLink>
