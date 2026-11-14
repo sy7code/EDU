@@ -265,6 +265,9 @@ ul.timeline { list-style: none; margin-top: 0; margin-bottom: 0; }
 .study-kiosk-code button:hover { background: rgba(255, 255, 255, 0.26); }
 .study-kiosk-privacy { margin-top: 12px; text-align: center; font-size: 12px; color: rgba(255, 255, 255, 0.55); }
 .study-kiosk-privacy a { color: inherit; text-decoration: underline; }
+.study-kiosk-link { border: 0; background: none; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.study-kiosk-setup { flex-wrap: wrap; align-items: center; margin-top: 16px; width: 100%; }
+.study-kiosk-setup label { flex-basis: 100%; color: rgba(255, 255, 255, 0.8); font-size: 14px; text-align: left; }
 @media (max-width: 640px) {
   .study-kiosk-title { font-size: 23px; }
   .study-kiosk-sub { font-size: 15px; }

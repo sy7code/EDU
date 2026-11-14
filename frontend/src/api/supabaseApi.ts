@@ -1,7 +1,9 @@
 // 실제 백엔드(Supabase) 어댑터. 백엔드 전달 문서(FRONTEND_NOTES.md, api-spec v0.1 기준)를 따른다.
 // 읽기: v_* view (camelCase) / 쓰기: 원본 테이블 (snake_case) / 로직: Edge Function /functions/v1/api
-// 백엔드에 없는 기능(동의, QR 인증, 교차채점, 단원 테스트)은 화면에서 숨기고 여기선 지원 안 함.
+// 백엔드에 없는 기능(교차채점 등)은 화면에서 숨기고 여기선 지원 안 함.
 import { rememberClassNames } from "../lib/classLabel";
+import { loadKioskToken } from "../lib/kioskToken";
+import { browserStorage } from "../lib/memo";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
   AiMessage,
@@ -68,12 +70,13 @@ function mapAuthEvent(r: Row): AuthEvent {
   return {
     id: String(r.id),
     studentId: (r.studentId as string | null) ?? null,
-    maskedName: (r.studentName as string | null) ?? null,
+    // qr-scan 응답은 maskedName, auth-events/latest는 studentName
+    maskedName: ((r.maskedName ?? r.studentName) as string | null) ?? null,
     deviceId: String(r.deviceId ?? ""),
     method: (r.method as AuthEvent["method"]) ?? "QR",
     success: r.success !== false,
     verifiedAt: String(r.verifiedAt ?? new Date().toISOString()),
-    consumed: !!r.consumedAt,
+    consumed: r.consumed === true || !!r.consumedAt,
   };
 }
 
@@ -93,10 +96,14 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     return t;
   }
 
-  async function fn<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+  /** device: 교실 단말기 호출. 학생 로그인 없이 anon 키 + X-Device-Token으로 부른다 */
+  async function fn<T>(method: "GET" | "POST", path: string, body?: unknown, device?: { deviceToken: string }): Promise<T> {
+    const headers: Record<string, string> = device
+      ? { Authorization: `Bearer ${anonKey}`, apikey: anonKey, "X-Device-Token": device.deviceToken, "Content-Type": "application/json" }
+      : { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" };
     const res = await fetch(`${fnBase}${path}`, {
       method,
-      headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" },
+      headers,
       body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
     });
     const text = await res.text();
@@ -188,8 +195,17 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     // ---------- 인증 ----------
-    issueQrToken: async () => notSupported(), // 백엔드 QR 배포 전 (docs/backend 요청서 v1.0-qr)
-    submitCodeAuth: async () => notSupported(),
+    // 백엔드 v1.0 QR (2026-11-14 배포). 학생만 발급(60초·1회용), 교사 403
+    issueQrToken: async () => {
+      const r = await fn<{ token?: unknown; expiresAt?: unknown }>("POST", "/auth/qr-tokens");
+      return { token: String(r.token ?? ""), expiresAt: String(r.expiresAt ?? "") };
+    },
+    // 교실 단말기: 단말기 토큰은 번들에 넣지 않고 그 브라우저에 한 번 입력해 둔 값을 쓴다 (docs/decisions.md)
+    submitCodeAuth: async (deviceId, qrToken) => {
+      const deviceToken = loadKioskToken(browserStorage());
+      if (!deviceToken) throw new ApiError("DEVICE_NOT_CONFIGURED");
+      return mapAuthEvent(await fn<Row>("POST", "/auth/qr-scan", { deviceId, token: qrToken }, { deviceToken }));
+    },
     getPendingAuthEvent: async () => {
       // 수정본: 인증이 없으면 200 + null (예전 404도 호환)
       try {
@@ -200,7 +216,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
         throw e;
       }
     },
-    // 개발용 '인증 건너뛰기'. 백엔드 QR이 배포되면 이 함수와 화면 버튼을 지운다 (서버 엔드포인트 이름은 옛 것을 그대로 씀)
+    // 개발용 '인증 건너뛰기'. FEATURES.codeAuth=true 이후 화면에서 부르지 않음. 백엔드가 엔드포인트를 지우면 이 함수도 지운다
     devSkipAuth: async () => mapAuthEvent(await fn<Row>("POST", "/dev/facepass/simulate", {})),
 
     // ---------- 세션 ----------

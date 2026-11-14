@@ -34,7 +34,7 @@ export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; 
 
   const simulate = useMutation({
     mutationFn: async (kind: "skip" | "qr") => {
-      // 실제 모드 개발용 건너뛰기 (백엔드 QR 배포 후 제거)
+      // 실제 모드 개발용 건너뛰기: FEATURES.codeAuth=true면 버튼이 없어 부르지 않음 (백엔드가 엔드포인트 지우면 제거)
       if (kind === "skip") return api.devSkipAuth();
       // 데모: 키오스크가 학생 화면의 QR을 스캔한 것처럼
       const t = qr ?? (await api.issueQrToken());
@@ -81,20 +81,22 @@ export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; 
       )}
 
       {pending.error && <div className="study-err"><ErrorState error={pending.error} /></div>}
-      {/* 데모 인증: mock은 QR 스캔 흉내, 실제 모드는 개발용 건너뛰기(/dev/facepass/simulate) */}
-      <div className="demo-box">
-        <span className="demo-note">데모 전용 버튼{USE_MOCK ? "" : " (실제 단말기 연동 전)"}</span>
-        {!USE_MOCK && ( /* 백엔드 QR 배포 전 실제 모드에서 막히지 않게 */
-          <Button variant="secondary" onClick={() => simulate.mutate("skip")} disabled={simulate.isPending}>
-            인증 건너뛰기 (개발용)
-          </Button>
-        )}
-        {FEATURES.codeAuth && (
-          <Button variant="secondary" onClick={() => simulate.mutate("qr")} disabled={simulate.isPending}>
-            단말기 QR 스캔 흉내
-          </Button>
-        )}
-      </div>
+      {/* 데모 인증: mock은 QR 스캔 흉내. 실제 모드는 교실 단말기(/kiosk)로만 인증 (QR 꺼진 실제 모드에서만 개발용 건너뛰기) */}
+      {(USE_MOCK || !FEATURES.codeAuth) && (
+        <div className="demo-box">
+          <span className="demo-note">데모 전용 버튼{USE_MOCK ? "" : " (실제 단말기 연동 전)"}</span>
+          {!USE_MOCK && !FEATURES.codeAuth && (
+            <Button variant="secondary" onClick={() => simulate.mutate("skip")} disabled={simulate.isPending}>
+              인증 건너뛰기 (개발용)
+            </Button>
+          )}
+          {USE_MOCK && FEATURES.codeAuth && (
+            <Button variant="secondary" onClick={() => simulate.mutate("qr")} disabled={simulate.isPending}>
+              단말기 QR 스캔 흉내
+            </Button>
+          )}
+        </div>
+      )}
       {simulate.error && <div className="study-err"><ErrorState error={simulate.error} /></div>}
     </section>
   );

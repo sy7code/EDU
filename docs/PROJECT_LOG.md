@@ -478,3 +478,8 @@
 ## 2026-11-14 추가: 질문 핵심 요약 실제 연결 (브랜치 feat/v11-connect)
 - 백엔드 v1.1 배포(거부 테스트 16개, 평가셋 실제 AI 30문항 3회: 4묶음 일치·원문/개인정보/인젝션/JSON 실패 0건, 6~8초). 프론트 `getQuestionThemes`(rpc `question_themes`)·`generateQuestionThemes`(POST) 연결, `FEATURES.questionThemes` 켬. 테스트 419개·타입 검사 통과.
 - 확인 못 함: 실제 모드 화면 — 데모 반 시드에 AI·교과 공개 동의와 교과 교사 계정이 없어 FEW만 나옴(백엔드가 사용자 승인 후 만들 예정).
+
+## 2026-11-14 추가: QR 인증 실제 연결 (브랜치 feat/v11-connect)
+- 백엔드 v1.0 QR 배포에 맞춰 `issueQrToken`(`/auth/qr-tokens`)·`submitCodeAuth`(`/auth/qr-scan` + `X-Device-Token`) 연결, `FEATURES.codeAuth` 켬. 학생 화면의 개발용 건너뛰기 버튼은 사라짐(함수는 백엔드 엔드포인트 삭제 때까지 남김).
+- 보안 결정(#47): 단말기 토큰은 `VITE_*`에 넣지 않고 키오스크에서 한 번 입력해 그 브라우저에만 저장. 저장소 함수·키오스크 오류 문구는 `lib/kioskToken.ts`에 테스트 먼저.
+- 확인 못 함: 실제 단말기 토큰으로 스캔 성공·409·429 응답(토큰 값을 다루지 않아 브라우저에선 설정 저장·지우기 화면만 확인). qr-scan 호출에 anon 키를 `Authorization`으로 보내는데 서버 JWT 검증 설정과 맞는지는 실제 스캔으로 확인 필요.

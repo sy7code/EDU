@@ -7,7 +7,7 @@
 
 ---
 
-## v1.0 QR 단일 인증 (추가, 2026-11-14 · 이 절이 v0.2~v0.6·아래 본문의 FacePass·바코드·수기 인증보다 우선)
+## v1.0 QR 단일 인증 (추가, 2026-11-14 · 백엔드 v1.0 배포·실제 모드 연결됨, `FEATURES.codeAuth = true` · 이 절이 v0.2~v0.6·아래 본문의 FacePass·바코드·수기 인증보다 우선)
 
 인증은 **QR만** 남긴다. 상세 요청: `docs/backend/2026-11-14-backend-request-v1.0-qr.md`.
 
@@ -21,6 +21,16 @@
 - 동의 종류는 `AI`, `LEARNING_RECORD`, `SUBJECT_SHARE`. `FACEPASS`는 화면·타입에서 뺐고 서버의 옛 행은 매퍼가 무시한다.
 - `AuthMethod`(`FACEPASS | QR | BARCODE | MANUAL`)는 **과거 기록 표시용으로 남긴다**. 새 인증은 `QR`만 만든다.
 - 세션 시작·종료, `GET /auth-events/latest`(2분·1회용)는 그대로.
+
+### 실제 백엔드 연결 (v1.0 배포, `frontend/src/api/supabaseApi.ts`)
+| 함수 | 실제 호출 | 오류 |
+|---|---|---|
+| `issueQrToken()` | `POST /functions/v1/api/auth/qr-tokens` (학생 로그인, 본문 없음) → `{ token, expiresAt }` | 교사 `403 FORBIDDEN`, 학생당 분당 10회 초과 `429 RATE_LIMITED` |
+| `submitCodeAuth(deviceId, token)` | `POST /functions/v1/api/auth/qr-scan`, 헤더 `X-Device-Token`(+ anon 키 `Authorization`/`apikey`, 학생 로그인 없음), 본문 `{ deviceId, token }` → `AuthEvent { id, studentId, maskedName, deviceId, method: "QR", success, verifiedAt, consumed }` | 헤더 토큰 없음·틀림·`deviceId` 불일치 `401 UNAUTHORIZED`, 없는 토큰 `404 NOT_FOUND`, 이미 씀·만료 `409 QR_TOKEN_USED_OR_EXPIRED`, 단말기당 분당 20회 초과 `429 RATE_LIMITED` |
+
+- 오류 본문 `{ error: { code, message } }`. 프론트는 코드로 문구 사전을 고른다(`QR_TOKEN_USED_OR_EXPIRED` → "이미 쓴 QR이거나 시간이 지났어요. 휴대폰에서 QR을 다시 만들어 주세요."). 키오스크에서 401은 "단말기 설정을 확인해 주세요."(학생 로그인 문제가 아님)와 토큰 다시 입력 버튼.
+- **단말기 토큰은 번들에 넣지 않는다**(`VITE_*` 금지). 키오스크(`/kiosk`)가 처음 열릴 때 "단말기 설정"에서 한 번 입력받아 그 브라우저 `localStorage`(`growth-pace-kiosk-token`)에만 저장한다. 저장 뒤에는 "설정됨"만 보이고 값은 다시 보이지 않으며 로그에 남기지 않는다. "단말기 설정 지우기"로 삭제. 저장된 토큰이 없으면 `submitCodeAuth`는 서버를 부르지 않고 `DEVICE_NOT_CONFIGURED`. `deviceId`는 기존대로 `VITE_KIOSK_DEVICE_ID`(비밀 아님, 기본 `kiosk-study-room-1`).
+- 학생 화면은 QR만 보이고 개발용 건너뛰기 버튼은 없다. `devSkipAuth`(`/dev/facepass/simulate`)는 백엔드가 엔드포인트를 지울 때까지 API에만 남는다(화면에서 부르지 않음).
 
 ---
 

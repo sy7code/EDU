@@ -49,6 +49,8 @@ export type ApiErrorCode =
   | "QUIZ_ALREADY_TAKEN"
   | "QUIZ_NOT_AVAILABLE"
   | "AI_BAD_OUTPUT"
+  | "QR_TOKEN_USED_OR_EXPIRED"
+  | "DEVICE_NOT_CONFIGURED"
   | "UNKNOWN";
 
 export class ApiError extends Error {
@@ -80,6 +82,8 @@ export function errorMessage(err: unknown): string {
     QUIZ_ALREADY_TAKEN: "이번 학습의 단원 테스트는 이미 제출했어요.",
     QUIZ_NOT_AVAILABLE: "학습을 마친 뒤, 이번 기록에서 찾은 주제로만 테스트를 볼 수 있어요.",
     AI_BAD_OUTPUT: "AI가 결과를 제대로 만들지 못했어요. 다시 시도해 주세요.",
+    QR_TOKEN_USED_OR_EXPIRED: "이미 쓴 QR이거나 시간이 지났어요. 휴대폰에서 QR을 다시 만들어 주세요.",
+    DEVICE_NOT_CONFIGURED: "단말기 설정이 필요해요.",
     UNKNOWN: "문제가 생겼어요. 잠시 후 다시 시도해 주세요.",
   };
   return map[code];
