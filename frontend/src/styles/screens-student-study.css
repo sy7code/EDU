@@ -60,8 +60,12 @@
 .study-qr { margin-top: 16px; }
 .qr-box { max-width: 320px; margin: 0 auto; border: 2px dashed #becdc6; border-radius: 10px; padding: 14px; }
 .qr-help { font-size: 12px; color: var(--muted); }
-.qr-token { margin-top: 8px; word-break: break-all; font-family: ui-monospace, monospace; font-size: 14px; }
+.qr-image { margin: 10px auto 0; display: flex; justify-content: center; }
+.qr-image img { max-width: 100%; height: auto; background: #fff; padding: 6px; border-radius: 8px; }
+.qr-token { margin-top: 8px; word-break: break-all; font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); }
 .qr-left { margin-top: 8px; font-size: 12px; color: var(--orange); }
+.qr-retry { margin-top: 10px; }
+.qr-result { min-height: 1.4em; }
 .demo-box {
   margin-top: 22px; padding-top: 16px; border-top: 1px dashed var(--line);
   display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
@@ -227,18 +231,6 @@ ul.timeline { list-style: none; margin-top: 0; margin-bottom: 0; }
 .study-kiosk-sub { margin-top: 8px; font-size: 18px; color: rgba(255, 255, 255, 0.74); }
 .study-kiosk-sub.small { font-size: 14px; }
 .study-kiosk-hint { margin-top: 24px; color: rgba(255, 255, 255, 0.66); }
-.study-kiosk-face {
-  margin-top: 40px; min-height: 72px; border: 0; border-radius: var(--radius); background: var(--green); color: #fff;
-  padding: 0 40px; font-size: 24px; font-weight: 700;
-}
-.study-kiosk-face:hover { background: var(--green-3); }
-.study-kiosk-pick { width: 100%; max-width: 672px; }
-.study-kiosk-pick-title { font-size: 20px; font-weight: 700; }
-.study-kiosk-grid { margin-top: 24px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-.study-kiosk-grid button {
-  min-height: 44px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 14px;
-}
-.study-kiosk-grid button:hover { background: rgba(255, 255, 255, 0.2); }
 .study-kiosk-ghost {
   margin-top: 18px; min-height: 44px; padding: 0 18px; border: 1px solid rgba(255, 255, 255, 0.32); border-radius: 10px;
   background: transparent; color: #fff; font-size: 14px;
@@ -268,8 +260,6 @@ ul.timeline { list-style: none; margin-top: 0; margin-bottom: 0; }
 @media (max-width: 640px) {
   .study-kiosk-title { font-size: 23px; }
   .study-kiosk-sub { font-size: 15px; }
-  .study-kiosk-face { font-size: 20px; padding: 0 28px; width: 100%; }
-  .study-kiosk-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .study-kiosk-head, .study-kiosk-main, .study-kiosk-foot { padding-inline: 16px; }
   .study-kiosk-error-text { font-size: 20px; }
 }

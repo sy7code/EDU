@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useParams, useSearchParams } from "react-router";
-import QRCode from "qrcode";
+import { QrImage } from "../../components/QrImage";
 import { api, ApiError, FEATURES } from "../../api";
 import { useHasConsent } from "../../auth/session";
 import { Badge, Button, ButtonLink, EmptyState, ErrorState, Spinner } from "../../components/ui";
@@ -330,22 +330,11 @@ function PaperOcr({ sessionId, onText }: { sessionId: string; onText: (text: str
 class PhotoReadError extends Error {}
 
 function PaperPhoneQr({ sessionId }: { sessionId: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    // 학습 화면 주소만 담는다 (토큰·비밀번호 없음). 휴대폰은 같은 계정으로 따로 로그인
-    const url = `${window.location.origin}/student/session/${encodeURIComponent(sessionId)}?kind=PAPER`;
-    QRCode.toDataURL(url, { margin: 1, width: 168 })
-      .then((d) => alive && setSrc(d))
-      .catch(() => alive && setSrc(null));
-    return () => {
-      alive = false;
-    };
-  }, [sessionId]);
-  if (!src) return null;
+  // 학습 화면 주소만 담는다 (토큰·비밀번호 없음). 휴대폰은 같은 계정으로 따로 로그인
+  const url = `${window.location.origin}/student/session/${encodeURIComponent(sessionId)}?kind=PAPER`;
   return (
     <div className="paper-qr">
-      <img src={src} width={112} height={112} alt="이 학습 화면으로 가는 QR" />
+      <QrImage value={url} size={168} displaySize={112} alt="이 학습 화면으로 가는 QR" />
       <div>
         <strong>휴대폰으로 종이 기록 올리기</strong>
         <small>휴대폰 카메라로 찍고 같은 계정으로 로그인하면 이 학습의 '종이에 기록'이 열려요.</small>

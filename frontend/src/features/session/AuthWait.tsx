@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, FEATURES, USE_MOCK } from "../../api";
 import { Button, ErrorState } from "../../components/ui";
 import { Icon } from "../../components/Icon";
+import { QrImage } from "../../components/QrImage";
 import type { AuthEvent } from "../../types/domain";
 
 const DEMO_DEVICE = "kiosk-study-room-1";
@@ -13,7 +14,11 @@ const DEMO_DEVICE = "kiosk-study-room-1";
  */
 export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; onAuth: (ev: AuthEvent) => void; note?: string }) {
   const [qr, setQr] = useState<{ token: string; expiresAt: string } | null>(null);
-  const clearQr = useCallback(() => setQr(null), []);
+  const [expired, setExpired] = useState(false);
+  const onExpired = useCallback(() => {
+    setQr(null);
+    setExpired(true);
+  }, []);
   const pending = useQuery({
     queryKey: ["pending-auth"],
     queryFn: () => api.getPendingAuthEvent(),
@@ -25,7 +30,7 @@ export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; 
     if (pending.data) onAuth(pending.data);
   }, [pending.data, onAuth]);
 
-  const issueQr = useMutation({ mutationFn: () => api.issueQrToken(), onSuccess: setQr });
+  const issueQr = useMutation({ mutationFn: () => api.issueQrToken(), onSuccess: (q) => { setExpired(false); setQr(q); } });
 
   const simulate = useMutation({
     mutationFn: async (kind: "skip" | "qr") => {
@@ -53,7 +58,7 @@ export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; 
       </h1>
       {note && <p className="study-auth-note">{note}</p>}
       <p>
-        휴대폰 QR로 인증하면 이 화면이 자동으로 넘어가요.
+        휴대폰에 QR을 띄워 교실 단말기에 보여 주세요. 인증되면 이 화면이 자동으로 넘어가요.
       </p>
       <div className="waiting" role="status">
         <span className="spinner" aria-hidden /> 인증을 기다리고 있어요
@@ -62,11 +67,14 @@ export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; 
       {FEATURES.codeAuth && (
         <div className="study-qr">
           {qr ? (
-            <QrBox token={qr.token} expiresAt={qr.expiresAt} onExpired={clearQr} />
+            <QrBox token={qr.token} expiresAt={qr.expiresAt} onExpired={onExpired} />
           ) : (
-            <Button variant="secondary" onClick={() => issueQr.mutate()} disabled={issueQr.isPending}>
-              단말기에 보여줄 QR 만들기
-            </Button>
+            <>
+              {expired && <p className="qr-help" role="status">QR이 만료됐어요.</p>}
+              <Button variant="secondary" onClick={() => issueQr.mutate()} disabled={issueQr.isPending}>
+                {expired ? "다시 만들기" : "QR 만들기"}
+              </Button>
+            </>
           )}
           {issueQr.error && <div className="study-err"><ErrorState error={issueQr.error} /></div>}
         </div>
@@ -92,7 +100,7 @@ export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; 
   );
 }
 
-/** 1회용 QR 토큰 표시. 실서비스에서는 QR 이미지로 그린다. */
+/** 1회용 QR 이미지 + 토큰 글자(스캐너 없을 때 입력용) + 남은 시간 */
 function QrBox({ token, expiresAt, onExpired }: { token: string; expiresAt: string; onExpired: () => void }) {
   const [left, setLeft] = useState(() => Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000));
   useEffect(() => {
@@ -105,8 +113,11 @@ function QrBox({ token, expiresAt, onExpired }: { token: string; expiresAt: stri
   }, [expiresAt, onExpired]);
   return (
     <div className="qr-box">
-      <p className="qr-help">단말기 카메라에 이 코드를 보여 주세요 · 한 번만 쓸 수 있어요</p>
-      <p className="qr-token">{token}</p>
+      <p className="qr-help">단말기 스캐너에 이 QR을 보여 주세요 · 한 번만 쓸 수 있어요</p>
+      <div className="qr-image">
+        <QrImage value={token} size={240} displaySize={192} alt="학습 인증용 QR" />
+      </div>
+      <p className="qr-token" aria-label="QR 코드 글자">{token}</p>
       <p className="qr-left">{Math.max(0, left)}초 뒤 만료</p>
     </div>
   );

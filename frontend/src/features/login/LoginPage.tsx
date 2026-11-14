@@ -129,7 +129,7 @@ function DemoLogin() {
           <Icon name="lock" />
           <p>
             <strong>교실 단말기</strong>
-            얼굴·QR·바코드로 학습 시작과 끝을 인증해요.
+            QR로 학습 시작과 끝을 인증해요.
           </p>
           <ButtonLink to="/kiosk" variant="secondary">
             단말기 화면 열기
@@ -147,7 +147,7 @@ function DemoLogin() {
             </Button>
           ))}
         </div>
-        <p className="demo-hint">학생 (3번: 얼굴 인증 거부·QR 사용 / 4번: AI 사용 거부)</p>
+        <p className="demo-hint">학생 (4번: AI 사용 거부)</p>
         <div className="demo-students">
           {students.map((s) => (
             <button key={s.id} type="button" className="demo-student" onClick={() => login.mutate(s.id)} disabled={login.isPending}>

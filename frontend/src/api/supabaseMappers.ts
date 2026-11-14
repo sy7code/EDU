@@ -175,15 +175,17 @@ export function rowToReflection(row: Record<string, unknown>): Reflection {
   return changedToReflection(sessionId, String(row.changed ?? ""), remaining, updatedAt);
 }
 
-const CONSENT_KINDS: ConsentKind[] = ["AI", "LEARNING_RECORD", "SUBJECT_SHARE"];
+// Record<ConsentKind, true>라 종류가 바뀌면 컴파일러가 여기서 알려 준다
+const CONSENT_KIND_SET: Record<ConsentKind, true> = { AI: true, LEARNING_RECORD: true, SUBJECT_SHARE: true };
+const isConsentKind = (v: unknown): v is ConsentKind => typeof v === "string" && Object.prototype.hasOwnProperty.call(CONSENT_KIND_SET, v);
 
 /** consents 이력 → 종류별 최신 값. 모르는 종류(옛 FACEPASS 동의 등)는 버린다 */
 export function latestConsents(rows: Array<Record<string, unknown>>): Consent[] {
   const latest = new Map<string, Consent>();
   const sorted = [...rows].sort((a, b) => String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? "")));
   for (const r of sorted) {
-    const kind = CONSENT_KINDS.find((k) => k === r.kind);
-    if (!kind) continue;
+    const kind = r.kind;
+    if (!isConsentKind(kind)) continue;
     latest.set(kind, {
       kind,
       granted: r.granted === true,

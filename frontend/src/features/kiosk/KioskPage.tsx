@@ -20,6 +20,11 @@ export function KioskPage() {
   const [code, setCode] = useState("");
   const codeInput = useRef<HTMLInputElement>(null);
 
+  // 스캐너는 키보드처럼 입력하므로 항상 입력칸에 포커스를 둔다
+  useEffect(() => {
+    codeInput.current?.focus();
+  }, []);
+
   // 결과 화면은 5초 뒤 초기화 (다음 학생에게 이름이 남지 않게)
   useEffect(() => {
     if (view.kind !== "done" && view.kind !== "error") return;
@@ -36,11 +41,14 @@ export function KioskPage() {
     const token = code.trim();
     if (!token) return;
     setView({ kind: "working" });
+    setCode("");
     try {
       const ev = await api.submitCodeAuth(DEVICE_ID, token);
       setView(ev.success ? { kind: "done", event: ev } : { kind: "error", message: "인식할 수 없는 코드예요. 선생님께 알려 주세요." });
     } catch (err) {
       setView({ kind: "error", message: errorMessage(err) });
+    } finally {
+      codeInput.current?.focus();
     }
   }
 
@@ -51,7 +59,7 @@ export function KioskPage() {
         <span>{DEVICE_ID}</span>
       </header>
 
-      <main className="study-kiosk-main">
+      <main className="study-kiosk-main" aria-live="polite">
         {view.kind === "idle" && (
           <>
             <span className="study-kiosk-pulse" aria-hidden>
@@ -60,7 +68,7 @@ export function KioskPage() {
               </span>
             </span>
             <h1 className="study-kiosk-title">학습을 시작하거나 마칠 때</h1>
-            <p className="study-kiosk-sub">휴대폰의 QR을 찍어 주세요</p>
+            <p className="study-kiosk-sub">학생 휴대폰의 QR을 스캐너로 읽거나 아래 글자를 입력하세요</p>
           </>
         )}
 
@@ -89,7 +97,7 @@ export function KioskPage() {
         {view.kind === "error" && (
           <div role="alert" className="study-kiosk-error">
             <p className="study-kiosk-error-text">{view.message}</p>
-            <button type="button" onClick={() => setView({ kind: "idle" })} className="study-kiosk-ghost">
+            <button type="button" onClick={() => { setView({ kind: "idle" }); codeInput.current?.focus(); }} className="study-kiosk-ghost">
               처음으로
             </button>
           </div>
@@ -104,7 +112,8 @@ export function KioskPage() {
             ref={codeInput}
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            placeholder="QR 스캔 또는 코드 입력"
+            placeholder="QR 스캔 또는 글자 입력 후 Enter"
+            autoFocus
             autoComplete="off"
           />
           <button type="submit">확인</button>
