@@ -1,7 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { useLogout, useMe } from "../auth/session";
-import { api, FEATURES, resetMockData, USE_MOCK } from "../api";
+import { FEATURES, resetMockData, USE_MOCK } from "../api";
 import { navItemActive, teacherNavLinks } from "../lib/teacherNav";
 import { Icon } from "./Icon";
 
@@ -19,12 +18,11 @@ export function AppLayout() {
   const isTeacher = me?.role === "teacher";
   const homeroom = isTeacher && me.classId !== "";
   // [경로, 아이콘, 이름]
-  const asg = useQuery({ queryKey: ["my-assignments"], queryFn: () => api.listMyAssignments(), enabled: FEATURES.subjectTeacher && isTeacher });
   const links: Array<[string, string, string]> = isTeacher
     ? teacherNavLinks({
         homeroom,
         quizFeature: FEATURES.quiz,
-        assignments: FEATURES.subjectTeacher ? asg.data : undefined,
+        subjectFeature: FEATURES.subjectTeacher,
       })
     : me?.role === "student"
       ? [
