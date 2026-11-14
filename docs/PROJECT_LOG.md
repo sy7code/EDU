@@ -450,3 +450,7 @@
 - 검증: vitest 373 통과, `tsc -b --noEmit` 통과, `vite build` 통과. controller 브라우저 확인: QR 이미지 표시 → `/kiosk` 입력 Enter → 학습 시작, 이미 쓴 토큰은 거부되고 입력칸 글자가 남음.
 - 확인 못 함: 실제 모드 QR(백엔드 미배포), 스캐너 하드웨어, 스크린 리더 낭독(aria-live).
 - 남긴 위험: 휴대폰 없는 학생은 시작 불가(사용자 수용), 스캐너 전제.
+
+## 2026-11-14 추가: 백엔드 v0.9 교과 교사 실제 연결 (브랜치 feat/v09-connect)
+- `v_my_assignments`, `subject_students`, `subject_week_summary`, `log_student_view(p_subject)`, `sessions.subject`(시작 시 전송·과목 필터), `authorSubject`·`audit subject` 매핑, 학생 `getReviewInputs`를 실제 모드에 연결하고 `FEATURES.subjectTeacher`를 켰다. mock 많이 틀린 문항이 교사 제외 문항을 빼는지 테스트 추가.
+- 확인 못 함: 실제 모드 화면(데모 교과 교사 계정 없음). 시작 화면은 과목을 고르지 않아 자유 입력이 과목명과 같을 때만 `sessions.subject`가 기타가 아니다.

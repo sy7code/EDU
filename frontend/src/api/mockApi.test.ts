@@ -1426,6 +1426,21 @@ describe("교과 교사", () => {
     expect(students.some((x) => x.id === "s02")).toBe(false);
   });
 
+  it("많이 틀린 문항에서 교사가 제외한 문항(excluded)은 빠진다 (서버와 같은 규칙)", async () => {
+    const before = await (async () => {
+      await api.login("t3");
+      return (await api.getSubjectSummary("c1", "수학")).hardQuestions;
+    })();
+    expect(before.length).toBeGreaterThan(0);
+    const target = before[0].questionId;
+    const seed = createSeed(clock);
+    for (const a of seed.quizAttempts) for (const i of a.items) if (i.questionId === target) i.excluded = true;
+    const a = createMockApi({ seed, now: () => clock, latencyMs: 0, storage: null });
+    await a.login("t3");
+    const after = (await a.getSubjectSummary("c1", "수학")).hardQuestions;
+    expect(after.map((q) => q.questionId)).not.toContain(target);
+  });
+
   it("교과 교사 집계는 지난 학기 학습을 세지 않는다", async () => {
     // 2027-09-02(목): 이번 주(월 8/30~)에 8/31(1학기) 학습이 걸친다. 현재 학기(2027-2)가 아니라서 세지 않는다
     const now = new Date("2027-09-02T19:00:00+09:00");

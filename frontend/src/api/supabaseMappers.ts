@@ -1,6 +1,6 @@
 // 프론트 형식 ↔ 백엔드(Supabase) 형식 변환. 순수 함수만 둔다.
 import { GOAL_ACTIVITIES, REFLECTION_ITEMS } from "../lib/checklists";
-import type { QuizReportOutcome, ReportedQuestion, AuditLog, ClassAnalyticsRaw, Feedback, Consent, ConsentKind, LearningSession, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion, User } from "../types/domain";
+import type { QuizReportOutcome, ReportedQuestion, AuditLog, ClassAnalyticsRaw, Feedback, Consent, ConsentKind, LearningSession, Dashboard, DashboardRow, GroundedItem, Reflection, ReviewInputs, SessionGoal, StudentQuizQuestion, TeacherAssignment, User } from "../types/domain";
 import { ApiError, type ApiErrorCode, type RealtimeStatus } from "./types";
 
 const SEP = " | ";
@@ -292,7 +292,7 @@ export async function fetchAllPages<T>(page: (from: number, to: number) => Promi
 
 /** v_feedback 행 → Feedback */
 export function rowToFeedback(r: Record<string, unknown>): Feedback {
-  return { id: String(r.id), sessionId: String(r.sessionId), teacherId: String(r.teacherId), content: String(r.content), createdAt: String(r.createdAt), readAt: typeof r.readAt === "string" ? r.readAt : null };
+  return { id: String(r.id), sessionId: String(r.sessionId), teacherId: String(r.teacherId), content: String(r.content), createdAt: String(r.createdAt), readAt: typeof r.readAt === "string" ? r.readAt : null, authorSubject: subjectOrNull(r.authorSubject) };
 }
 
 /** v_audit_logs 행 → AuditLog */
@@ -304,6 +304,7 @@ export function rowToAuditLog(r: Record<string, unknown>): AuditLog {
     action: String(r.action ?? ""),
     studentId: r.studentId == null ? null : String(r.studentId),
     createdAt: String(r.createdAt ?? ""),
+    subject: subjectOrNull(r.subject),
   };
 }
 
@@ -328,4 +329,45 @@ export function realtimeStatus(status: string, wasSubscribed: boolean): Realtime
   if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") return "unavailable";
   if (status === "CLOSED" && !wasSubscribed) return "unavailable";
   return null;
+}
+
+// ---------- 교과 교사 (백엔드 v0.9) ----------
+/** 세션 시작 때 보낼 sessions.subject. 서버 목록(국어·수학·영어·사회·과학) 밖은 기타 */
+const SESSION_SUBJECTS = ["국어", "수학", "영어", "사회", "과학"];
+export function toSessionSubject(text: string): string {
+  const t = text.trim();
+  return SESSION_SUBJECTS.includes(t) ? t : "기타";
+}
+
+/** v_feedback·v_audit_logs·v_sessions의 subject 계열 값: 문자열이 아니면 null */
+function subjectOrNull(v: unknown): string | null {
+  return typeof v === "string" && v ? v : null;
+}
+
+/** v_sessions 행의 subject 컬럼 (v0.9). 없으면 undefined */
+export function rowSessionSubject(r: Record<string, unknown>): string | undefined {
+  return subjectOrNull(r.subject) ?? undefined;
+}
+
+/** v_my_assignments 행 → TeacherAssignment */
+export function rowToAssignment(r: Record<string, unknown>): TeacherAssignment {
+  return { teacherId: String(r.teacherId ?? ""), classId: String(r.classId ?? ""), subject: String(r.subject ?? ""), term: String(r.term ?? "") };
+}
+
+type Rows = Array<Record<string, unknown>>;
+/** 학생 본인의 view 행 → 과목별 다시 볼 주제 입력. 세션 과목은 subject 컬럼(없으면 기타) */
+export function buildReviewInputs(i: { sessionRows: Rows; topicRows: Rows; attemptRows: Rows; reflectionRows: Rows }): ReviewInputs {
+  return {
+    sessions: i.sessionRows.map((r) => ({ id: String(r.id), subject: toSessionSubject(String(r.subject ?? "")), startedAt: String(r.startedAt) })),
+    sessionTopics: i.topicRows.map((r) => ({ sessionId: String(r.sessionId), topicId: String(r.topicId), name: String(r.name ?? "") })),
+    attempts: i.attemptRows.map((r) => ({
+      sessionId: String(r.sessionId),
+      topicId: String(r.topicId),
+      correct: Number(r.correct ?? 0),
+      total: Number(r.total ?? 0),
+      createdAt: String(r.createdAt),
+    })),
+    // 예전 형식(changed 텍스트) 돌아보기도 rowToReflection이 이해도를 읽는다
+    reflections: i.reflectionRows.map((r) => ({ sessionId: String(r.sessionId), understanding: rowToReflection(r).understanding })),
+  };
 }
