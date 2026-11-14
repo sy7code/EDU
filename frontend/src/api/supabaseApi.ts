@@ -214,12 +214,14 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       if (!row) throw new ApiError("NOT_FOUND");
       return mapSession(row);
     },
-    listSessions: async ({ studentId }) => {
+    listSessions: async ({ studentId, subject }) => {
       const u = await requireMe();
       const target = u.role === "student" ? u.id : studentId;
       if (!target) throw new ApiError("VALIDATION");
       const rows = ok(await sb.from("v_sessions").select().eq("studentId", target).order("startedAt", { ascending: false })) as Row[];
-      return rows.map(mapSession);
+      const list = rows.map(mapSession);
+      // 교과 교사 권한은 백엔드에 아직 없음: 과목 필터만 화면 편의로 적용 (권한 경계 아님)
+      return subject ? list.filter((s) => s.goal.subject === subject) : list;
     },
 
     // ---------- 기록 ----------
@@ -312,12 +314,27 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       // 학생 본인 것만, read_at만 바뀜(서버 RLS). 이미 읽은 것은 다시 쓰지 않음
       ok(await sb.from("feedback").update({ read_at: new Date().toISOString() }).eq("id", feedbackId).is("read_at", null));
     },
+    // 교과 교사 subject 기록은 백엔드 미반영. 담임 열람만 기록된다
     logStudentView: async (studentId) => {
       ok(await sb.rpc("log_student_view", { p_student_id: studentId }));
     },
     listAuditLogs: async () => {
       const rows = ok(await sb.from("v_audit_logs").select().order("createdAt", { ascending: false }).limit(10)) as Row[]; // 학생 화면 "최근 10개"
       return rows.map(rowToAuditLog);
+    },
+
+    // ---------- 교과 교사 (백엔드 미반영) ----------
+    listMyAssignments: async () => {
+      throw new ApiError("UNKNOWN", "subject teacher not deployed");
+    },
+    getReviewInputs: async () => {
+      throw new ApiError("UNKNOWN", "subject teacher not deployed");
+    },
+    getSubjectSummary: async () => {
+      throw new ApiError("UNKNOWN", "subject teacher not deployed");
+    },
+    listSubjectStudents: async () => {
+      throw new ApiError("UNKNOWN", "subject teacher not deployed");
     },
 
     // ---------- 교사 ----------

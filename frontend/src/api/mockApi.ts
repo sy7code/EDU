@@ -5,6 +5,10 @@ import { minutesBetween } from "../lib/time";
 import { paceVisibleEntries } from "../lib/pace";
 import { activityLabel } from "../lib/checklists";
 import { quizSignal } from "../lib/topicSignal";
+import { activeAssignments, canSubjectTeacherSee, isHomeroomTeacher, subjectShareActive } from "../lib/subjectAccess";
+import { SUBJECTS } from "../lib/checklists";
+import { seoulWeekStart } from "../lib/schoolCalendar";
+import { subjectWeekSummary } from "../lib/subjectSummary";
 import type {
   AiMessage,
   Assessment,
@@ -46,7 +50,7 @@ export type MockOptions = {
 export const MOCK_FAIL_KEY = "growth-pace-mock-fail-next";
 /** mock 전용: 이 키에 밀리초를 넣으면 다음 테스트 출제(getQuiz) 한 번이 그만큼 늦게 끝남 (대기 문구 확인용, 최대 30초) */
 export const MOCK_SLOW_KEY = "growth-pace-mock-slow-next";
-export const STORAGE_KEY = "growth-pace-mock-db-v6"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
+export const STORAGE_KEY = "growth-pace-mock-db-v7"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
 export const SESSION_USER_KEY = "growth-pace-mock-user";
 const AUTH_EVENT_TTL_MS = 120_000;
 const QR_TTL_MS = 60_000;
@@ -187,14 +191,58 @@ export function createMockApi(opts: MockOptions): Api {
   function isTeacherView() {
     return me().role === "teacher";
   }
-  /** 본인 세션이거나 같은 반 교사일 때만. 아니면 존재를 숨기고 NOT_FOUND */
+  /** 이 교사가 이 학생의 담임인가 (교과만 맡은 교사 classId ""는 어떤 반과도 맞지 않음) */
+  function homeroomOf(u: User, studentId: string): boolean {
+    const st = userById(studentId);
+    return !!st && st.role === "student" && isHomeroomTeacher(u, st.classId);
+  }
+  /** 담임 반 classId 확인: 빈 값은 담임 아님 */
+  function homeroomClass(u: User, classId: string): boolean {
+    return u.role === "teacher" && u.classId !== "" && u.classId === classId;
+  }
+  function subjectConsents(studentId: string) {
+    return { learningRecord: hasConsent(studentId, "LEARNING_RECORD"), subjectShare: hasConsent(studentId, "SUBJECT_SHARE") };
+  }
+  /** 교과 교사 열람: 현재 학기 배정(학생 반·과목) + 두 동의. 담임 경로와 따로 본다 */
+  function subjectSees(u: User, studentId: string, subject: string): boolean {
+    const st = userById(studentId);
+    if (u.role !== "teacher" || !st || st.role !== "student") return false;
+    return canSubjectTeacherSee({
+      assignments: db.assignments ?? [],
+      teacherId: u.id,
+      studentClassId: st.classId,
+      sessionSubject: subject,
+      consents: subjectConsents(studentId),
+      now: now(),
+    });
+  }
+  /** 현재 학기에 이 반·과목을 맡았는가 ("기타"·과목 목록 밖·빈 반은 없음) */
+  function hasAssignment(u: User, classId: string, subject: string): boolean {
+    if (u.role !== "teacher" || classId === "" || subject === "기타" || !(SUBJECTS as readonly string[]).includes(subject)) return false;
+    return activeAssignments(db.assignments ?? [], u.id, now()).some((a) => a.classId === classId && a.subject === subject);
+  }
+  /** 반의 교과 공유(학습 기록 + 교과 공유 동의) 학생, 번호순 */
+  function subjectStudentsOf(classId: string): User[] {
+    return db.users
+      .filter((x) => x.role === "student" && x.classId === classId && subjectShareActive(subjectConsents(x.id)))
+      .sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
+  }
+  /** 본인 세션, 담임, 또는 그 세션 과목을 볼 수 있는 교과 교사일 때만. 아니면 존재를 숨기고 NOT_FOUND */
   function visibleSession(sessionId: string): LearningSession {
     const u = me();
     const s = db.sessions.find((x) => x.id === sessionId);
     if (!s) throw new ApiError("NOT_FOUND");
     if (u.role === "student" && s.studentId === u.id) return s;
-    if (u.role === "teacher" && userById(s.studentId)?.classId === u.classId) return s;
+    if (u.role === "teacher" && homeroomOf(u, s.studentId)) return s;
+    if (u.role === "teacher" && subjectSees(u, s.studentId, s.goal.subject)) return s;
     throw new ApiError("NOT_FOUND");
+  }
+  /** 담임만 하는 일(채점 등): 교과 교사 경로로는 열지 않는다 */
+  function homeroomSession(sessionId: string): LearningSession {
+    const u = teacher();
+    const s = visibleSession(sessionId);
+    if (!homeroomOf(u, s.studentId)) throw new ApiError("FORBIDDEN");
+    return s;
   }
   function ownActiveSession(sessionId: string): LearningSession {
     const u = me();
@@ -210,8 +258,8 @@ export function createMockApi(opts: MockOptions): Api {
   function teacherEntries(s: LearningSession) {
     return sharedWithTeacher(s.studentId) ? publicEntries(s.id) : [];
   }
-  function audit(action: string, targetStudentId: string | null) {
-    db.auditLogs.push({ id: id("audit"), actorId: me().id, action, targetStudentId, at: iso() });
+  function audit(action: string, targetStudentId: string | null, subject: string | null = null) {
+    db.auditLogs.push({ id: id("audit"), actorId: me().id, action, targetStudentId, at: iso(), subject });
   }
 
   // ---------- 인증 이벤트 ----------
@@ -407,7 +455,7 @@ export function createMockApi(opts: MockOptions): Api {
   // ---------- Api ----------
   const api: Api = {
     listDemoUsers: () =>
-      run(() => db.users.filter((u) => u.classId === "c1" || u.id === "t2")),
+      run(() => db.users.filter((u) => u.classId === "c1" || u.id === "t2" || u.id === "t3")),
 
     login: (userId) =>
       run(() => {
@@ -459,7 +507,7 @@ export function createMockApi(opts: MockOptions): Api {
     listStudents: (classId) =>
       run(() => {
         const u = teacher(); // 학생은 반 명단을 볼 수 없다
-        if (u.classId !== classId) throw new ApiError("NOT_FOUND");
+        if (!homeroomClass(u, classId)) throw new ApiError("NOT_FOUND");
         return db.users
           .filter((x) => x.role === "student" && x.classId === classId)
           .map((x) => ({ id: x.id, name: x.name, classId: x.classId, number: x.number ?? 0 }));
@@ -508,7 +556,7 @@ export function createMockApi(opts: MockOptions): Api {
     submitManualAuth: (studentId) =>
       run(() => {
         const t = teacher();
-        if (userById(studentId)?.classId !== t.classId) throw new ApiError("NOT_FOUND");
+        if (!homeroomOf(t, studentId)) throw new ApiError("NOT_FOUND");
         audit("MANUAL_AUTH", studentId);
         return recordAuth(`teacher:${t.id}`, studentId, "MANUAL", true);
       }),
@@ -586,21 +634,22 @@ export function createMockApi(opts: MockOptions): Api {
     getSession: (sessionId) =>
       run(() => {
         const s = visibleSession(sessionId);
-        if (me().role === "teacher") audit("VIEW_SESSION", s.studentId);
+        const u = me();
+        if (u.role === "teacher") audit("VIEW_SESSION", s.studentId, homeroomOf(u, s.studentId) ? null : s.goal.subject);
         return s;
       }),
 
-    listSessions: ({ studentId }) =>
+    listSessions: ({ studentId, subject }) =>
       run(() => {
         const u = me();
         const target = u.role === "student" ? u.id : studentId;
         if (!target) throw new ApiError("VALIDATION");
-        if (u.role === "teacher") {
-          if (userById(target)?.classId !== u.classId) throw new ApiError("NOT_FOUND");
-        }
-        return db.sessions
-          .filter((s) => s.studentId === target)
-          .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+        const mine = db.sessions.filter((s) => s.studentId === target && (!subject || s.goal.subject === subject));
+        const sorted = (list: LearningSession[]) => [...list].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+        if (u.role === "student" || homeroomOf(u, target)) return sorted(mine);
+        // 교과 교사: 과목 필수. 권한 밖(배정·동의 없음, 다른 과목)은 빈 배열
+        if (!subject) throw new ApiError("NOT_FOUND");
+        return sorted(mine.filter((s) => subjectSees(u, target, s.goal.subject)));
       }),
 
     addEntry: ({ sessionId, kind, content, visibility }) =>
@@ -642,6 +691,8 @@ export function createMockApi(opts: MockOptions): Api {
       run(() => {
         const s = visibleSession(sessionId);
         if (isTeacherView() && !sharedWithTeacher(s.studentId)) return [];
+        // 교과 교사는 TEACHER 공개 기록만: AI 대화는 담임에게만
+        if (isTeacherView() && !homeroomOf(me(), s.studentId)) return [];
         return db.aiMessages.filter((m) => m.sessionId === sessionId);
       }),
 
@@ -721,16 +772,18 @@ export function createMockApi(opts: MockOptions): Api {
     listFeedback: (sessionId) =>
       run(() => {
         visibleSession(sessionId);
-        return db.feedback.filter((f) => f.sessionId === sessionId);
+        return db.feedback.filter((f) => f.sessionId === sessionId).map((f) => ({ ...f, authorSubject: f.authorSubject ?? null }));
       }),
 
     addFeedback: (sessionId, content) =>
       run(() => {
         const t = teacher();
-        visibleSession(sessionId);
+        const s = visibleSession(sessionId);
         const text = content.trim();
         if (!text || text.length > MAX_ENTRY) throw new ApiError("VALIDATION");
-        const f = { id: id("fb"), sessionId, teacherId: t.id, content: text, createdAt: iso(), readAt: null };
+        // 담임이 아니면 교과 교사로 쓴 것: 그 세션 과목을 붙인다
+        const authorSubject = homeroomOf(t, s.studentId) ? null : s.goal.subject;
+        const f = { id: id("fb"), sessionId, teacherId: t.id, content: text, createdAt: iso(), readAt: null, authorSubject };
         db.feedback.push(f);
         return f;
       }),
@@ -743,26 +796,80 @@ export function createMockApi(opts: MockOptions): Api {
         if (u.role !== "student" || !f || db.sessions.find((s) => s.id === f.sessionId)?.studentId !== u.id) return;
         if (!f.readAt) f.readAt = iso();
       }),
-    logStudentView: (studentId) =>
+    logStudentView: (studentId, subject) =>
       run(() => {
         const t = teacher();
-        if (userById(studentId)?.classId !== t.classId) throw new ApiError("NOT_FOUND");
-        audit("VIEW_STUDENT_DETAIL", studentId);
+        if (homeroomOf(t, studentId)) {
+          audit("VIEW_STUDENT_DETAIL", studentId);
+          return;
+        }
+        // 교과 교사: 과목 필수, 현재 학기 배정 + 두 동의가 있어야 열람(기록) 가능
+        if (!subject || !subjectSees(t, studentId, subject)) throw new ApiError("NOT_FOUND");
+        audit("VIEW_STUDENT_DETAIL", studentId, subject);
       }),
     listAuditLogs: () =>
       run(() => {
         const u = me();
         return db.auditLogs
           .filter((l) => l.action === "VIEW_STUDENT_DETAIL" && (u.role === "student" ? l.targetStudentId === u.id : l.actorId === u.id))
-          .map((l, i) => ({ id: l.id ?? `audit-${i}`, actorId: l.actorId, actorName: userById(l.actorId)?.name ?? "", action: l.action, studentId: l.targetStudentId, createdAt: l.at }))
+          .map((l, i) => ({ id: l.id ?? `audit-${i}`, actorId: l.actorId, actorName: userById(l.actorId)?.name ?? "", action: l.action, studentId: l.targetStudentId, createdAt: l.at, subject: l.subject ?? null }))
           .reverse()
           .slice(0, AUDIT_LIMIT);
+      }),
+
+    // ---------- 교과 교사 ----------
+    listMyAssignments: () =>
+      run(() => {
+        const t = teacher();
+        return activeAssignments(db.assignments ?? [], t.id, now());
+      }),
+    getReviewInputs: (studentId) =>
+      run(() => {
+        const u = me();
+        // 학생 본인만 (교사·다른 학생은 FORBIDDEN)
+        if (u.role !== "student" || u.id !== studentId) throw new ApiError("FORBIDDEN");
+        const sessions = db.sessions.filter((x) => x.studentId === u.id);
+        const ids = new Set(sessions.map((x) => x.id));
+        return {
+          sessions: sessions.map((x) => ({ id: x.id, subject: x.goal.subject, startedAt: x.startedAt })),
+          sessionTopics: sessions.flatMap((x) => (db.sessionTopics[x.id] ?? []).map((st) => ({ sessionId: x.id, topicId: st.topicId, name: st.name }))),
+          attempts: db.quizAttempts
+            .filter((a) => ids.has(a.sessionId))
+            .map((a) => ({ sessionId: a.sessionId, topicId: a.topicId, correct: a.correct, total: a.total, createdAt: a.createdAt })),
+          reflections: db.reflections.filter((r) => ids.has(r.sessionId)).map((r) => ({ sessionId: r.sessionId, understanding: r.understanding })),
+        };
+      }),
+    getSubjectSummary: (classId, subject) =>
+      run(() => {
+        const t = teacher();
+        if (!hasAssignment(t, classId, subject)) throw new ApiError("NOT_FOUND");
+        // 동의 학생·그 과목 세션만 골라서 넘긴다 (subjectWeekSummary는 걸러진 입력을 가정)
+        const students = subjectStudentsOf(classId);
+        const allowed = new Set(students.map((x) => x.id));
+        const sessions = db.sessions.filter((x) => allowed.has(x.studentId) && x.goal.subject === subject);
+        const ids = new Set(sessions.map((x) => x.id));
+        const attempts = db.quizAttempts.filter((a) => ids.has(a.sessionId));
+        return subjectWeekSummary(classId, subject, seoulWeekStart(now()), {
+          students: students.map((x) => ({ studentId: x.id })),
+          sessionOwners: sessions.map((x) => ({ sessionId: x.id, studentId: x.studentId })),
+          sessions: sessions.map((x) => ({ id: x.id, subject: x.goal.subject, startedAt: x.startedAt })),
+          sessionTopics: sessions.flatMap((x) => (db.sessionTopics[x.id] ?? []).map((st) => ({ sessionId: x.id, topicId: st.topicId, name: st.name }))),
+          attempts: attempts.map((a) => ({ sessionId: a.sessionId, topicId: a.topicId, correct: a.correct, total: a.total, createdAt: a.createdAt })),
+          reflections: db.reflections.filter((r) => ids.has(r.sessionId)).map((r) => ({ sessionId: r.sessionId, understanding: r.understanding })),
+          items: attempts.flatMap((a) => a.items.map((i) => ({ sessionId: a.sessionId, questionId: i.questionId, prompt: i.prompt, correct: i.correct, reported: !isScored(i) }))),
+        });
+      }),
+    listSubjectStudents: (classId, subject) =>
+      run(() => {
+        const t = teacher();
+        if (!hasAssignment(t, classId, subject)) throw new ApiError("NOT_FOUND");
+        return subjectStudentsOf(classId).map((x) => ({ id: x.id, name: x.name, classId: x.classId, number: x.number ?? 0 }));
       }),
 
     getClassAnalytics: (classId, from, to) =>
       run(() => {
         const t = teacher();
-        if (t.classId !== classId) throw new ApiError("NOT_FOUND");
+        if (!homeroomClass(t, classId)) throw new ApiError("NOT_FOUND");
         const studs = db.users.filter((u) => u.role === "student" && u.classId === classId);
         const ids = new Set(studs.map((u) => u.id));
         const sessions = db.sessions.filter((s) => ids.has(s.studentId) && new Date(s.startedAt) >= from && new Date(s.startedAt) <= to);
@@ -788,7 +895,7 @@ export function createMockApi(opts: MockOptions): Api {
     getDashboard: (classId) =>
       run(() => {
         const t = teacher();
-        if (t.classId !== classId) throw new ApiError("NOT_FOUND");
+        if (!homeroomClass(t, classId)) throw new ApiError("NOT_FOUND");
         const to = now();
         const from = new Date(to.getTime() - 7 * 86400000);
         const rows: DashboardRow[] = db.users
@@ -961,7 +1068,8 @@ export function createMockApi(opts: MockOptions): Api {
       run(() => {
         const u = me();
         const target = userById(studentId);
-        const allowed = u.role === "student" ? u.id === studentId : target?.classId === u.classId && target.role === "student";
+        // 담임만 (교과 교사 경로 없음)
+        const allowed = u.role === "student" ? u.id === studentId && target?.role === "student" : homeroomOf(u, studentId);
         if (!allowed) throw new ApiError("NOT_FOUND");
         if (u.role === "teacher" && !sharedWithTeacher(studentId)) {
           return { shared: false, sessions: [], entries: [], reflections: [], attempts: [] };
@@ -985,7 +1093,8 @@ export function createMockApi(opts: MockOptions): Api {
       run(() => {
         const u = me();
         const target = userById(studentId);
-        const allowed = u.role === "student" ? u.id === studentId : target?.classId === u.classId && target.role === "student";
+        // 담임만 (교과 교사 경로 없음)
+        const allowed = u.role === "student" ? u.id === studentId && target?.role === "student" : homeroomOf(u, studentId);
         if (!allowed) throw new ApiError("NOT_FOUND");
         if (u.role === "teacher") audit("VIEW_TOPIC_GROWTH", studentId);
         const mine = db.sessions.filter((x) => x.studentId === studentId);
@@ -1027,7 +1136,7 @@ export function createMockApi(opts: MockOptions): Api {
     listReportedQuestions: (classId) =>
       run(() => {
         const t = teacher();
-        if (t.classId !== classId) throw new ApiError("NOT_FOUND");
+        if (!homeroomClass(t, classId)) throw new ApiError("NOT_FOUND");
         const reports = db.quizReports.filter((r) => r.classId === classId);
         return reports
           .filter((r) => db.topicQuestions.some((x) => x.id === r.questionId))
@@ -1059,7 +1168,7 @@ export function createMockApi(opts: MockOptions): Api {
       run(() => {
         const t = teacher();
         const r = db.quizReports.find((x) => x.id === reportId);
-        if (!r || r.classId !== t.classId) throw new ApiError("NOT_FOUND");
+        if (!r || !homeroomClass(t, r.classId)) throw new ApiError("NOT_FOUND");
         if (action !== "KEEP_EXCLUDED" && action !== "DISMISS") throw new ApiError("VALIDATION");
         // 열린 신고만 처리 (AI가 걸러 낸 신고·이미 처리한 신고는 다시 못 바꿈)
         if (r.status !== "OPEN") throw new ApiError("VALIDATION");
@@ -1097,7 +1206,8 @@ export function createMockApi(opts: MockOptions): Api {
     getRubric: (classId) =>
       run(() => {
         const u = me();
-        if (u.classId !== classId) throw new ApiError("NOT_FOUND");
+        // 담임 교사 또는 그 반 학생만 (빈 반 ""은 누구와도 맞지 않음)
+        if (classId === "" || u.classId !== classId) throw new ApiError("NOT_FOUND");
         const r = db.rubrics.find((x) => x.classId === classId);
         if (!r) throw new ApiError("NOT_FOUND");
         return r;
@@ -1106,7 +1216,9 @@ export function createMockApi(opts: MockOptions): Api {
     getAssessment: (sessionId) =>
       run(() => {
         const u = me();
-        visibleSession(sessionId);
+        const s = visibleSession(sessionId);
+        // 채점(성찰·AI 대화 근거 포함)은 담임만. 교과 교사에겐 없는 것으로
+        if (u.role === "teacher" && !homeroomOf(u, s.studentId)) return null;
         const a = db.assessments.find((x) => x.sessionId === sessionId) ?? null;
         if (!a) return null;
         return u.role === "student" ? studentView(a) : a;
@@ -1115,7 +1227,7 @@ export function createMockApi(opts: MockOptions): Api {
     requestAiAssessment: (sessionId) =>
       run(() => {
         const t = teacher();
-        const s = visibleSession(sessionId);
+        const s = homeroomSession(sessionId);
         if (s.status !== "ENDED") throw new ApiError("SESSION_NOT_ACTIVE", "끝난 학습만 채점할 수 있어요");
         const rubric = db.rubrics.find((r) => r.classId === t.classId);
         if (!rubric) throw new ApiError("NOT_FOUND");
@@ -1133,7 +1245,7 @@ export function createMockApi(opts: MockOptions): Api {
     finalizeAssessment: (sessionId, scores) =>
       run(() => {
         const t = teacher();
-        const target = visibleSession(sessionId);
+        const target = homeroomSession(sessionId);
         if (target.status !== "ENDED") throw new ApiError("SESSION_NOT_ACTIVE", "끝난 학습만 평가를 확정할 수 있어요");
         const rubric = db.rubrics.find((r) => r.classId === t.classId);
         if (!rubric) throw new ApiError("NOT_FOUND");

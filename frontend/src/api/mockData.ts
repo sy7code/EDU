@@ -15,14 +15,18 @@ import type {
   Reflection,
   Rubric,
   SessionTopic,
+  TeacherAssignment,
   Topic,
   User,
 } from "../types/domain";
+import { currentTerm, seoulWeekStart } from "../lib/schoolCalendar";
 import { TOPIC_DICTIONARY, type TopicLevel } from "./mockTopicData";
 import { mockAiReply } from "./mockAiReply";
 
 export type Db = {
   users: User[];
+  /** 교과 교사 배정 (학기별). 담임 여부는 users.classId로 */
+  assignments: TeacherAssignment[];
   facepassLinks: Record<string, string>; // merchantUserKey(시리얼) → studentId
   qrTokens: Record<string, { studentId: string; expiresAt: string; used: boolean }>; // 1회용 QR
   barcodes: Record<string, string>;      // 학생증 바코드(추측 불가 값) → studentId
@@ -35,7 +39,7 @@ export type Db = {
   feedback: Feedback[];
   rubrics: Rubric[];
   assessments: Assessment[];
-  auditLogs: Array<{ id?: string; actorId: string; action: string; targetStudentId: string | null; at: string }>;
+  auditLogs: Array<{ id?: string; actorId: string; action: string; targetStudentId: string | null; at: string; subject?: string | null }>;
   /** 반 단위 주제별 문항 풀 (정답 포함 → 학생에게 직접 노출 금지) */
   topicQuestions: TopicQuestion[];
   quizReports: QuizReport[];
@@ -102,6 +106,8 @@ function rng(seed: number) {
 }
 
 const POLICY = "2026-11-v1";
+/** 교과 선생님 공유에 동의한 데모 학생 (s02 이나래는 빠짐) */
+const SUBJECT_SHARE_IDS = new Set(["s01", "s03", "s05", "s06", "s08", "s09", "s10", "s11", "s12", "s13", "s14", "s16", "s18", "s20", "s99"]);
 
 function consent(kind: ConsentKind, granted: boolean, at: string, byGuardian = false): Consent {
   return { kind, granted, byGuardian, policyVersion: POLICY, createdAt: at };
@@ -129,6 +135,15 @@ export function createSeed(now: Date): Db {
   const users: User[] = [
     { id: "t1", name: "한담임", role: "teacher", classId: "c1" },
     { id: "t2", name: "오선생", role: "teacher", classId: "c2" },
+    // 교과만 맡은 교사: 담임 반 없음
+    { id: "t3", name: "오수학", role: "teacher", classId: "" },
+  ];
+  const term = currentTerm(now);
+  const assignments: TeacherAssignment[] = [
+    { teacherId: "t3", classId: "c1", subject: "수학", term },
+    { teacherId: "t3", classId: "c2", subject: "수학", term },
+    // 한담임: c1 담임이면서 c2 국어 교과
+    { teacherId: "t1", classId: "c2", subject: "국어", term },
   ];
   for (let i = 1; i <= 30; i++) {
     const id = `s${String(i).padStart(2, "0")}`;
@@ -157,6 +172,8 @@ export function createSeed(now: Date): Db {
       consent("FACEPASS", u.id !== "s03", nowIso, g),
       consent("AI", u.id !== "s04", nowIso, g),
       consent("LEARNING_RECORD", true, nowIso, g),
+      // 교과 선생님 공유: 일부 학생만 (이나래 s02 등은 없음)
+      consent("SUBJECT_SHARE", SUBJECT_SHARE_IDS.has(u.id), nowIso, g),
     ];
   }
 
@@ -247,6 +264,28 @@ export function createSeed(now: Date): Db {
     }
   }
 
+  // 교과 교사 데모: 김가온(s01)·남다른(s99)의 이번 주 수학·국어 학습 (기존 난수 순서는 건드리지 않음)
+  const weekStartMs = Date.parse(`${seoulWeekStart(now)}T00:00:00+09:00`);
+  const weekRuns: Array<{ studentId: string; subject: string; hoursAgo: number; memo: string; question: string }> = [
+    { studentId: "s01", subject: "수학", hoursAgo: 3, memo: "완전제곱식으로 바꾸면 꼭짓점이 보인다", question: "판별식과 꼭짓점은 어떤 관계가 있지?" },
+    { studentId: "s01", subject: "국어", hoursAgo: 2, memo: "시의 화자와 상황을 표로 정리함", question: "비유랑 상징은 어떻게 구분하지?" },
+    { studentId: "s99", subject: "수학", hoursAgo: 3, memo: "일차부등식 풀이 연습", question: "음수를 곱하면 왜 부등호가 바뀌지?" },
+    { studentId: "s99", subject: "국어", hoursAgo: 2, memo: "설명문 문단 요약", question: "중심 문장은 어떻게 찾지?" },
+  ];
+  for (const w of weekRuns) {
+    // 월요일 새벽에 시드를 만들어도 이번 주 안에 들어가게 주 시작 뒤로 맞춘다
+    const start = new Date(Math.max(weekStartMs + 60_000, now.getTime() - w.hoursAgo * 3600_000));
+    const end = new Date(start.getTime() + 30 * 60000);
+    const sid = nextId("sess");
+    sessions.push({ id: sid, studentId: w.studentId, goal: { subject: w.subject, activities: ["concept"] }, startedAt: iso(start), endedAt: iso(end), startAuth: "FACEPASS", endAuth: "FACEPASS", status: "ENDED", durationMinutes: 30 });
+    entries.push(
+      { id: nextId("entry"), sessionId: sid, kind: "MEMO", content: w.memo, visibility: "TEACHER", createdAt: iso(new Date(start.getTime() + 5 * 60000)) },
+      { id: nextId("entry"), sessionId: sid, kind: "QUESTION", content: w.question, visibility: "TEACHER", createdAt: iso(new Date(start.getTime() + 10 * 60000)) },
+      { id: nextId("entry"), sessionId: sid, kind: "MEMO", content: "나만 보는 메모", visibility: "PRIVATE", createdAt: iso(new Date(start.getTime() + 15 * 60000)) },
+    );
+    reflections.push({ sessionId: sid, checks: ["goal_done"], understanding: 2, remainingQuestions: [], updatedAt: iso(end) });
+  }
+
   const rubrics: Rubric[] = [
     {
       id: "r1",
@@ -323,6 +362,7 @@ export function createSeed(now: Date): Db {
 
   return {
     users,
+    assignments,
     facepassLinks,
     qrTokens: {},
     barcodes,

@@ -143,7 +143,7 @@ function DemoLogin() {
         <div className="demo-teachers">
           {teachers.map((t) => (
             <Button key={t.id} variant="secondary" onClick={() => login.mutate(t.id)} disabled={login.isPending}>
-              {t.name} 선생님 {t.classId === "c1" ? "(2학년 3반)" : "(다른 반)"}
+              {t.name} 선생님 {t.classId === "c1" ? "(2학년 3반)" : t.classId === "" ? "(교과 선생님)" : "(다른 반)"}
             </Button>
           ))}
         </div>

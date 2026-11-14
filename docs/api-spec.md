@@ -7,6 +7,36 @@
 
 ---
 
+## v0.6 교과 교사 (추가, 2026-11-14 · 백엔드 미반영 — mock 전용, `FEATURES.subjectTeacher`)
+
+담임 = `role === "teacher" && classId !== ""`. 교과만 맡은 교사는 `classId: ""`. 교과 배정은 `teacher_assignments(teacher_id, class_id, subject, term)`. 현재 학기: 서울 날짜 3~8월 `YYYY-1`, 9~12월 `YYYY-2`, 1~2월 `(YYYY-1)-2`.
+
+**교과 교사 열람 조건 (모두 만족):** 현재 학기 배정(교사, 학생 반, 세션 `goal.subject`) AND 학생 `LEARNING_RECORD` 동의 AND `SUBJECT_SHARE` 동의. 과목 `"기타"`·과목 목록 밖·빈 값은 항상 불가. 기록은 `visibility = TEACHER`만. 담임 조건과 따로 판단한다(담임 겸 교과 교사: 자기 반은 담임 범위, 다른 반은 배정 과목만).
+
+### 새 동의 종류
+- `SUBJECT_SHARE` — 교과 선생님 공유. `LEARNING_RECORD`를 끄면 이 값과 관계없이 교과 교사에게 안 보임.
+
+### 함수 (`frontend/src/api/types.ts`)
+| 함수 | 호출자 | 규칙 |
+|---|---|---|
+| `listMyAssignments()` | 교사 | 내 **현재 학기** 배정만 `TeacherAssignment[]`. 학생은 `403 FORBIDDEN` |
+| `getReviewInputs(studentId)` | 학생 본인 | 내 세션(과목·시작 시각)·세션 주제·응시·이해도. 교사·다른 학생은 `403 FORBIDDEN` |
+| `getSubjectSummary(classId, subject)` | 교과 교사 | **이번 주(서울 월 00:00~일 23:59)** 반·과목 집계 `SubjectWeekSummary`. 동의 학생·그 과목 세션만 집계. 배정 없으면 `404 NOT_FOUND` |
+| `listSubjectStudents(classId, subject)` | 교과 교사 | 그 반의 동의(`LEARNING_RECORD`+`SUBJECT_SHARE`) 학생, 번호순. 배정 없으면 `404` |
+| `listSessions({ studentId, subject? })` | 변경 | 담임: 자기 반 학생 전체(`subject` 주면 그 과목만). 교과 교사: `subject` 필수(없으면 `404`), 권한 밖(배정·동의·과목 불일치)은 **빈 배열** |
+| `logStudentView(studentId, subject?)` | 변경 | 담임: 자기 반. 교과 교사: `subject` 필수, 열람 조건을 만족해야 함(아니면 `404`). audit 행에 `subject` 기록 |
+| `getSession`·`listEntries`·`getReflection`·`listFeedback`·`getQuizAttempt`·`summarizeSession` | 변경 | 세션 접근 = 본인 OR 담임 OR 교과 교사 열람 조건. 아니면 `404`. 교과 교사에게 기록은 TEACHER 공개분만. `getSession` audit(`VIEW_SESSION`)에 교과 교사면 과목 기록 |
+| `addFeedback(sessionId, content)` | 변경 | 작성자가 그 학생의 담임이 아니면 `authorSubject = session.goal.subject`, 담임이면 `null` |
+| `listAiMessages` | 변경 | 교과 교사에게는 빈 배열 (AI 대화는 담임만) |
+| `getAssessment` / `requestAiAssessment` / `finalizeAssessment` | 변경 | 담임만. 교과 교사: `getAssessment`는 `null`, 나머지는 `403 FORBIDDEN` |
+| `listStudents`·`getDashboard`·`getClassAnalytics`·`listReportedQuestions`·`resolveReport`·`submitManualAuth`·`getTopicGrowth`·`getPaceInputs`·`getRubric` | 변경 없음(담임 전용) | `classId ""`는 어떤 반과도 맞지 않음 → 교과만 맡은 교사는 `404` |
+
+### 필드
+- `Feedback.authorSubject?: string | null` — 교과 교사 피드백의 과목. 담임·학생 모두 받음.
+- `AuditLog.subject?: string | null` — 교과 교사 열람이면 과목, 담임이면 `null`.
+
+---
+
 ## v0.4 단원 테스트 + 교사 종합 보드 (추가)
 
 설계: `docs/01-mvp.md`. 문제는 **AI 초안 → 교사 승인**만 출제. 채점은 서버.

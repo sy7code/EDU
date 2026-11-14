@@ -1253,3 +1253,179 @@ describe("종이 사진 글자 인식 (mock)", () => {
     expect(limited).toBe(true);
   });
 });
+
+describe("교과 교사", () => {
+  function setConsents(studentId: string, c: { learningRecord: boolean; subjectShare: boolean }) {
+    return api.login(studentId).then(() =>
+      api.saveConsents([
+        { kind: "FACEPASS", granted: true, byGuardian: false },
+        { kind: "AI", granted: true, byGuardian: false },
+        { kind: "LEARNING_RECORD", granted: c.learningRecord, byGuardian: false },
+        { kind: "SUBJECT_SHARE", granted: c.subjectShare, byGuardian: false },
+      ]),
+    );
+  }
+
+  it("교과 교사는 맡은 과목 세션만 본다", async () => {
+    await api.login("t3");
+    const math = await api.listSessions({ studentId: "s01", subject: "수학" });
+    expect(math.length).toBeGreaterThan(0);
+    expect(math.every((s) => s.goal.subject === "수학" && s.studentId === "s01")).toBe(true);
+    expect(await api.listSessions({ studentId: "s01", subject: "국어" })).toEqual([]);
+    expect(await api.listSessions({ studentId: "s01", subject: "기타" })).toEqual([]);
+  });
+
+  it("교과 교사는 다른 과목 세션을 getSession으로 못 본다(NOT_FOUND)", async () => {
+    await api.login("s01");
+    const all = await api.listSessions({});
+    const math = all.find((s) => s.goal.subject === "수학")!;
+    const korean = all.find((s) => s.goal.subject === "국어")!;
+    await api.login("t3");
+    expect((await api.getSession(math.id)).id).toBe(math.id);
+    await expectCode(api.getSession(korean.id), "NOT_FOUND");
+    expect(await api.listEntries(korean.id).catch((e: ApiError) => e.code)).toBe("NOT_FOUND");
+    expect(await api.getReflection(korean.id).catch((e: ApiError) => e.code)).toBe("NOT_FOUND");
+    expect(await api.listFeedback(korean.id).catch((e: ApiError) => e.code)).toBe("NOT_FOUND");
+    expect(await api.getQuizAttempt(korean.id).catch((e: ApiError) => e.code)).toBe("NOT_FOUND");
+  });
+
+  it("교과 교사는 다른 반 학생 세션을 못 본다", async () => {
+    await api.login("s01");
+    const math = (await api.listSessions({})).find((s) => s.goal.subject === "수학")!;
+    // 오선생(t2): c2 담임, 교과 배정 없음
+    await api.login("t2");
+    expect(await api.listSessions({ studentId: "s01", subject: "수학" })).toEqual([]);
+    await expectCode(api.getSession(math.id), "NOT_FOUND");
+    await expectCode(api.logStudentView("s01", "수학"), "NOT_FOUND");
+    await expectCode(api.listSubjectStudents("c1", "수학"), "NOT_FOUND");
+    await expectCode(api.getSubjectSummary("c1", "수학"), "NOT_FOUND");
+    // 반 classId ""로 담임 경로를 흉내 내도 안 열린다
+    await api.login("t3");
+    await expectCode(api.listStudents(""), "NOT_FOUND");
+    await expectCode(api.getDashboard(""), "NOT_FOUND");
+  });
+
+  it("SUBJECT_SHARE 미동의 학생은 목록·집계에 없다", async () => {
+    // 이나래(s02): 교과 공유 동의 없음, 이번 주 수학 학습 1개
+    const s = await startAs("s02");
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s02", true)).id);
+    await api.login("t3");
+    const students = await api.listSubjectStudents("c1", "수학");
+    expect(students.some((x) => x.id === "s01")).toBe(true);
+    expect(students.some((x) => x.id === "s02")).toBe(false);
+    expect(students.map((x) => x.number)).toEqual([...students.map((x) => x.number)].sort((a, b) => a - b));
+    expect(await api.listSessions({ studentId: "s02", subject: "수학" })).toEqual([]);
+    await expectCode(api.getSession(s.id), "NOT_FOUND");
+    const before = await api.getSubjectSummary("c1", "수학");
+    expect(typeof before.studentCount).toBe("number");
+    expect(before.studentCount).toBeGreaterThan(2);
+    await setConsents("s02", { learningRecord: true, subjectShare: true });
+    await api.login("t3");
+    const after = await api.getSubjectSummary("c1", "수학");
+    expect(after.studentCount).toBe((before.studentCount as number) + 1);
+    expect((await api.listSubjectStudents("c1", "수학")).some((x) => x.id === "s02")).toBe(true);
+  });
+
+  it("LEARNING_RECORD를 끄면 SUBJECT_SHARE가 있어도 교과 교사에게 안 보인다", async () => {
+    await api.login("s01");
+    const math = (await api.listSessions({})).find((s) => s.goal.subject === "수학")!;
+    await setConsents("s01", { learningRecord: false, subjectShare: true });
+    await api.login("t3");
+    expect(await api.listSessions({ studentId: "s01", subject: "수학" })).toEqual([]);
+    await expectCode(api.getSession(math.id), "NOT_FOUND");
+    await expectCode(api.listEntries(math.id), "NOT_FOUND");
+    expect((await api.listSubjectStudents("c1", "수학")).some((x) => x.id === "s01")).toBe(false);
+    await expectCode(api.logStudentView("s01", "수학"), "NOT_FOUND");
+  });
+
+  it("PRIVATE 기록은 교과 교사에게 안 보인다", async () => {
+    const s = await startAs("s01");
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "공개 수학", visibility: "TEACHER" });
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "비공개 수학", visibility: "PRIVATE" });
+    await api.askAi(s.id, "꼭짓점이 뭐야?");
+    await api.login("t3");
+    const entries = await api.listEntries(s.id);
+    expect(entries.map((e) => e.content)).toEqual(["공개 수학"]);
+    const summary = await api.summarizeSession(s.id);
+    expect(JSON.stringify(summary)).not.toContain("비공개");
+    // AI 대화는 기록(TEACHER 공개분)이 아니므로 교과 교사에게 내려보내지 않는다
+    expect(await api.listAiMessages(s.id)).toEqual([]);
+  });
+
+  it("담임 겸 교과 교사는 자기 반 전체·다른 반 과목만", async () => {
+    await api.login("s99");
+    const own99 = await api.listSessions({});
+    const k99 = own99.find((s) => s.goal.subject === "국어")!;
+    const m99 = own99.find((s) => s.goal.subject === "수학")!;
+    // 한담임(t1): c1 담임 + c2 국어
+    await api.login("t1");
+    expect(await api.listMyAssignments()).toEqual([{ teacherId: "t1", classId: "c2", subject: "국어", term: "2026-2" }]);
+    const c1All = await api.listSessions({ studentId: "s01" });
+    expect(new Set(c1All.map((s) => s.goal.subject)).size).toBeGreaterThan(1);
+    const korean = await api.listSessions({ studentId: "s99", subject: "국어" });
+    expect(korean.map((s) => s.id)).toEqual([k99.id]);
+    expect(await api.listSessions({ studentId: "s99", subject: "수학" })).toEqual([]);
+    await expectCode(api.listSessions({ studentId: "s99" }), "NOT_FOUND");
+    await expectCode(api.getSession(m99.id), "NOT_FOUND");
+    expect((await api.listEntries(k99.id)).every((e) => e.visibility === "TEACHER")).toBe(true);
+    expect(await api.listAiMessages(k99.id)).toEqual([]);
+    expect(await api.getAssessment(k99.id)).toBeNull();
+    await expectCode(api.requestAiAssessment(k99.id), "FORBIDDEN");
+    await expectCode(api.getTopicGrowth("s99"), "NOT_FOUND");
+    await expectCode(api.getPaceInputs("s99"), "NOT_FOUND");
+    await expectCode(api.getDashboard("c2"), "NOT_FOUND");
+    await expectCode(api.listStudents("c2"), "NOT_FOUND");
+    await expectCode(api.listSubjectStudents("c2", "수학"), "NOT_FOUND");
+    expect((await api.listSubjectStudents("c2", "국어")).map((x) => x.id)).toEqual(["s99"]);
+  });
+
+  it("교과 교사 피드백에 authorSubject가 붙고 담임·학생이 본다", async () => {
+    await api.login("s01");
+    const math = (await api.listSessions({})).find((s) => s.goal.subject === "수학")!;
+    await api.login("t3");
+    const f = await api.addFeedback(math.id, "꼭짓점 정리 좋아요");
+    expect(f.authorSubject).toBe("수학");
+    await api.login("t1");
+    const byHomeroom = await api.addFeedback(math.id, "담임 확인");
+    expect(byHomeroom.authorSubject).toBeNull();
+    expect((await api.listFeedback(math.id)).find((x) => x.id === f.id)?.authorSubject).toBe("수학");
+    await api.login("s01");
+    const seen = await api.listFeedback(math.id);
+    expect(seen.find((x) => x.id === f.id)?.authorSubject).toBe("수학");
+    expect(seen.find((x) => x.id === byHomeroom.id)?.authorSubject).toBeNull();
+  });
+
+  it("교과 교사 열람 기록에 subject가 남는다", async () => {
+    await api.login("t3");
+    await api.logStudentView("s01", "수학");
+    await expectCode(api.logStudentView("s01"), "NOT_FOUND");
+    await expectCode(api.logStudentView("s01", "국어"), "NOT_FOUND");
+    await expectCode(api.logStudentView("s02", "수학"), "NOT_FOUND");
+    expect((await api.listAuditLogs())[0]).toMatchObject({ action: "VIEW_STUDENT_DETAIL", studentId: "s01", subject: "수학" });
+    await api.login("t1");
+    await api.logStudentView("s01");
+    await api.login("s01");
+    const logs = await api.listAuditLogs();
+    expect(logs.map((l) => [l.actorName, l.subject])).toEqual([
+      ["한담임", null],
+      ["오수학", "수학"],
+    ]);
+  });
+
+  it("getReviewInputs는 학생 본인만", async () => {
+    await api.login("s01");
+    const own = await api.listSessions({});
+    const inputs = await api.getReviewInputs("s01");
+    expect(inputs.sessions.map((s) => s.id).sort()).toEqual(own.map((s) => s.id).sort());
+    expect(inputs.sessions.every((s) => typeof s.subject === "string" && s.subject.length > 0)).toBe(true);
+    const ids = new Set(own.map((s) => s.id));
+    expect(inputs.reflections.every((r) => ids.has(r.sessionId))).toBe(true);
+    expect(inputs.attempts.every((a) => ids.has(a.sessionId))).toBe(true);
+    await expectCode(api.getReviewInputs("s02"), "FORBIDDEN");
+    for (const t of ["t1", "t3"]) {
+      await api.login(t);
+      await expectCode(api.getReviewInputs("s01"), "FORBIDDEN");
+    }
+  });
+});

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, Outlet, useLocation } from "react-router";
 import { api } from "../api";
-import type { Role } from "../types/domain";
+import type { ConsentKind, Role } from "../types/domain";
 import { Spinner } from "../components/ui";
 
 export function useMe() {
@@ -12,7 +12,7 @@ export function useConsents(enabled = true) {
   return useQuery({ queryKey: ["consents"], queryFn: () => api.getConsents(), enabled });
 }
 
-export function useHasConsent(kind: "FACEPASS" | "AI" | "LEARNING_RECORD") {
+export function useHasConsent(kind: ConsentKind) {
   const { data } = useConsents();
   return !!data?.some((c) => c.kind === kind && c.granted);
 }

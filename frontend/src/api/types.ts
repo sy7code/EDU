@@ -7,8 +7,11 @@ import type {
   CriterionScore,
   QuizAttempt,
   Rubric,
+  ReviewInputs,
   SessionTopic,
   StudentQuizQuestion,
+  SubjectWeekSummary,
+  TeacherAssignment,
   GrowthReport,
   QuizReportReason,
   QuizReportOutcome,
@@ -127,7 +130,8 @@ export interface Api {
   startSession(input: { goal: SessionGoal; authEventId: string }): Promise<LearningSession>;
   endSession(sessionId: string, authEventId: string): Promise<LearningSession>;
   getSession(sessionId: string): Promise<LearningSession>;
-  listSessions(filter: { studentId?: string }): Promise<LearningSession[]>;
+  /** 교사: 담임이면 자기 반 학생 전체(subject 주면 그 과목만). 교과 교사는 subject 필수, 권한 밖이면 빈 배열 */
+  listSessions(filter: { studentId?: string; subject?: string }): Promise<LearningSession[]>;
 
   // 기록
   addEntry(input: { sessionId: string; kind: EntryKind; content: string; visibility: Visibility }): Promise<LearningEntry>;
@@ -152,10 +156,20 @@ export interface Api {
   addFeedback(sessionId: string, content: string): Promise<Feedback>;
   /** 학생 본인 피드백을 읽음으로 (이미 읽었으면 그대로) */
   markFeedbackRead(feedbackId: string): Promise<void>;
-  /** 교사가 학생 상세를 열 때 열람 기록 (자기 반만) */
-  logStudentView(studentId: string): Promise<void>;
+  /** 교사가 학생 상세를 열 때 열람 기록. 담임은 자기 반, 교과 교사는 subject 필수(배정·동의 확인 후 audit에 과목 기록) */
+  logStudentView(studentId: string, subject?: string): Promise<void>;
   /** 학생: 내 기록 열람 기록 / 교사: 내가 연 기록. 최근 순 */
   listAuditLogs(): Promise<AuditLog[]>;
+
+  // 교과 교사
+  /** 내 현재 학기 교과 배정 (교사만) */
+  listMyAssignments(): Promise<TeacherAssignment[]>;
+  /** 다시 볼 주제 계산용 원자료. 학생 본인만 (교사 호출은 FORBIDDEN) */
+  getReviewInputs(studentId: string): Promise<ReviewInputs>;
+  /** 이번 주(서울) 반·과목 집계. 현재 학기 배정 없으면 NOT_FOUND. 교과 공유 동의 학생만 들어감 */
+  getSubjectSummary(classId: string, subject: string): Promise<SubjectWeekSummary>;
+  /** 배정된 반·과목의 교과 공유 동의 학생, 번호순. 배정 없으면 NOT_FOUND */
+  listSubjectStudents(classId: string, subject: string): Promise<Student[]>;
 
   // 교사
   getDashboard(classId: string): Promise<Dashboard>;

@@ -195,10 +195,12 @@ export type Feedback = {
   createdAt: string;
   /** 학생이 읽은 시각. null이면 새 피드백 */
   readAt: string | null;
+  /** 교과 교사가 쓴 피드백이면 그 세션 과목, 담임이 쓰면 null */
+  authorSubject?: string | null;
 };
 
 /** 교사 열람 기록 (학생: 누가 내 기록을 봤는지 / 교사: 내가 연 기록) */
-export type AuditLog = { id: string; actorId: string; actorName: string; action: string; studentId: string | null; createdAt: string };
+export type AuditLog = { id: string; actorId: string; actorName: string; action: string; studentId: string | null; createdAt: string; /** 교과 교사 열람이면 그 과목 */ subject?: string | null };
 
 // 교차채점: AI가 근거와 함께 제안 → 교사가 확정. AI는 최종 판단하지 않는다.
 export type RubricCriterion = {
