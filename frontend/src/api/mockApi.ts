@@ -3,7 +3,7 @@
 import { maskName, maskPii } from "../lib/privacy";
 import { minutesBetween } from "../lib/time";
 import { paceVisibleEntries } from "../lib/pace";
-import { activityLabel } from "../lib/checklists";
+import { activityLabel, goalParts } from "../lib/checklists";
 import { quizSignal } from "../lib/topicSignal";
 import { activeAssignments, canSubjectTeacherSee, isHomeroomTeacher, subjectShareActive } from "../lib/subjectAccess";
 import { SUBJECTS } from "../lib/checklists";
@@ -341,7 +341,7 @@ export function createMockApi(opts: MockOptions): Api {
       {
         criterionId: "planning",
         level: s.goal.activities.length >= 2 || s.goal.note ? 2 : 1,
-        reason: `목표: ${s.goal.subject} / ${s.goal.activities.map(activityLabel).join(", ")}${s.goal.note ? " (메모 있음)" : ""}`,
+        reason: `목표: ${goalParts(s.goal).text} /${s.goal.activities.map(activityLabel).join(", ")}${s.goal.note ? " (메모 있음)" : ""}`,
         evidenceIds: ["goal"],
       },
       questions.length === 0
@@ -567,7 +567,9 @@ export function createMockApi(opts: MockOptions): Api {
       run(() => {
         const u = me();
         if (u.role !== "student") throw new ApiError("FORBIDDEN");
-        if (!goal.subject.trim() || goal.subject.length > 200) throw new ApiError("VALIDATION"); // "오늘 할 것" 필수, 활동 체크는 선택
+        // "오늘 할 것" 필수(새 형식은 note, 예전 형식은 subject), 과목 태그·활동 체크는 선택
+        const planText = goalParts(goal).text;
+        if (!planText.trim() || planText.length > 200 || goal.subject.length > 200) throw new ApiError("VALIDATION");
         if (db.sessions.some((s) => s.studentId === u.id && s.status === "ACTIVE")) {
           throw new ApiError("SESSION_ALREADY_ACTIVE");
         }

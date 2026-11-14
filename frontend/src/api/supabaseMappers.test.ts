@@ -190,6 +190,31 @@ describe("미룬 항목 수정 (변환)", () => {
   });
 });
 
+describe("목표 과목 태그", () => {
+  it("과목 태그 + 오늘 할 것: '과목 |  | 오늘 할 것'으로 쓰고 다시 읽는다", () => {
+    const goal = { subject: "수학", activities: [], note: "이차함수 복습" };
+    expect(goalToText(goal)).toBe("수학 |  | 이차함수 복습");
+    expect(textToGoal(goalToText(goal))).toEqual(goal);
+  });
+  it("200자를 넘으면 과목은 지키고 오늘 할 것을 줄인다", () => {
+    const text = goalToText({ subject: "기타", activities: ["concept"], note: "가".repeat(200) });
+    expect(Array.from(text).length).toBe(200);
+    expect(textToGoal(text)).toMatchObject({ subject: "기타", activities: ["concept"] });
+  });
+});
+
+describe("목표 읽기: subject 컬럼 우선", () => {
+  it("예전 자유 입력 행이라도 subject 컬럼이 있으면 그 과목 + 글은 오늘 할 것으로 읽는다", () => {
+    expect(textToGoal("이차함수 꼭짓점 복습", "수학")).toEqual({ subject: "수학", activities: [], note: "이차함수 꼭짓점 복습" });
+  });
+  it("컬럼과 글의 과목이 다르면 컬럼(서버 열람 기준)을 따른다", () => {
+    expect(textToGoal("영어 |  | 단어", "수학")).toEqual({ subject: "수학", activities: [], note: "단어" });
+  });
+  it("예전 '글 | 활동 | 메모' 행은 컬럼이 있어도 메모를 지키려고 그대로 둔다", () => {
+    expect(textToGoal("복습 | 개념 이해하기 | 꼭짓점", "기타")).toEqual({ subject: "복습", activities: ["concept"], note: "꼭짓점" });
+  });
+});
+
 describe("목표 메모", () => {
   it("활동 없이 메모만 있어도 메모를 활동으로 읽지 않는다", () => {
     expect(textToGoal(goalToText({ subject: "복습", activities: [], note: "꼭짓점" }))).toEqual({ subject: "복습", activities: [], note: "꼭짓점" });

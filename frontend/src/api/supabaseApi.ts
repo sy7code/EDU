@@ -52,7 +52,7 @@ function mapSession(r: Row): LearningSession {
     ...(subject ? { subject } : {}),
     id: String(r.id),
     studentId: String(r.studentId),
-    goal: textToGoal(String(r.goal ?? "")),
+    goal: textToGoal(String(r.goal ?? ""), subject),
     startedAt: String(r.startedAt),
     endedAt: (r.endedAt as string | null) ?? null,
     startAuth: (r.startAuth as LearningSession["startAuth"]) ?? "QR",

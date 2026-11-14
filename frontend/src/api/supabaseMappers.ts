@@ -1,5 +1,5 @@
 // 프론트 형식 ↔ 백엔드(Supabase) 형식 변환. 순수 함수만 둔다.
-import { GOAL_ACTIVITIES, REFLECTION_ITEMS } from "../lib/checklists";
+import { GOAL_ACTIVITIES, REFLECTION_ITEMS, isSubject } from "../lib/checklists";
 import type { QuizReportOutcome, ReportedQuestion, AuditLog, ClassAnalyticsRaw, Feedback, Consent, ConsentKind, LearningSession, Dashboard, DashboardRow, GroundedItem, Reflection, ReviewInputs, SessionGoal, StudentQuizQuestion, TeacherAssignment, User } from "../types/domain";
 import { ApiError, type ApiErrorCode, type RealtimeStatus } from "./types";
 
@@ -11,8 +11,13 @@ export function goalToText(goal: SessionGoal): string {
   // 자유 입력에 구분자(" | ")가 있으면 다시 읽을 때 깨지므로 " / "로 바꾼다
   const clean = (t: string) => t.replace(/\s*\|\s*/g, " / ").trim();
   const labels = goal.activities.map((id) => GOAL_ACTIVITIES.find((a) => a.id === id)?.label ?? id);
-  const note = goal.note?.trim() ? clean(goal.note) : "";
-  // 형식: "오늘 할 것 | 활동 | 메모". 메모가 있으면 활동 칸이 비어도 자리를 남겨 메모가 활동으로 읽히지 않게 한다
+  let note = goal.note?.trim() ? clean(goal.note) : "";
+  if (isSubject(goal.subject) && note) {
+    // 과목 태그 형식: "과목 | 활동 | 오늘 할 것". 200자를 넘으면 과목·활동은 지키고 오늘 할 것을 줄인다
+    const head = goal.subject + SEP + labels.join(", ") + SEP;
+    note = Array.from(note).slice(0, Math.max(1, GOAL_MAX - Array.from(head).length)).join("");
+  }
+  // 예전 형식: "오늘 할 것 | 활동 | 메모". 메모가 있으면 활동 칸이 비어도 자리를 남겨 메모가 활동으로 읽히지 않게 한다
   const tailText = note ? SEP + labels.join(", ") + SEP + note : labels.length ? SEP + labels.join(", ") : "";
   // 200자를 넘으면 활동·메모는 지키고 '오늘 할 것'을 줄인다
   const budget = Math.max(1, GOAL_MAX - Array.from(tailText).length);
@@ -20,10 +25,15 @@ export function goalToText(goal: SessionGoal): string {
   return Array.from(subject + tailText).slice(0, GOAL_MAX).join("");
 }
 
-export function textToGoal(text: string): SessionGoal {
+/** subjectColumn: 서버 sessions.subject. 교과 교사 열람 기준이라 글의 과목보다 앞선다.
+ *  예전 자유 입력 한 줄 행은 컬럼이 있으면 "컬럼 과목 + 오늘 할 것"으로, 없으면 글 그대로(subject 칸) 읽는다 */
+export function textToGoal(text: string, subjectColumn?: string): SessionGoal {
+  const col = subjectColumn && isSubject(subjectColumn) ? subjectColumn : undefined;
   const parts = text.split(SEP);
-  if (parts.length < 2) return { subject: text, activities: [] };
-  const [subject, labels, ...rest] = parts;
+  if (parts.length < 2) return col && text.trim() ? { subject: col, activities: [], note: text } : { subject: text, activities: [] };
+  const [first, labels, ...rest] = parts;
+  // 새 형식(첫 칸이 과목)일 때만 컬럼으로 바꾼다. 예전 "글 | 활동 | 메모"는 메모를 지키려고 그대로 둔다
+  const subject = col && isSubject(first) ? col : first;
   const activities = labels
     .split(", ")
     .filter(Boolean)
@@ -333,10 +343,9 @@ export function realtimeStatus(status: string, wasSubscribed: boolean): Realtime
 
 // ---------- 교과 교사 (백엔드 v0.9) ----------
 /** 세션 시작 때 보낼 sessions.subject. 서버 목록(국어·수학·영어·사회·과학) 밖은 기타 */
-const SESSION_SUBJECTS = ["국어", "수학", "영어", "사회", "과학"];
 export function toSessionSubject(text: string): string {
   const t = text.trim();
-  return SESSION_SUBJECTS.includes(t) ? t : "기타";
+  return isSubject(t) ? t : "기타";
 }
 
 /** v_feedback·v_audit_logs·v_sessions의 subject 계열 값: 문자열이 아니면 null */

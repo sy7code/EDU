@@ -6,6 +6,11 @@
 .form-card .form-label { font-size: 15px; font-weight: 700; margin: 0 0 9px; }
 .form-card .form-label small { font-weight: 400; color: var(--muted); }
 .form-card .button.full { margin-top: 0; }
+/* 과목 태그 (StartPage) */
+.form-card .subject-chips { margin-bottom: 6px; }
+.subject-chips button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.subject-chips button.suggested { border-style: dashed; }
+.subject-hint { margin: 0 0 20px; font-size: 13px; color: var(--muted); min-height: 1em; }
 
 /* 선택 칩 (체크박스를 시각적으로 숨기고 라벨을 칩으로) */
 .choice-chip { position: relative; cursor: pointer; }

@@ -248,7 +248,7 @@ export function StudentHome() {
                   </span>
                   <span className="record-main">
                     <small>{formatDateTime(s.startedAt)}</small>
-                    <strong>{s.goal.subject}</strong>
+                    <strong>{goalLabel({ ...s.goal, activities: [] })}</strong>
                     <span>
                       <Icon name="clock" size={15} />
                       {formatDuration(s.durationMinutes ?? 0)}
