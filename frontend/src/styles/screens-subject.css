@@ -1,0 +1,53 @@
+/* 과목별 다시 볼 주제·교과 공개 동의. 클래스는 모두 subj- 접두사 */
+.subj-card {
+  margin-top: 16px;
+  min-width: 0;
+}
+.subj-title {
+  font-size: 19px;
+  margin-bottom: 8px;
+}
+.subj-empty {
+  color: var(--muted);
+  font-size: 14px;
+}
+.subj-group + .subj-group {
+  margin-top: 12px;
+}
+.subj-group h3 {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.subj-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+.subj-group li {
+  overflow-wrap: anywhere;
+}
+.subj-review-line {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.subj-consent-lock {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+.subj-author {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+.consent-row .segmented button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

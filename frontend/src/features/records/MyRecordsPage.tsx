@@ -3,6 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { api, FEATURES } from "../../api";
 import { useMe } from "../../auth/session";
+import { SubjectReviewCard } from "./SubjectReviewCard";
 import { TopicGrowthView } from "./TopicGrowthView";
 import { Icon } from "../../components/Icon";
 import { Badge, Card, EmptyState, ErrorState, Spinner } from "../../components/ui";
@@ -60,6 +61,7 @@ export function MyRecordsPage() {
       </nav>
       {tab === "notes" && <NotesView onOpenSession={choose} />}
       {tab === "list" && FEATURES.quiz && me.data && <TopicGrowthView studentId={me.data.id} viewer="student" />}
+      {tab === "list" && FEATURES.subjectTeacher && me.data && <SubjectReviewCard studentId={me.data.id} />}
       {tab === "list" && sessions.isLoading && <Spinner />}
       {tab === "list" && sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
       {tab === "list" && sessions.data?.length === 0 && <EmptyState title="아직 기록이 없어요">홈에서 첫 학습을 시작해 보세요.</EmptyState>}

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "../../api";
+import { api, ApiError, FEATURES } from "../../api";
 import { useHasConsent } from "../../auth/session";
 import { Badge, Button, ErrorState, Spinner } from "../../components/ui";
 import { Icon } from "../../components/Icon";
+import { sessionReviewLine } from "../../lib/reviewTopics";
 import { quizWaitText } from "../../lib/waitStages";
 import type { QuizAttempt, QuizReportOutcome, QuizReportReason, SessionTopic, StudentQuizQuestion } from "../../types/domain";
 
@@ -249,9 +250,14 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
   const alreadyTaken = submit.error instanceof ApiError && submit.error.code === "QUIZ_ALREADY_TAKEN";
   const taken = useQuery({ queryKey: ["quiz-attempt-taken", sessionId], queryFn: () => api.getQuizAttempt(sessionId), enabled: alreadyTaken });
 
-  if (submit.data) return <QuizResult attempt={submit.data} onNext={finish} />;
+  const session = useQuery({ queryKey: ["session", sessionId], queryFn: () => api.getSession(sessionId), enabled: FEATURES.subjectTeacher });
+  const topicName = quiz.data?.topic.name;
+  const reviewLineOf = (a: QuizAttempt) =>
+    FEATURES.subjectTeacher && session.data && topicName ? sessionReviewLine(session.data.goal.subject, topicName, a.correct, a.total) : null;
+
+  if (submit.data) return <QuizResult attempt={submit.data} onNext={finish} reviewLine={reviewLineOf(submit.data)} />;
   if (alreadyTaken) {
-    if (taken.data) return <QuizResult attempt={taken.data} onNext={finish} />;
+    if (taken.data) return <QuizResult attempt={taken.data} onNext={finish} reviewLine={reviewLineOf(taken.data)} />;
     return (
       <div>
         <StudySteps current="result" />
@@ -366,7 +372,7 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
 }
 
 /** collapsed: 기록 화면에서는 점수만 보이고 문항은 눌러서 펼친다 */
-export function QuizResult({ attempt, onNext, collapsed = false }: { attempt: QuizAttempt; onNext?: () => void; collapsed?: boolean }) {
+export function QuizResult({ attempt, onNext, collapsed = false, reviewLine = null }: { attempt: QuizAttempt; onNext?: () => void; collapsed?: boolean; reviewLine?: string | null }) {
   const score = attempt.total === 0 ? "채점할 문항이 없어요" : `${attempt.correct} / ${attempt.total}`;
   const title = `확인 테스트 결과: ${score}`;
   const list = (
@@ -421,6 +427,7 @@ export function QuizResult({ attempt, onNext, collapsed = false }: { attempt: Qu
         </div>
         <Badge tone="sky">성적에 반영되지 않아요</Badge>
       </div>
+      {reviewLine && <p className="subj-review-line">다시 볼 주제: {reviewLine}</p>}
       {list}
       {onNext && (
         <div className="sticky-actions">

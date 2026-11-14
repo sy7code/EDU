@@ -166,6 +166,7 @@ export function SessionDetail({ session, highlight = [] }: { session: LearningSe
           {fb.data?.map((f) => (
             <div key={f.id} className="feedback">
               {newIds.has(f.id) && <Badge tone="brand">새 피드백</Badge>}
+              {f.authorSubject && <small className="subj-author">{f.authorSubject} 선생님</small>}
               <p className="feedback-text">{f.content}</p>
               <small className="feedback-date">{formatDateTime(f.createdAt)}</small>
             </div>

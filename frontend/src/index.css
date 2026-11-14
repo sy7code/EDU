@@ -9,6 +9,7 @@
 @import "./styles/screens-pace.css";
 @import "./styles/screens-paper.css";
 @import "./styles/screens-help.css";
+@import "./styles/screens-subject.css";
 
 @theme {
   --color-brand-50: #fff0f5;

@@ -8,8 +8,14 @@ import { Button, ErrorState, Spinner } from "../../components/ui";
 import type { ConsentKind } from "../../types/domain";
 import { afterConsentPath } from "../../lib/returnPath";
 import { formatDateTime } from "../../lib/time";
+import { consentPayload } from "../../lib/consentSave";
 
-const ITEMS: Array<{ kind: ConsentKind; title: string; body: string; ifNo: string }> = [
+const ITEMS: Array<{
+  kind: ConsentKind;
+  title: string;
+  body: string;
+  ifNo: string;
+}> = [
   {
     kind: "FACEPASS",
     title: "얼굴 인증(토스 페이스패스)으로 학습 시작·종료 확인",
@@ -31,9 +37,22 @@ const ITEMS: Array<{ kind: ConsentKind; title: string; body: string; ifNo: strin
     body: "'교사 공개'로 남긴 기록과 성찰만 선생님이 볼 수 있어요. '나만 보기' 기록은 선생님도 AI도 보지 않아요. 기록은 성적·징계에 쓰지 않아요.",
     ifNo: "동의하지 않으면 모든 기록이 '나만 보기'로 저장돼요.",
   },
+  {
+    kind: "SUBJECT_SHARE",
+    title: "교과 선생님에게 공개",
+    body: "수학으로 시작한 학습은 수학 선생님도 볼 수 있어요. '나만 보기' 기록은 보이지 않아요.",
+    ifNo: "동의하지 않으면 담임 선생님만 볼 수 있어요.",
+  },
 ];
 
-const ICON: Record<ConsentKind, string> = { FACEPASS: "users", AI: "spark", LEARNING_RECORD: "book", SUBJECT_SHARE: "book" };
+const SUBJECT_NEEDS_RECORD = "먼저 '선생님에게 학습 기록 공개'에 동의해야 해요";
+
+const ICON: Record<ConsentKind, string> = {
+  FACEPASS: "users",
+  AI: "spark",
+  LEARNING_RECORD: "book",
+  SUBJECT_SHARE: "book",
+};
 
 export function ConsentPage() {
   const me = useMe();
@@ -52,16 +71,28 @@ export function ConsentPage() {
 
   useEffect(() => {
     if (!consents.data?.length) return;
-    const next = { FACEPASS: null, AI: null, LEARNING_RECORD: null, SUBJECT_SHARE: null } as Record<ConsentKind, boolean | null>;
+    const next = {
+      FACEPASS: null,
+      AI: null,
+      LEARNING_RECORD: null,
+      SUBJECT_SHARE: null,
+    } as Record<ConsentKind, boolean | null>;
     for (const c of consents.data) next[c.kind] = c.granted;
     setValues(next);
     setGuardian(consents.data.some((c) => c.byGuardian));
   }, [consents.data]);
 
+  const items = ITEMS.filter(
+    (i) => i.kind !== "SUBJECT_SHARE" || FEATURES.subjectTeacher,
+  );
   const save = useMutation({
     mutationFn: () =>
       api.saveConsents(
-        ITEMS.map((i) => ({ kind: i.kind, granted: values[i.kind] === true, byGuardian: !!me.data?.under14 && guardian })),
+        consentPayload(
+          items.map((i) => i.kind),
+          values,
+          !!me.data?.under14 && guardian,
+        ),
       ),
     onSuccess: async () => {
       const firstSave = !consents.data?.length; // 저장 전 동의 기록이 없었으면 처음 저장
@@ -71,10 +102,15 @@ export function ConsentPage() {
   });
 
   if (consents.isLoading || me.isLoading) return <Spinner />;
-  const allDecided = ITEMS.every((i) => values[i.kind] !== null);
+  const recordOn = values.LEARNING_RECORD === true;
+  const allDecided = items.every(
+    (i) =>
+      values[i.kind] !== null ||
+      (i.kind === "SUBJECT_SHARE" && values.LEARNING_RECORD === false),
+  );
   const needGuardian = !!me.data?.under14;
   // 거부·철회는 보호자 동의 없이도 된다 (서버 4-7과 같은 규칙). "동의해요"를 하나라도 골랐을 때만 막는다
-  const anyGranted = ITEMS.some((i) => values[i.kind] === true);
+  const anyGranted = items.some((i) => values[i.kind] === true);
 
   return (
     <div className="consent-page">
@@ -86,36 +122,72 @@ export function ConsentPage() {
         </div>
       </div>
       <div className="card consent-card">
-        {ITEMS.map((i) => (
-          <div className="consent-row" key={i.kind}>
-            <span className="consent-icon">
-              <Icon name={ICON[i.kind]} />
-            </span>
-            <div>
-              <h2>{i.title}</h2>
-              <p>{i.body}</p>
-              <small>{i.ifNo}</small>
+        {items.map((i) => {
+          const locked = i.kind === "SUBJECT_SHARE" && !recordOn;
+          return (
+            <div className="consent-row" key={i.kind}>
+              <span className="consent-icon">
+                <Icon name={ICON[i.kind]} />
+              </span>
+              <div>
+                <h2>{i.title}</h2>
+                <p>{i.body}</p>
+                <small>{i.ifNo}</small>
+                {locked && (
+                  <small className="subj-consent-lock">
+                    {SUBJECT_NEEDS_RECORD}
+                  </small>
+                )}
+              </div>
+              <div
+                className="segmented"
+                role="radiogroup"
+                aria-label={i.title}
+                aria-disabled={locked || undefined}
+              >
+                {[true, false].map((v) => (
+                  <button
+                    key={String(v)}
+                    type="button"
+                    role="radio"
+                    aria-checked={(locked ? false : values[i.kind]) === v}
+                    disabled={locked}
+                    onClick={() =>
+                      setValues((s) => ({
+                        ...s,
+                        [i.kind]: v,
+                        // 학습 기록을 거절로 바꾸면 교과 공개도 거절
+                        ...(i.kind === "LEARNING_RECORD" && !v
+                          ? { SUBJECT_SHARE: false }
+                          : {}),
+                      }))
+                    }
+                    className={
+                      (locked ? null : values[i.kind]) === v
+                        ? v
+                          ? "active"
+                          : "active no"
+                        : ""
+                    }
+                  >
+                    {v ? "동의해요" : "동의하지 않아요"}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="segmented" role="radiogroup" aria-label={i.title}>
-              {[true, false].map((v) => (
-                <button
-                  key={String(v)}
-                  type="button"
-                  role="radio"
-                  aria-checked={values[i.kind] === v}
-                  onClick={() => setValues((s) => ({ ...s, [i.kind]: v }))}
-                  className={values[i.kind] === v ? (v ? "active" : "active no") : ""}
-                >
-                  {v ? "동의해요" : "동의하지 않아요"}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {needGuardian && (
           <label className="guardian">
-            <input type="checkbox" checked={guardian} onChange={(e) => setGuardian(e.target.checked)} />
-            <span>만 14세 미만이라 보호자 동의를 받았어요. (실제 서비스에서는 보호자 본인 확인 절차를 거쳐요)</span>
+            <input
+              type="checkbox"
+              checked={guardian}
+              onChange={(e) => setGuardian(e.target.checked)}
+            />
+            <span>
+              만 14세 미만이라 보호자 동의를 받았어요. (실제 서비스에서는 보호자
+              본인 확인 절차를 거쳐요)
+            </span>
           </label>
         )}
         {save.error && (
@@ -123,28 +195,46 @@ export function ConsentPage() {
             <ErrorState error={save.error} />
           </div>
         )}
-        <Button className="w-full consent-save" disabled={!allDecided || (needGuardian && anyGranted && !guardian) || save.isPending} onClick={() => save.mutate()}>
+        <Button
+          className="w-full consent-save"
+          disabled={
+            !allDecided ||
+            (needGuardian && anyGranted && !guardian) ||
+            save.isPending
+          }
+          onClick={() => save.mutate()}
+        >
           저장하고 시작하기
         </Button>
       </div>
-      {FEATURES.audit && consents.data && consents.data.length > 0 && <ViewLog />}
+      {FEATURES.audit && consents.data && consents.data.length > 0 && (
+        <ViewLog />
+      )}
     </div>
   );
 }
 
 /** 누가 언제 내 기록을 열어 봤는지 (교사 열람 기록) */
 function ViewLog() {
-  const logs = useQuery({ queryKey: ["audit-logs"], queryFn: () => api.listAuditLogs() });
+  const logs = useQuery({
+    queryKey: ["audit-logs"],
+    queryFn: () => api.listAuditLogs(),
+  });
   return (
     <section className="view-log">
       <div className="section-title">
         <h2>내 기록을 본 사람</h2>
         <span>최근 10개</span>
       </div>
-      <p className="view-log-note">선생님이 '학생 상세' 화면에서 내 기록을 열면 남아요 (최근 10개). 반 전체 통계·대시보드를 볼 때는 남지 않아요.</p>
+      <p className="view-log-note">
+        선생님이 '학생 상세' 화면에서 내 기록을 열면 남아요 (최근 10개). 반 전체
+        통계·대시보드를 볼 때는 남지 않아요.
+      </p>
       <div className="card access-list">
         {logs.isLoading && <Spinner />}
-        {logs.error && <ErrorState error={logs.error} onRetry={() => logs.refetch()} />}
+        {logs.error && (
+          <ErrorState error={logs.error} onRetry={() => logs.refetch()} />
+        )}
         {logs.data?.length === 0 && (
           <div>
             <p>아직 없어요</p>
@@ -155,7 +245,11 @@ function ViewLog() {
             <span>
               <Icon name="users" />
             </span>
-            <p>{l.actorName ? `${l.actorName} 선생님` : "선생님"}이 내 기록을 봤어요</p>
+            <p>
+              {l.actorName ? `${l.actorName} 선생님` : "선생님"}
+              {l.subject ? `(${l.subject})` : ""}이{" "}
+              {l.subject ? "열람" : "내 기록을 봤어요"}
+            </p>
             <small className="access-time">{formatDateTime(l.createdAt)}</small>
           </div>
         ))}
