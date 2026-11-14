@@ -31,7 +31,20 @@ describe("few / studentCount", () => {
     const r = run(withStudents(2));
     expect(r.few).toBe(true);
     expect(r.studentCount).toBe("적음");
-    expect(r.sessionCount).toBe(2);
+  });
+  it("few면 학습 수도 숨긴다", () => {
+    expect(run(withStudents(2)).sessionCount).toBe(0);
+    expect(run(withStudents(3)).sessionCount).toBe(3);
+  });
+  it("students에 없는 학생의 학습은 집계하지 않는다", () => {
+    const base = withStudents(3);
+    const r = run({
+      ...base,
+      sessions: [...base.sessions, { id: "sx", subject: "수학", startedAt: IN }, { id: "sy", subject: "수학", startedAt: IN }],
+      sessionOwners: [...base.sessionOwners, { sessionId: "sx", studentId: "u9" }],
+    });
+    expect(r.sessionCount).toBe(3);
+    expect(r.studentCount).toBe(3);
   });
   it("3명이면 숫자", () => {
     const r = run(withStudents(3));
@@ -80,6 +93,7 @@ describe("topics", () => {
     const base = withStudents(5);
     const r = run({
       ...base,
+      students: [...base.students, ...[6, 7, 8].map((k) => ({ studentId: `u${k}` }))],
       sessions: [...base.sessions, ...[6, 7, 8].map((k) => ({ id: `s${k}`, subject: "수학", startedAt: IN }))],
       sessionOwners: [...base.sessionOwners, ...[6, 7, 8].map((k) => ({ sessionId: `s${k}`, studentId: `u${k}` }))],
       sessionTopics: [...base.sessionTopics, ...[6, 7, 8].map((k) => ({ sessionId: `s${k}`, topicId: "U", name: "인수분해" }))],
@@ -130,6 +144,17 @@ describe("topics", () => {
     expect(r.topics.map((x) => x.topicId)).toEqual(["C", "A", "B"]);
   });
 
+  it("학생 한 명의 후보가 4개 이상이어도 reviewCount에 모두 센다", () => {
+    const base = withStudents(3);
+    const ids = ["T1", "T2", "T3", "T4"];
+    const r = run({
+      ...base,
+      sessionTopics: base.sessions.flatMap((s) => ids.map((t) => ({ sessionId: s.id, topicId: t, name: t }))),
+      attempts: base.sessions.flatMap((s) => ids.map((t, n) => ({ sessionId: s.id, topicId: t, correct: 0, total: 5, createdAt: `2026-11-10T0${n + 1}:00:00Z` }))),
+    });
+    expect(r.topics.map((t) => t.reviewCount)).toEqual([3, 3, 3, 3]);
+  });
+
   it("few면 topics·hardQuestions는 비운다", () => {
     const base = withStudents(2);
     const r = run({ ...base, items: [{ sessionId: "s1", questionId: "q", prompt: "p", correct: false, reported: false }], attempts: [att(1, 0)] });
@@ -160,6 +185,20 @@ describe("hardQuestions", () => {
     ]);
   });
 
+  it("같은 학생이 한 문항을 여러 번 풀면 마지막 응답만 센다", () => {
+    const r = run({ ...withStudents(3), items: [it_(1, "q", false), it_(1, "q", false), it_(1, "q", false), it_(2, "q", true), it_(3, "q", true)] });
+    expect(r.hardQuestions).toEqual([{ questionId: "q", prompt: "문항 q", rate: 2 / 3, answered: 3 }]);
+  });
+  it("마지막 응답은 세션 시작 시각이 늦은 쪽이다", () => {
+    const base = withStudents(3);
+    const r = run({
+      ...base,
+      sessions: [{ id: "s1", subject: "수학", startedAt: "2026-11-12T01:00:00Z" }, { id: "s2", subject: "수학", startedAt: IN }, { id: "s3", subject: "수학", startedAt: IN }, { id: "s1old", subject: "수학", startedAt: "2026-11-10T00:00:00Z" }],
+      sessionOwners: [...base.sessionOwners, { sessionId: "s1old", studentId: "u1" }],
+      items: [{ sessionId: "s1", questionId: "q", prompt: "p", correct: true, reported: false }, { sessionId: "s1old", questionId: "q", prompt: "p", correct: false, reported: false }, it_(2, "q", false), it_(3, "q", false)],
+    });
+    expect(r.hardQuestions[0].rate).toBeCloseTo(1 / 3);
+  });
   it("정답률이 같으면 questionId 오름차순", () => {
     const r = run({ ...withStudents(3), items: [...all("qz", [false, false, true]), ...all("qb", [false, false, true])] });
     expect(r.hardQuestions.map((q) => q.questionId)).toEqual(["qb", "qz"]);
