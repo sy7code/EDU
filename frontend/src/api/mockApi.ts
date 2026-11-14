@@ -27,6 +27,7 @@ import type {
 } from "../types/domain";
 import type { Db, ServedQuestion } from "./mockData";
 import { keywordHits, TOPIC_DICTIONARY, type DictionaryTopic } from "./mockTopicData";
+import { mockAiReply } from "./mockAiReply";
 import { ApiError, type Api } from "./types";
 
 export type MockOptions = {
@@ -232,16 +233,6 @@ export function createMockApi(opts: MockOptions): Api {
   }
   function knownNames() {
     return db.users.map((u) => u.name); // 학생 + 교사 이름
-  }
-  function socraticReply(s: LearningSession, text: string): string {
-    const topic = `${s.goal.subject} ${s.goal.activities.map(activityLabel).join(", ")}`;
-    if (/알려\s*줘|정답|답만|풀어\s*줘|대신|다\s*써|해\s*줘/.test(text)) {
-      return `바로 답을 주기보다 같이 찾아볼게요. 지금 "${topic}"에서 어디까지 해 봤어요? 막힌 단계 하나만 골라서 말해 주면, 그 단계에 맞는 힌트를 줄게요.`;
-    }
-    if (/[?？]|왜|어떻게|뭐/.test(text)) {
-      return "좋은 질문이에요. 답하려면 먼저 어떤 개념을 알아야 할까요? 교과서에서 관련 부분을 찾아 한 줄로 메모해 보고, 그 메모가 질문과 어떻게 이어지는지 말해 줄래요?";
-    }
-    return "방금 쓴 내용을 예시 하나로 확인해 볼까요? 내 말로 한 문장 설명을 남겨 두면, 나중에 돌아볼 때 무엇이 달라졌는지 보기 쉬워요.";
   }
   function grounded(e: LearningEntry): GroundedItem {
     const text = e.kind === "PAPER" ? "종이에 수기로 학습 기록" : e.content.length > 40 ? `${e.content.slice(0, 40)}…` : e.content;
@@ -635,7 +626,7 @@ export function createMockApi(opts: MockOptions): Api {
         opts.onAiPayload?.(masked);
         // 저장도 마스킹된 값으로 (교사 타임라인·로그에 원문 개인정보가 남지 않게)
         const studentMsg: AiMessage = { id: id("ai"), sessionId, role: "student", content: masked, createdAt: iso() };
-        const aiMsg: AiMessage = { id: id("ai"), sessionId, role: "ai", content: socraticReply(s, masked), createdAt: iso() };
+        const aiMsg: AiMessage = { id: id("ai"), sessionId, role: "ai", content: mockAiReply(masked), createdAt: iso() };
         db.aiMessages.push(studentMsg, aiMsg);
         return aiMsg;
       }),

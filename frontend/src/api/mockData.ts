@@ -19,6 +19,7 @@ import type {
   User,
 } from "../types/domain";
 import { TOPIC_DICTIONARY, type TopicLevel } from "./mockTopicData";
+import { mockAiReply } from "./mockAiReply";
 
 export type Db = {
   users: User[];
@@ -314,8 +315,9 @@ export function createSeed(now: Date): Db {
       const type = style[Math.floor(ar() * style.length)];
       const bank = (QUESTION_BANK[s.goal.subject] ?? QUESTION_BANK["수학"])[type];
       const at = new Date(start + (k + 1) * 5 * 60000);
-      aiMessages.push({ id: nextId("ai"), sessionId: s.id, role: "student", content: bank[Math.floor(ar() * bank.length)], createdAt: iso(at) });
-      aiMessages.push({ id: nextId("ai"), sessionId: s.id, role: "ai", content: "좋은 질문이에요. 먼저 스스로 어디까지 생각했는지 말해 볼래요?", createdAt: iso(new Date(at.getTime() + 30000)) });
+      const question = bank[Math.floor(ar() * bank.length)];
+      aiMessages.push({ id: nextId("ai"), sessionId: s.id, role: "student", content: question, createdAt: iso(at) });
+      aiMessages.push({ id: nextId("ai"), sessionId: s.id, role: "ai", content: mockAiReply(question), createdAt: iso(new Date(at.getTime() + 30000)) });
     }
   }
 
