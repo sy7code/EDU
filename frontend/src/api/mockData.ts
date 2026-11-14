@@ -122,7 +122,7 @@ const SAMPLE_MEMOS = [
   "핵심 개념을 표로 정리함",
 ];
 const SAMPLE_QUESTIONS = [
-  "판별식과 꼭짓점은 어떤 관계가 있지?",
+  "이차함수 그래프에서 대칭축은 어떤 의미가 있지?", // 질문 요약 데모(낱말 묶음)와 겹치지 않게 '판별식'·'꼭짓점' 낱말을 쓰지 않음
   "왜 a가 음수면 위로 볼록이 되는 걸까?",
   "실생활에서 이차함수는 어디에 쓰이지?",
   "이 공식은 언제 쓰면 안 되나?",
@@ -261,7 +261,7 @@ export function createSeed(now: Date): Db {
   // 교과 교사 데모: 김가온(s01)·남다른(s99)의 이번 주 수학·국어 학습 (기존 난수 순서는 건드리지 않음)
   const weekStartMs = Date.parse(`${seoulWeekStart(now)}T00:00:00+09:00`);
   const weekRuns: Array<{ studentId: string; subject: string; hoursAgo: number; memo: string; question: string }> = [
-    { studentId: "s01", subject: "수학", hoursAgo: 3, memo: "완전제곱식으로 바꾸면 꼭짓점이 보인다", question: "판별식과 꼭짓점은 어떤 관계가 있지?" },
+    { studentId: "s01", subject: "수학", hoursAgo: 3, memo: "완전제곱식으로 바꾸면 꼭짓점이 보인다", question: "이차함수 그래프에서 대칭축은 어떤 의미가 있지?" },
     { studentId: "s01", subject: "국어", hoursAgo: 2, memo: "시의 화자와 상황을 표로 정리함", question: "비유랑 상징은 어떻게 구분하지?" },
     { studentId: "s99", subject: "수학", hoursAgo: 3, memo: "일차부등식 풀이 연습", question: "음수를 곱하면 왜 부등호가 바뀌지?" },
     { studentId: "s99", subject: "국어", hoursAgo: 2, memo: "설명문 문단 요약", question: "중심 문장은 어떻게 찾지?" },
@@ -390,7 +390,7 @@ export function createSeed(now: Date): Db {
   });
 
   // 과목 질문 핵심 요약 데모(이번 주 3반 수학 질문, 기존 난수 뒤에 붙여 기존 시드 값은 그대로):
-  // 꼭짓점 4명 · 주제 없는 판별식 3명 · 일차부등식 2명(3명 미만이라 숨김) + 제외 확인용(교과 공유 미동의 s02, PRIVATE 질문)
+  // 꼭짓점 순서 4명 · 판별식 3명 · 일차부등식 2명(3명 미만이라 숨김) + 제외 확인용(교과 공유 미동의 s02, PRIVATE 질문)
   const themeSpan = Math.max(0, now.getTime() - (weekStartMs + 60_000));
   const themeRuns: Array<{ studentId: string; question: string; topic: "order" | "disc" | "sign"; visibility: "TEACHER" | "PRIVATE" }> = [
     { studentId: "s08", question: "꼭짓점은 어떤 순서로 구해야 해?", topic: "order", visibility: "TEACHER" },
@@ -405,13 +405,13 @@ export function createSeed(now: Date): Db {
     { studentId: "s02", question: "꼭짓점 구하는 순서 좀 알려 줘", topic: "order", visibility: "TEACHER" }, // 교과 공유 미동의: 제외
     { studentId: "s20", question: "나만 아는 개인 질문이야", topic: "order", visibility: "PRIVATE" }, // 비공개: 제외
   ];
-  // 데모 전용 세부 주제(문항 풀 없음): 난수 시드의 같은 사전 주제 질문과 섞이지 않게 따로 둔다
+  // 세션 주제는 기존 사전 주제를 그대로 쓴다(가짜 주제를 만들지 않음). 묶음은 질문 글의 낱말로 나뉜다.
+  const ineqDict = TOPIC_DICTIONARY.find((d) => d.key === "linear-inequality")!;
   const themeTopics = {
-    order: { id: "topic-c1-demo-vertex-order", name: "꼭짓점 구하는 순서" },
-    disc: { id: "topic-c1-demo-discriminant", name: "판별식과 꼭짓점 관계" },
-    sign: { id: "topic-c1-demo-ineq-sign", name: "부등호 방향 바뀌는 때" },
+    order: { id: vertexId, name: vertex.name, memo: vertex.keywords[0] + " 정리" },
+    disc: { id: vertexId, name: vertex.name, memo: vertex.keywords[0] + " 정리" },
+    sign: { id: "topic-c1-" + ineqDict.key, name: ineqDict.name, memo: ineqDict.keywords[0] + " 정리" },
   } as const;
-  for (const [k, v] of Object.entries(themeTopics)) topics.push({ id: v.id, classId: "c1", key: "demo-" + k, name: v.name, subject: "수학" });
   themeRuns.forEach((t, order) => {
     const frac = (order + 1) / (themeRuns.length + 1);
     const start = new Date(Math.min(now.getTime(), weekStartMs + 60_000 + themeSpan * frac * 0.9));
@@ -423,7 +423,7 @@ export function createSeed(now: Date): Db {
     if (t.topic) {
       const dict = themeTopics[t.topic];
       const evId = nextId("entry");
-      entries.push({ id: evId, sessionId: sid, kind: "MEMO", content: dict.name + " 정리", visibility: "TEACHER", createdAt: iso(end) });
+      entries.push({ id: evId, sessionId: sid, kind: "MEMO", content: dict.memo, visibility: "TEACHER", createdAt: iso(end) });
       sessionTopics[sid] = [{ topicId: dict.id, name: dict.name, subject: "수학", evidenceIds: [evId] }];
     }
   });

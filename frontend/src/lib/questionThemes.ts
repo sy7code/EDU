@@ -1,5 +1,4 @@
 import type { QuestionTheme } from "../types/domain";
-import { classifyQuestion, QUESTION_TYPE_LABEL, type QuestionType } from "./questionType";
 
 export const THEME_MIN_STUDENTS = 3;
 export const THEME_MAX = 5;
@@ -30,33 +29,25 @@ export function finalizeThemes(raw: RawTheme[], ownerOf: Record<string, string>)
   return { themes: kept.slice(0, THEME_MAX), hiddenCount };
 }
 
-const OTHER_TOPIC = "기타 질문";
-const TITLE_BY_TYPE: Record<QuestionType, string> = {
-  CONCEPT: "의 개념과 이유를 궁금해해요",
-  CHECK: " 풀이가 맞는지 확인하고 싶어 해요",
-  ANSWER: "의 답이나 풀이를 바로 알고 싶어 해요",
-  OTHER: "에 대해 여러 질문이 있어요",
-};
+// mock 전용 낱말 규칙: 실제 AI를 흉내 내는 작은 표. 질문은 맞는 첫 규칙에 넣고, 묶음은 규칙 순서로 나온다.
+const MOCK_RULES: Array<{ title: string; match: (t: string) => boolean }> = [
+  { title: "꼭짓점을 구하는 순서가 헷갈려요", match: (t) => !t.includes("판별식") && t.includes("꼭짓점") && ["순서", "구하", "어떻게"].some((w) => t.includes(w)) },
+  { title: "판별식과 꼭짓점의 관계가 궁금해요", match: (t) => t.includes("판별식") },
+  { title: "부등호 방향이 바뀌는 때가 헷갈려요", match: (t) => ["부등호", "방향"].some((w) => t.includes(w)) },
+];
 
-/** mock AI: 질문이 달린 세션의 주제로 묶고(없으면 "기타 질문"), 가장 많은 질문 유형으로 제목 문장을 만든다 */
+/**
+ * mock AI: 질문 글의 낱말로 묶는다. 어느 규칙에도 안 맞는 질문은 묶지 않는다(기타 묶음 없음).
+ * topicName은 묶음 질문이 모두 같은 세션 주제일 때만 쓴다.
+ */
 export function mockThemeGroups(questions: Array<{ id: string; text: string; topicName: string | null }>): RawTheme[] {
-  const groups = new Map<string, Array<{ id: string; text: string }>>();
-  for (const q of questions) {
-    const key = q.topicName ?? OTHER_TOPIC;
-    groups.set(key, [...(groups.get(key) ?? []), q]);
-  }
   const out: RawTheme[] = [];
-  for (const [name, qs] of groups) {
-    const counts = new Map<QuestionType, number>();
-    for (const q of qs) {
-      const t = classifyQuestion(q.text);
-      counts.set(t, (counts.get(t) ?? 0) + 1);
-    }
-    // 동률이면 유형 순서(개념→확인→답 요청→기타)로
-    const order: QuestionType[] = ["CONCEPT", "CHECK", "ANSWER", "OTHER"];
-    const dominant = order.reduce((best, t) => ((counts.get(t) ?? 0) > (counts.get(best) ?? 0) ? t : best), order[0]);
-    const label = name === OTHER_TOPIC ? "주제가 정해지지 않은 질문" : name;
-    out.push({ title: `${label}${TITLE_BY_TYPE[dominant]} (${QUESTION_TYPE_LABEL[dominant]} 중심)`, questionIds: qs.map((q) => q.id), topicName: name === OTHER_TOPIC ? null : name });
+  for (const rule of MOCK_RULES) {
+    const qs = questions.filter((q) => MOCK_RULES.find((r) => r.match(q.text)) === rule);
+    if (qs.length === 0) continue;
+    const names = new Set(qs.map((q) => q.topicName));
+    const only = names.size === 1 ? [...names][0] : null;
+    out.push({ title: rule.title, questionIds: qs.map((q) => q.id), topicName: only });
   }
   return out;
 }

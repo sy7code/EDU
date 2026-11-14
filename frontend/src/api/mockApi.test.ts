@@ -1491,7 +1491,7 @@ describe("과목 질문 핵심 요약 (mock)", () => {
     expect(r.hiddenCount).toBeGreaterThanOrEqual(1);
     expect(r.generatedAt).not.toBeNull();
     // s02(교과 공유 미동의)·s20 PRIVATE 질문이 들어갔다면 꼭짓점 묶음이 5명이 된다
-    expect(r.themes.map((x) => x.topicName)).toEqual(["꼭짓점 구하는 순서", "판별식과 꼭짓점 관계"]);
+    expect(r.themes.map((x) => x.title)).toEqual(["꼭짓점을 구하는 순서가 헷갈려요", "판별식과 꼭짓점의 관계가 궁금해요"]);
     expect(JSON.stringify(r)).not.toMatch(/s\d\d/);
   });
 

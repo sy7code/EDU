@@ -55,25 +55,30 @@ describe("finalizeThemes", () => {
   });
 });
 
-describe("mockThemeGroups", () => {
-  it("세션 주제 이름으로 묶고 주제가 없으면 기타 질문으로 묶는다", () => {
+describe("mockThemeGroups (질문 글 낱말로 묶는 mock AI)", () => {
+  const q = (id: string, text: string, topicName: string | null = "이차함수 꼭짓점") => ({ id, text, topicName });
+
+  it("낱말 규칙으로 묶고 제목은 AI가 다시 쓴 문장이다 (학생 원문 아님)", () => {
     const g = mockThemeGroups([
-      { id: "q1", text: "왜 그래?", topicName: "이차함수 꼭짓점" },
-      { id: "q2", text: "어떻게 구해?", topicName: "이차함수 꼭짓점" },
-      { id: "q3", text: "이게 뭐야", topicName: null },
+      q("q1", "꼭짓점은 어떤 순서로 구해?"),
+      q("q2", "꼭짓점 구하는 방법이 헷갈려"),
+      q("q3", "판별식이 0이면 왜 그래?"),
+      q("q4", "부등호 방향은 언제 바뀌어?", "일차부등식"),
     ]);
-    expect(g.map((x) => [x.topicName, x.questionIds])).toEqual([
-      ["이차함수 꼭짓점", ["q1", "q2"]],
-      [null, ["q3"]],
+    expect(g.map((x) => [x.title, x.questionIds])).toEqual([
+      ["꼭짓점을 구하는 순서가 헷갈려요", ["q1", "q2"]],
+      ["판별식과 꼭짓점의 관계가 궁금해요", ["q3"]],
+      ["부등호 방향이 바뀌는 때가 헷갈려요", ["q4"]],
     ]);
   });
 
-  it("제목은 주제 이름과 가장 많은 질문 유형으로 만든다", () => {
-    const g = mockThemeGroups([
-      { id: "q1", text: "내 풀이 맞아?", topicName: "일차부등식" },
-      { id: "q2", text: "답이 맞는지 확인해 줘", topicName: "일차부등식" },
-      { id: "q3", text: "왜 바뀌어?", topicName: "일차부등식" },
-    ]);
-    expect(g[0].title).toBe("일차부등식 풀이가 맞는지 확인하고 싶어 해요 (풀이 확인 중심)");
+  it("topicName은 묶음 질문이 모두 같은 세션 주제일 때만 쓰고 아니면 null", () => {
+    const g = mockThemeGroups([q("q1", "꼭짓점 구하는 순서?", "이차함수 꼭짓점"), q("q2", "꼭짓점 순서 알려줘", "이차함수 꼭짓점"), q("q3", "판별식 뭐야", "A"), q("q4", "판별식이 왜?", null)]);
+    expect(g.map((x) => x.topicName)).toEqual(["이차함수 꼭짓점", null]);
+  });
+
+  it("어느 규칙에도 안 맞는 질문은 묶지 않는다 (기타 묶음 없음)", () => {
+    const g = mockThemeGroups([q("q1", "오늘 점심 뭐야"), q("q2", "이 공식은 언제 쓰면 안 되나?")]);
+    expect(g).toEqual([]);
   });
 });
