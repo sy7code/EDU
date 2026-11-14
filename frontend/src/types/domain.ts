@@ -286,3 +286,13 @@ export type ClassAnalyticsRaw = {
   attempts: Array<{ sessionId: string; studentId: string; topicId: string; correct: number; total: number; createdAt: string }>;
   sessionTopics: Array<{ sessionId: string; topicId: string; name: string }>;
 };
+
+/** 과목별 다시 볼 주제 계산 입력 (학습 세션의 과목·주제·응시·이해도) */
+export type ReviewInputs = {
+  sessions: Array<{ id: string; subject: string; startedAt: string }>;
+  sessionTopics: Array<{ sessionId: string; topicId: string; name: string }>;
+  attempts: Array<{ sessionId: string; topicId: string; correct: number; total: number; createdAt: string }>;
+  reflections: Array<{ sessionId: string; understanding: 1 | 2 | 3 | null }>;
+};
+export type ReviewTopic = { topicId: string; name: string; signal: "LOW_SCORE" | "OVERCONFIDENT"; lastRate: number; lastAt: string };
+export type SubjectReview = { subject: string; topics: ReviewTopic[] };
