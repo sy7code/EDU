@@ -1,6 +1,8 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router";
 import { useLogout, useMe } from "../auth/session";
-import { FEATURES, resetMockData, USE_MOCK } from "../api";
+import { useQuery } from "@tanstack/react-query";
+import { api, FEATURES, resetMockData, USE_MOCK } from "../api";
+import { teacherNavLinks } from "../lib/teacherNav";
 import { Icon } from "./Icon";
 
 /**
@@ -13,22 +15,29 @@ export function AppLayout() {
   const logout = useLogout();
   const nav = useNavigate();
 
+  const isTeacher = me?.role === "teacher";
+  const homeroom = isTeacher && me.classId !== "";
+  const assignments = useQuery({
+    queryKey: ["my-assignments"],
+    queryFn: () => api.listMyAssignments(),
+    enabled: isTeacher && FEATURES.subjectTeacher,
+  });
   // [경로, 아이콘, 이름]
-  const links: Array<[string, string, string]> =
-    me?.role === "teacher"
+  const links: Array<[string, string, string]> = isTeacher
+    ? teacherNavLinks({
+        homeroom,
+        hasAssignments: (assignments.data?.length ?? 0) > 0,
+        subjectFeature: FEATURES.subjectTeacher,
+        quizFeature: FEATURES.quiz,
+      })
+    : me?.role === "student"
       ? [
-          ["/teacher", "users", "반 대시보드"],
-          ["/teacher/analytics", "chart", "반 분석"],
-          ...(FEATURES.quiz ? ([["/teacher/reports", "alert", "신고된 문제"]] as Array<[string, string, string]>) : []),
+          ["/student", "home", "홈"],
+          ["/student/start", "pen", "학습하기"],
+          ["/student/records", "book", "내 기록"],
+          ...(FEATURES.consent ? ([["/student/consent", "settings", "동의 설정"]] as Array<[string, string, string]>) : []),
         ]
-      : me?.role === "student"
-        ? [
-            ["/student", "home", "홈"],
-            ["/student/start", "pen", "학습하기"],
-            ["/student/records", "book", "내 기록"],
-            ...(FEATURES.consent ? ([["/student/consent", "settings", "동의 설정"]] as Array<[string, string, string]>) : []),
-          ]
-        : [];
+      : [];
   const signedIn = !!me;
   const doLogout = async () => {
     await logout();
@@ -76,7 +85,13 @@ export function AppLayout() {
                   <strong>
                     {me.name} {me.role === "teacher" ? "선생님" : "학생"}
                   </strong>
-                  <small>{me.role === "student" ? `2학년 3반${me.number ? ` · ${me.number}번` : ""}` : "2학년 3반 담임"}</small>
+                  {me.role === "student" ? (
+                    <small>{`2학년 3반${me.number ? ` · ${me.number}번` : ""}`}</small>
+                  ) : homeroom ? (
+                    <small>2학년 3반 담임</small>
+                  ) : (
+                    <small>교과 선생님</small>
+                  )}
                 </div>
                 <button aria-label="로그아웃" title="로그아웃" onClick={doLogout}>
                   <Icon name="logout" />
@@ -88,12 +103,12 @@ export function AppLayout() {
                   <Icon name="chevron" size={16} />
                 </Link>
               )}
-              {me.role === "teacher" && (
+              {homeroom && (
                 <Link to="/teacher/analytics" className="sidebar-highlight-action">
                   <Icon name="chart" size={17} /> 반 분석 살펴보기
                 </Link>
               )}
-              <p className="nav-label">{me.role === "student" ? "학습" : "학급 관리"}</p>
+              <p className="nav-label">{me.role === "student" ? "학습" : homeroom ? "학급 관리" : "교과 관리"}</p>
               <nav aria-label="주요 메뉴">
                 {links.map(([to, icon, label]) => (
                   <NavLink key={to} to={to} end className={({ isActive }) => (isActive ? "active" : "")}>

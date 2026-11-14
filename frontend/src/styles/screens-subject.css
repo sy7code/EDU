@@ -51,3 +51,148 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ---- 교과 교사 화면 ---- */
+.subj-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  min-width: 0;
+}
+.subj-lead {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.subj-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+.subj-assign {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.subj-assign .subj-title {
+  margin: 0;
+}
+.subj-assign .subj-title a:hover {
+  text-decoration: underline;
+}
+.subj-kv {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.subj-kv dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.subj-kv dd {
+  margin: 0;
+  font-weight: 700;
+  font-size: 18px;
+}
+.subj-sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 8px 0 4px;
+}
+.subj-top,
+.subj-list {
+  margin: 0;
+  padding-left: 20px;
+  overflow-wrap: anywhere;
+}
+.subj-more {
+  font-size: 14px;
+  font-weight: 700;
+}
+.subj-more:hover {
+  text-decoration: underline;
+}
+.subj-table .subj-topic {
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  border-block: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 13px;
+  white-space: normal;
+  min-width: 140px;
+}
+.subj-hard,
+.subj-students,
+.subj-sessions,
+.subj-entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.subj-hard li p {
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+.subj-hard small,
+.subj-time {
+  color: var(--muted);
+  font-size: 12px;
+}
+.subj-students li a {
+  display: block;
+  padding: 10px 0;
+  font-weight: 700;
+  border-bottom: 1px solid var(--line);
+}
+.subj-students li a:hover {
+  text-decoration: underline;
+}
+.subj-notice {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.subj-session-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  text-align: left;
+  padding: 14px 16px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: inherit;
+}
+.subj-session-head small,
+.subj-session-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.subj-session-body {
+  padding: 4px 16px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  border-top: 1px solid var(--line);
+}
+.subj-entries li p {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.subj-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}

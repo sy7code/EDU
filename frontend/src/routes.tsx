@@ -10,7 +10,10 @@ import { StartPage } from "./features/session/StartPage";
 import { SessionPage } from "./features/session/SessionPage";
 import { EndPage } from "./features/session/EndPage";
 import { MyRecordsPage } from "./features/records/MyRecordsPage";
-import { ClassDashboard } from "./features/teacher/ClassDashboard";
+import { HomeroomOnly, TeacherHome } from "./features/teacher/TeacherHome";
+import { SubjectsPage } from "./features/teacher/SubjectsPage";
+import { SubjectClassPage } from "./features/teacher/SubjectClassPage";
+import { SubjectStudentPage } from "./features/teacher/SubjectStudentPage";
 import { StudentDetailPage } from "./features/teacher/StudentDetailPage";
 import { ReportsPage } from "./features/teacher/ReportsPage";
 import { HelpPage } from "./features/help/HelpPage";
@@ -39,10 +42,13 @@ export const router = createBrowserRouter([
         path: "/teacher",
         element: <RequireRole role="teacher" />,
         children: [
-          { index: true, element: <ClassDashboard /> },
-          { path: "students/:studentId", element: <StudentDetailPage /> },
-          { path: "reports", element: <ReportsPage /> },
-          { path: "analytics", element: <AnalyticsPage /> },
+          { index: true, element: <TeacherHome /> },
+          { path: "students/:studentId", element: <HomeroomOnly><StudentDetailPage /></HomeroomOnly> },
+          { path: "reports", element: <HomeroomOnly><ReportsPage /></HomeroomOnly> },
+          { path: "analytics", element: <HomeroomOnly><AnalyticsPage /></HomeroomOnly> },
+          { path: "subjects", element: <SubjectsPage /> },
+          { path: "subjects/:classId/:subject", element: <SubjectClassPage /> },
+          { path: "subjects/:classId/:subject/students/:studentId", element: <SubjectStudentPage /> },
         ],
       },
     ],
