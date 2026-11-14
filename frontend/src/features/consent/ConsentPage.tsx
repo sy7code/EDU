@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 import { api, FEATURES } from "../../api";
 import { useConsents, useMe } from "../../auth/session";
 import { Icon } from "../../components/Icon";
-import { Button, ErrorState, PageTitle, Spinner } from "../../components/ui";
+import { Button, ErrorState, Spinner } from "../../components/ui";
 import type { ConsentKind } from "../../types/domain";
 import { afterConsentPath } from "../../lib/returnPath";
 import { formatDateTime } from "../../lib/time";
@@ -77,7 +77,13 @@ export function ConsentPage() {
 
   return (
     <div className="consent-page">
-      <PageTitle sub="항목마다 따로 고를 수 있고, 언제든 이 화면에서 바꿀 수 있어요.">이용 동의</PageTitle>
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">내 정보와 기록</p>
+          <h1>이용 동의</h1>
+          <p>항목마다 따로 고를 수 있고, 언제든 이 화면에서 바꿀 수 있어요.</p>
+        </div>
+      </div>
       <div className="card consent-card">
         {ITEMS.map((i) => (
           <div className="consent-row" key={i.kind}>

@@ -10,6 +10,7 @@ import {
   type FaceAuthProvider,
 } from "../../facepass/provider";
 import { METHOD_LABEL } from "../../components/ui";
+import { Icon } from "../../components/Icon";
 import type { AuthEvent } from "../../types/domain";
 import { formatTime } from "../../lib/time";
 
@@ -97,80 +98,79 @@ export function KioskPage() {
   }
 
   return (
-    <div className="flex min-h-full flex-col bg-ink text-white">
-      <header className="flex items-center justify-between px-6 py-4 text-sm text-white/60">
+    <div className="study-kiosk">
+      <header className="study-kiosk-head">
         <span>성장 페이스 · 자습실 단말기</span>
         <span>{DEVICE_ID}</span>
       </header>
 
-      <main className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+      <main className="study-kiosk-main">
         {view.kind === "idle" && (
           <>
-            <p className="text-3xl font-bold">학습을 시작하거나 마칠 때</p>
-            <p className="mt-2 text-lg text-white/70">얼굴을 비추거나 QR·학생증 바코드를 찍어 주세요</p>
-            <button
-              onClick={startFace}
-              className="mt-10 rounded-2xl bg-brand-500 px-10 py-6 text-2xl font-bold hover:bg-brand-600"
-            >
+            <span className="study-kiosk-pulse" aria-hidden>
+              <span>
+                <Icon name="users" size={36} />
+              </span>
+            </span>
+            <h1 className="study-kiosk-title">학습을 시작하거나 마칠 때</h1>
+            <p className="study-kiosk-sub">얼굴을 비추거나 QR·학생증 바코드를 찍어 주세요</p>
+            <button type="button" onClick={startFace} className="study-kiosk-face">
               얼굴로 인증하기
             </button>
           </>
         )}
 
         {view.kind === "pick" && (
-          <div className="w-full max-w-2xl">
-            <p className="text-xl font-semibold">[데모] 단말기 카메라 대신 인증할 학생을 고르세요</p>
-            <p className="mt-1 text-sm text-white/60">실제 단말기에서는 토스 FacePass 화면이 열리고, 시리얼 번호만 전달돼요.</p>
-            <div className="mt-6 grid grid-cols-5 gap-2">
+          <div className="study-kiosk-pick">
+            <h1 className="study-kiosk-pick-title">[데모] 단말기 카메라 대신 인증할 학생을 고르세요</h1>
+            <p className="study-kiosk-sub small">실제 단말기에서는 토스 FacePass 화면이 열리고, 시리얼 번호만 전달돼요.</p>
+            <div className="study-kiosk-grid">
               {demoStudents.map((s) => (
-                <button
-                  key={s.id}
-                  className="rounded-lg bg-white/10 px-2 py-2 text-sm hover:bg-white/20"
-                  onClick={() => pickResolver.current?.({ serial: `serial-${s.id}` })}
-                >
+                <button type="button" key={s.id} onClick={() => pickResolver.current?.({ serial: `serial-${s.id}` })}>
                   {s.number}번
                 </button>
               ))}
             </div>
-            <button
-              className="mt-4 rounded-lg border border-white/30 px-4 py-2 text-sm"
-              onClick={() => pickResolver.current?.({ serial: null, fail: true })}
-            >
+            <button type="button" className="study-kiosk-ghost" onClick={() => pickResolver.current?.({ serial: null, fail: true })}>
               인식 실패 상황 보기
             </button>
           </div>
         )}
 
         {view.kind === "working" && (
-          <div role="status" className="flex flex-col items-center">
-            <span className="h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-            <p className="mt-4 text-xl">확인하고 있어요…</p>
+          <div role="status" className="study-kiosk-working">
+            <span className="study-kiosk-spinner" aria-hidden />
+            <p className="study-kiosk-sub">확인하고 있어요…</p>
           </div>
         )}
 
         {view.kind === "done" && (
-          <div role="status">
-            <p className="text-6xl">✓</p>
-            <p className="mt-4 text-3xl font-bold">{view.event.maskedName} 학생, 확인되었어요</p>
-            <p className="mt-2 text-lg text-white/70">
+          <div role="status" className="study-kiosk-done">
+            <span className="study-kiosk-pulse" aria-hidden>
+              <span>
+                <Icon name="check" size={40} />
+              </span>
+            </span>
+            <p className="study-kiosk-title">{view.event.maskedName} 학생, 확인되었어요</p>
+            <p className="study-kiosk-sub">
               {METHOD_LABEL[view.event.method]} · {formatTime(view.event.verifiedAt)}
             </p>
-            <p className="mt-6 text-white/60">내 태블릿에서 학습 화면을 이어서 진행하세요 (2분 안에)</p>
+            <p className="study-kiosk-hint">내 태블릿에서 학습 화면을 이어서 진행하세요 (2분 안에)</p>
           </div>
         )}
 
         {view.kind === "error" && (
-          <div role="alert">
-            <p className="text-2xl font-bold text-amber-300">{view.message}</p>
-            <button onClick={() => setView({ kind: "idle" })} className="mt-6 rounded-lg border border-white/30 px-5 py-2.5">
+          <div role="alert" className="study-kiosk-error">
+            <p className="study-kiosk-error-text">{view.message}</p>
+            <button type="button" onClick={() => setView({ kind: "idle" })} className="study-kiosk-ghost">
               처음으로
             </button>
           </div>
         )}
       </main>
 
-      <footer className="px-6 pb-6">
-        <form onSubmit={submitCode} className="mx-auto flex max-w-md gap-2">
+      <footer className="study-kiosk-foot">
+        <form onSubmit={submitCode} className="study-kiosk-code">
           <label className="sr-only" htmlFor="code">QR·바코드</label>
           <input
             id="code"
@@ -179,14 +179,11 @@ export function KioskPage() {
             onChange={(e) => setCode(e.target.value)}
             placeholder="QR·학생증 바코드 스캔"
             autoComplete="off"
-            className="flex-1 rounded-lg bg-white/10 px-3 py-2.5 text-sm placeholder:text-white/40"
           />
-          <button type="submit" className="rounded-lg bg-white/15 px-4 text-sm hover:bg-white/25">
-            확인
-          </button>
+          <button type="submit">확인</button>
         </form>
-        <p className="mt-3 text-center text-xs text-white/40">
-          얼굴 정보는 저장하지 않아요 · <Link to="/" className="underline">처음 화면</Link>
+        <p className="study-kiosk-privacy">
+          얼굴 정보는 저장하지 않아요 · <Link to="/">처음 화면</Link>
         </p>
       </footer>
     </div>

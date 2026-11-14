@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useParams, useSearchParams } from "react-router";
 import QRCode from "qrcode";
-import { api, ApiError } from "../../api";
+import { api, ApiError, FEATURES } from "../../api";
 import { useHasConsent } from "../../auth/session";
 import { Badge, Button, ButtonLink, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { Icon } from "../../components/Icon";
@@ -11,6 +11,7 @@ import { toJpegDataUrl } from "../../lib/image";
 import { composerKind } from "../../lib/tabs";
 import { elapsedLabel, formatTime } from "../../lib/time";
 import type { EntryKind, LearningEntry, Visibility } from "../../types/domain";
+import { StudySteps } from "./TopicQuiz";
 
 const KIND_LABEL: Record<EntryKind, string> = {
   MEMO: "메모",
@@ -75,6 +76,7 @@ export function SessionPage() {
 
   return (
     <div>
+      <StudySteps current="live" withQuiz={FEATURES.quiz && aiOk} />
       <div className="live-header">
         <div>
           <Badge tone="brand">학습 중</Badge>
@@ -399,8 +401,8 @@ function AiPanel({ sessionId }: { sessionId: string }) {
         </div>
       </div>
       <div className="ai-notice">
-        <Icon name="alert" size={16} />
-        이름·전화번호 같은 개인정보는 쓰지 마세요
+        <Icon name="spark" size={16} />
+        <span>AI가 만든 답변 · 참고용이에요. 이름·전화번호 같은 개인정보는 쓰지 마세요</span>
       </div>
       <div ref={listRef} className="ai-messages" aria-live="polite">
         {msgs.isLoading && <Spinner />}
@@ -414,7 +416,7 @@ function AiPanel({ sessionId }: { sessionId: string }) {
           <div className="typing">
             <span />
             <span />
-            <span /> 생각하는 중…
+            <span /> 답변을 생각하고 있어요
           </div>
         )}
         {ask.error &&

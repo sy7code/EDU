@@ -499,3 +499,120 @@ a.record-row {
 .notes-questions small {
   flex: none;
 }
+
+/* ---------- 학생 홈: 오늘 할 일 패널·주제별 성장 (Figma v2) ---------- */
+.stu-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.stu-home .section-title {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.stu-home .home-active {
+  margin-bottom: 20px;
+}
+.stu-task-panel .task-panel-top > div {
+  min-width: 0;
+}
+.stu-task-panel .task-panel-top strong {
+  overflow-wrap: anywhere;
+}
+.stu-task-all,
+.stu-section-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.stu-task-all:hover,
+.stu-section-link:hover {
+  text-decoration: underline;
+}
+.stu-task-panel .task-chips {
+  flex-wrap: wrap;
+}
+.task-chips .stu-task-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+.task-chips .stu-task-chip.is-on {
+  color: var(--green);
+  border-color: #df87aa;
+  font-weight: 700;
+}
+.task-chips .stu-task-chip:hover {
+  border-color: var(--green);
+}
+.stu-growth-filters {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.growth-filters.stu-growth-filters button:first-child {
+  border-color: var(--line);
+  color: var(--muted);
+}
+.growth-filters.stu-growth-filters button[aria-pressed="true"] {
+  border-color: #df87aa;
+  color: var(--green);
+  font-weight: 700;
+}
+.stu-subject-card {
+  min-width: 0;
+}
+.stu-subject-card > div:first-child {
+  gap: 8px;
+  align-items: center;
+}
+.stu-subject-card h3 {
+  overflow-wrap: anywhere;
+}
+.stu-subject-card .subject-chips {
+  flex-wrap: wrap;
+}
+.stu-growth-more {
+  margin-top: 10px;
+  text-align: right;
+  font-size: 13px;
+}
+.stu-growth-more a {
+  color: var(--green);
+  font-weight: 700;
+}
+.stu-growth-progress {
+  margin: 0 0 10px;
+}
+@media (max-width: 640px) {
+  .student-task-panel.stu-task-panel {
+    min-height: 0;
+  }
+  .student-task-panel.stu-task-panel > .button {
+    position: static;
+    width: 100%;
+    margin-top: 16px;
+  }
+  .growth-filters.stu-growth-filters {
+    display: flex;
+    justify-content: flex-start;
+  }
+}

@@ -249,3 +249,233 @@
   color: var(--muted);
   font-size: 13px;
 }
+
+/* 학생 상세 (프로토타입 v2): 넓은 화면은 학생 목록 열 + 상세 열, 그 밖은 상세만 (위 '← 반 대시보드'로 돌아감) */
+.tdetail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.tdetail-main {
+  min-width: 0;
+}
+.tdetail-roster {
+  display: none;
+  padding: 18px 0 8px;
+}
+@media (min-width: 1400px) {
+  .tdetail-layout {
+    grid-template-columns: 250px minmax(0, 1fr);
+  }
+  .tdetail-roster {
+    display: block;
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  /* 목록 열이 생겨 좁아진 만큼 학습 목록 칸도 줄인다 */
+  .tdetail-main .split-record {
+    grid-template-columns: 250px minmax(0, 1fr);
+  }
+}
+.tdetail-roster h2 {
+  font-size: 17px;
+  padding: 0 18px 12px;
+}
+.tdetail-roster .filter-row {
+  padding: 0 18px 12px;
+}
+.tdetail-roster .search {
+  width: 100%;
+}
+.tdetail-roster ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tdetail-roster a {
+  display: grid;
+  gap: 2px;
+  padding: 11px 18px;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+}
+.tdetail-roster a:hover {
+  background: var(--bg);
+}
+.tdetail-roster a.active {
+  background: var(--bg);
+  box-shadow: inset 3px 0 0 var(--green);
+}
+.tdetail-roster small,
+.tdetail-roster-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+.tdetail-roster-empty {
+  padding: 4px 18px 12px;
+}
+
+/* 학생정보 카드: 머리(아바타·이름·공유 상태·피드백 버튼) + 이름표–값 2열 */
+.tdetail-info {
+  padding: 22px;
+  margin-bottom: 18px;
+}
+.tdetail-info .student-profile-head {
+  margin-bottom: 0;
+  flex-wrap: wrap;
+}
+.tdetail-info .student-profile-head > div:nth-child(2) {
+  min-width: 0;
+}
+.tdetail-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.tdetail-title h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tdetail-kv {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
+  margin: 18px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.tdetail-kv > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.tdetail-kv dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+.tdetail-kv dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 요약 탭 */
+.tdetail-section-title {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+.judge-item + .judge-item {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.pace-card + .profile-types {
+  margin-top: 18px;
+}
+
+/* 반 분석: 반이 공부한 주제 순위 */
+.tdetail-topic-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tdetail-topic-rank li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.tdetail-topic-rank li > span {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+.tdetail-topic-rank strong {
+  overflow-wrap: anywhere;
+}
+.tdetail-topic-rank small {
+  color: var(--muted);
+}
+
+/* 신고된 문제: AI 1차 검토 줄 + 메타 4칸 */
+.tdetail-ai-review {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 15px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.tdetail-ai-review > svg {
+  flex: none;
+  color: var(--muted);
+}
+.tdetail-ai-review small {
+  display: block;
+  color: var(--muted);
+}
+.tdetail-ai-review p {
+  margin: 2px 0 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.tdetail-ai-review.is-error {
+  background: var(--orange-bg);
+  border-color: transparent;
+}
+.tdetail-ai-review.is-error strong {
+  color: var(--orange);
+}
+.tdetail-ai-review.is-ok strong {
+  color: var(--green);
+}
+.report-card .tdetail-report-meta {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.tdetail-report-meta strong {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1100px) {
+  .report-card .tdetail-report-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .tdetail-info {
+    padding: 16px;
+  }
+  /* 프로토타입은 좁은 화면에서 머리 버튼을 숨기지만, 실제 동작(학습 기록 탭으로)이 있어 보이게 둔다 */
+  .tdetail-info .student-profile-head .button {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+  }
+  .tdetail-kv {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .report-card .tdetail-report-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .tdetail-topic-rank li {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+  .tdetail-topic-rank small {
+    grid-column: 2;
+  }
+}

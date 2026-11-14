@@ -114,8 +114,9 @@ export function AnalyticsPage() {
     <div className="teacher-page">
       <div className="page-heading">
         <div>
-          <h1>반 분석</h1>
-          <p>반 전체의 공부 방식과 분포를 보는 화면이에요. 순위가 아니라 대화를 시작할 단서로 써 주세요.</p>
+          <p className="eyebrow">반 분석</p>
+          <h1>공부 방식과 분포</h1>
+          <p>평균만 보지 말고 반 전체의 다양한 학습 모습을 살펴보세요. 순위가 아니라 대화를 시작할 단서로 써 주세요.</p>
         </div>
         <div className="segmented period period-toggle" role="group" aria-label="기간">
           {(["7d", "4w"] as const).map((r) => (
@@ -143,7 +144,8 @@ export function AnalyticsPage() {
           {q.data.summary.excludedCount > 0 && (
             <div className="privacy-note">
               <Icon name="lock" size={18} />
-              <span>기록 비공개 {q.data.summary.excludedCount}명은 질문·정답률·주제 집계에서 빠져 있어요 (학습 시간은 포함).</span>
+              <strong>기록 비공개 {q.data.summary.excludedCount}명 제외</strong>
+              <span>공유에 동의하지 않은 학생은 질문·정답률·주제 집계에서 빠져요. 학습 시간은 포함돼요.</span>
             </div>
           )}
           <div className="distribution-grid">
@@ -157,39 +159,31 @@ export function AnalyticsPage() {
               <div className="card-heading">
                 <div>
                   <h2>반이 공부한 주제</h2>
+                  <p>공부한 학생이 많은 순서예요.</p>
                 </div>
+                {q.data.summary.topTopics.length > 0 && <Badge tone="stone">TOP {q.data.summary.topTopics.length}</Badge>}
               </div>
               {q.data.summary.topTopics.length === 0 ? (
                 <p className="empty-line">AI가 찾은 주제가 아직 없어요</p>
               ) : (
-                <div className="table-wrap">
-                  <table className="topic-table">
-                    <thead>
-                      <tr>
-                        <th>주제</th>
-                        <th>공부한 학생</th>
-                        <th>평균 정답률</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {q.data.summary.topTopics.map((t) => (
-                        <tr key={t.topicId}>
-                          <td>
-                            <strong>{t.name}</strong>
-                          </td>
-                          <td>{t.studentCount}명</td>
-                          <td>{pct(t.avgRate)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ol className="tdetail-topic-rank">
+                  {q.data.summary.topTopics.map((t, i) => (
+                    <li key={t.topicId}>
+                      <span aria-hidden="true">{i + 1}</span>
+                      <strong>{t.name}</strong>
+                      <small>
+                        {t.studentCount}명 공부 · 평균 정답률 {pct(t.avgRate)}
+                      </small>
+                    </li>
+                  ))}
+                </ol>
               )}
             </div>
-            <div className="card">
+            <div className="card ratio-card">
               <div className="card-heading">
                 <div>
-                  <h2>AI에 어떻게 물었나 (반 전체)</h2>
+                  <h2>AI에 어떻게 물었나</h2>
+                  <p>반 전체 질문의 방향이에요. 대화의 참고로 써 주세요.</p>
                 </div>
                 <Badge tone="sky">자동 분류 · 참고용</Badge>
               </div>

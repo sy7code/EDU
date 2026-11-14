@@ -28,8 +28,35 @@
 .choice-chip.box.checked { border-color: #a8cdbb; background: var(--green-2); }
 .choice-chip.box.checked .choice-mark { background: var(--green); color: #fff; border-color: var(--green); }
 
+/* 학습 단계 표시 (프로토타입 .study-progress를 표시 전용 목록으로). 넘치면 목록 안에서만 가로 스크롤 */
+.study-steps {
+  list-style: none; margin: -10px 0 30px; padding: 0 0 4px; display: flex; align-items: flex-start;
+  overflow-x: auto; scrollbar-width: none;
+}
+.study-steps::-webkit-scrollbar { display: none; }
+.study-steps li {
+  flex: 0 0 92px; position: relative; display: grid; justify-items: center; gap: 5px;
+  color: var(--muted); text-align: center;
+}
+.study-steps li:first-child { margin-left: auto; }
+.study-steps li:last-child { margin-right: auto; }
+.study-steps li:not(:last-child)::after {
+  content: ""; position: absolute; height: 1px; background: #dcd8e0; top: 15px;
+  left: calc(50% + 20px); width: calc(100% - 40px);
+}
+.study-steps li > span {
+  width: 31px; height: 31px; border-radius: 50%; border: 1px solid #d3cfd8; background: var(--bg);
+  display: grid; place-items: center; font-size: 12px; position: relative; z-index: 1;
+}
+.study-steps small { font-size: 11px; white-space: nowrap; }
+.study-steps li.active { color: var(--green); font-weight: 700; }
+.study-steps li.done::after { background: var(--green); opacity: 0.45; }
+.study-steps li.active > span,
+.study-steps li.done > span { background: var(--green); border-color: var(--green); color: #fff; }
+
 /* 인증 */
-.auth-card h2 { font-size: 24px; line-height: 1.4; margin: 8px 0 12px; }
+.auth-card h1 { line-height: 1.4; }
+.study-auth-note { color: var(--ink); font-weight: 600; margin: 0 0 6px; overflow-wrap: anywhere; }
 .study-qr { margin-top: 16px; }
 .qr-box { max-width: 320px; margin: 0 auto; border: 2px dashed #becdc6; border-radius: 10px; padding: 14px; }
 .qr-help { font-size: 12px; color: var(--muted); }
@@ -43,6 +70,12 @@
 
 /* 학습 중 */
 .live-header { flex-wrap: wrap; }
+/* 프로토타입은 학습 중 배지 바탕만 진하게 바꿔 글자가 묻힌다 → 글자를 흰색으로 */
+.live-header .badge { color: #fff; }
+/* 넓은 화면(901px~)은 위 막대가 없고 사이드바만 있어 위에 바로 붙인다. 그 아래로 AI 도우미 */
+@media (min-width: 901px) {
+  .live-header { top: 16px; }
+}
 .live-header h2 { margin: 2px 0 0; }
 .live-meta { color: var(--muted); font-size: 12px; }
 .live-note { color: var(--muted); font-size: 13px; }
@@ -52,8 +85,9 @@
 .study-composer { grid-area: composer; }
 .study-records { grid-area: records; }
 .study-layout > .ai-card { grid-area: ai; }
-/* AI 도우미: 위 학습 바(top 80px, 높이 약 85px) 아래에 붙고, 화면 높이 안에서 대화만 스크롤 */
-.study-layout > .ai-card { top: 184px; display: flex; flex-direction: column; max-height: calc(100vh - 200px); }
+/* AI 도우미: 위 학습 바(901px~ 기준 top 16px, 높이 약 90px) 아래에 붙고, 화면 높이 안에서 대화만 스크롤.
+   900px 이하는 아래에서 position: static이라 top은 넓은 화면에서만 쓰인다 */
+.study-layout > .ai-card { top: 124px; display: flex; flex-direction: column; max-height: calc(100vh - 140px); }
 .study-layout > .ai-card .ai-messages { flex: 1 1 auto; min-height: 120px; max-height: none; }
 @media (max-width: 900px) {
   .study-layout { display: grid; grid-template-columns: 1fr; grid-template-areas: "composer" "ai" "records"; grid-template-rows: auto; gap: 16px; }
@@ -90,11 +124,10 @@ ul.timeline { list-style: none; margin-top: 0; margin-bottom: 0; }
 .quiz-card { padding: 22px; }
 .quiz-card-title { font-size: 18px; margin: 0 0 8px; }
 .quiz-note { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
-.quiz-intro { color: var(--muted); margin: 0 0 14px; }
 .topic-card { cursor: pointer; align-items: flex-start; gap: 12px; }
 .topic-card .radio { flex: none; }
 .topic-card blockquote { overflow-wrap: anywhere; }
-.quiz-heading h2 { font-size: 24px; margin: 8px 0; letter-spacing: -0.5px; }
+.quiz-heading h1 { font-size: 26px; margin: 8px 0; }
 .quiz-heading p:not(.eyebrow) { color: var(--muted); }
 .quiz-questions { list-style: none; margin: 0; padding: 0; }
 .question-top { gap: 8px; flex-wrap: wrap; }
@@ -103,7 +136,10 @@ ul.timeline { list-style: none; margin-top: 0; margin-bottom: 0; }
 .answers button { padding-block: 8px; }
 .report-reasons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .quiz-error .sticky-actions { justify-content: flex-start; }
-.result-heading h2 { font-size: 46px; color: var(--green); font-variant-numeric: tabular-nums; margin: 5px 0 8px; line-height: 1.2; }
+.result-heading h1 { margin: 5px 0 8px; line-height: 1.2; }
+.study-result-verdict { font-weight: 700; color: var(--green); }
+.result-row.wrong .study-result-verdict { color: var(--orange); }
+.result-row.excluded .study-result-verdict { color: var(--muted); }
 .result-row h3 { display: block; margin: 2px 0 6px; font-size: 16px; }
 .result-row .badge { margin-right: 8px; }
 .result-row > div { min-width: 0; overflow-wrap: anywhere; }
@@ -136,13 +172,16 @@ ul.timeline { list-style: none; margin-top: 0; margin-bottom: 0; }
   .live-header > div:first-child { flex-wrap: wrap; width: 100%; flex: none; }
   .form-card, .reflection, .quiz-card { padding: 18px; }
   .auth-card { padding: 32px 18px; margin: 10px auto; }
-  .auth-card h2 { font-size: 20px; }
+  .auth-card h1 { font-size: 21px; }
+  .study-steps { margin: -6px 0 22px; }
+  .study-steps li { flex-basis: 76px; }
   .answers, .checklist { grid-template-columns: 1fr; }
   .understanding { grid-template-columns: 1fr; }
   .sticky-actions { flex-wrap: wrap; }
   .sticky-actions .button { flex: 1 1 100%; }
   .page-heading { flex-wrap: wrap; }
-  .result-heading h2 { font-size: 36px; }
+  .result-heading h1 { font-size: 36px; }
+  .quiz-heading h1 { font-size: 21px; }
   .question { padding: 16px; }
   .reflection-add { flex-wrap: wrap; }
 }
@@ -164,4 +203,73 @@ ul.timeline { list-style: none; margin-top: 0; margin-bottom: 0; }
   border-radius: 10px;
   background: var(--orange-bg);
   font-size: 13px;
+}
+
+/* 자습실 단말기 (/kiosk): 앱 틀 밖 전체 화면. design.css의 main 여백(사이드바 자리)을 쓰지 않는다 */
+.study-kiosk { min-height: 100%; display: flex; flex-direction: column; background: var(--ink); color: #fff; }
+.study-kiosk :focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.study-kiosk-head {
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px;
+  padding: 16px 24px; font-size: 14px; color: rgba(255, 255, 255, 0.66);
+}
+.study-kiosk-main {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px; text-align: center; min-width: 0;
+}
+.study-kiosk-pulse {
+  width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 26px;
+  background: rgba(194, 24, 91, 0.28); box-shadow: 0 0 0 14px rgba(194, 24, 91, 0.12);
+}
+.study-kiosk-pulse > span {
+  width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; background: var(--green); color: #fff;
+}
+.study-kiosk-title { font-size: 30px; font-weight: 700; line-height: 1.35; letter-spacing: -0.5px; overflow-wrap: anywhere; }
+.study-kiosk-sub { margin-top: 8px; font-size: 18px; color: rgba(255, 255, 255, 0.74); }
+.study-kiosk-sub.small { font-size: 14px; }
+.study-kiosk-hint { margin-top: 24px; color: rgba(255, 255, 255, 0.66); }
+.study-kiosk-face {
+  margin-top: 40px; min-height: 72px; border: 0; border-radius: var(--radius); background: var(--green); color: #fff;
+  padding: 0 40px; font-size: 24px; font-weight: 700;
+}
+.study-kiosk-face:hover { background: var(--green-3); }
+.study-kiosk-pick { width: 100%; max-width: 672px; }
+.study-kiosk-pick-title { font-size: 20px; font-weight: 700; }
+.study-kiosk-grid { margin-top: 24px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.study-kiosk-grid button {
+  min-height: 44px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 14px;
+}
+.study-kiosk-grid button:hover { background: rgba(255, 255, 255, 0.2); }
+.study-kiosk-ghost {
+  margin-top: 18px; min-height: 44px; padding: 0 18px; border: 1px solid rgba(255, 255, 255, 0.32); border-radius: 10px;
+  background: transparent; color: #fff; font-size: 14px;
+}
+.study-kiosk-working { display: flex; flex-direction: column; align-items: center; }
+.study-kiosk-spinner {
+  width: 48px; height: 48px; border: 4px solid rgba(255, 255, 255, 0.2); border-top-color: #fff; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.study-kiosk-working .study-kiosk-sub { margin-top: 16px; font-size: 20px; color: #fff; }
+.study-kiosk-done { display: flex; flex-direction: column; align-items: center; }
+.study-kiosk-error { display: flex; flex-direction: column; align-items: center; }
+.study-kiosk-error-text { font-size: 24px; font-weight: 700; color: #ffc49e; max-width: 640px; overflow-wrap: anywhere; }
+.study-kiosk-foot { padding: 0 24px 24px; }
+.study-kiosk-code { display: flex; gap: 8px; max-width: 448px; margin: 0 auto; }
+.study-kiosk-code input {
+  flex: 1; min-width: 0; min-height: 44px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1); color: #fff; padding: 0 12px; font-size: 14px;
+}
+.study-kiosk-code input::placeholder { color: rgba(255, 255, 255, 0.5); }
+.study-kiosk-code button {
+  min-height: 44px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.16); color: #fff; padding: 0 16px; font-size: 14px;
+}
+.study-kiosk-code button:hover { background: rgba(255, 255, 255, 0.26); }
+.study-kiosk-privacy { margin-top: 12px; text-align: center; font-size: 12px; color: rgba(255, 255, 255, 0.55); }
+.study-kiosk-privacy a { color: inherit; text-decoration: underline; }
+@media (max-width: 640px) {
+  .study-kiosk-title { font-size: 23px; }
+  .study-kiosk-sub { font-size: 15px; }
+  .study-kiosk-face { font-size: 20px; padding: 0 28px; width: 100%; }
+  .study-kiosk-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .study-kiosk-head, .study-kiosk-main, .study-kiosk-foot { padding-inline: 16px; }
+  .study-kiosk-error-text { font-size: 20px; }
 }

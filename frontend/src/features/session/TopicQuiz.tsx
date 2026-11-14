@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../../api";
@@ -46,8 +46,48 @@ export function ChoiceChip({
   );
 }
 
+/** 학습 흐름 단계 (프로토타입의 study-progress). 표시만 하고 누를 수 없다. 테스트를 안 보는 흐름(AI 동의 없음 등)은 그 단계를 뺀다 */
+export type StudyStep = "goal" | "authStart" | "live" | "authEnd" | "topic" | "quiz" | "result" | "reflect";
+const STEP_LABEL: Record<StudyStep, string> = {
+  goal: "학습 시작",
+  authStart: "시작 인증",
+  live: "학습 중",
+  authEnd: "종료 인증",
+  topic: "주제 선택",
+  quiz: "확인 테스트",
+  result: "테스트 결과",
+  reflect: "돌아보기",
+};
+const QUIZ_STEPS: StudyStep[] = ["topic", "quiz", "result"];
+
+export function StudySteps({ current, withQuiz = true }: { current: StudyStep; withQuiz?: boolean }) {
+  const listRef = useRef<HTMLOListElement>(null);
+  const steps = (Object.keys(STEP_LABEL) as StudyStep[]).filter((k) => withQuiz || !QUIZ_STEPS.includes(k));
+  const at = steps.indexOf(current);
+  // 좁은 화면에서는 가로로 넘치므로 지금 단계가 보이게 목록만 가로로 옮긴다 (페이지는 스크롤하지 않음)
+  useEffect(() => {
+    const list = listRef.current;
+    const active = list?.querySelector<HTMLElement>("[aria-current]");
+    if (!list || !active || list.scrollWidth <= list.clientWidth) return;
+    list.scrollLeft = active.offsetLeft - (list.clientWidth - active.offsetWidth) / 2;
+  }, [current]);
+  return (
+    <ol ref={listRef} className="study-steps" aria-label="학습 단계">
+      {steps.map((k, i) => (
+        <li key={k} className={i === at ? "active" : i < at ? "done" : ""} aria-current={i === at ? "step" : undefined}>
+          <span aria-hidden>{i < at ? <Icon name="check" size={14} /> : i + 1}</span>
+          <small>
+            {STEP_LABEL[k]}
+            {i < at && <span className="sr-only"> (완료)</span>}
+          </small>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 /** 마치기 화면: AI가 찾은 주제 → 하나 골라 고정 난이도 테스트 → 결과. 끝나거나 건너뛰면 onDone */
-export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: () => void }) {
+export function TopicStep({ sessionId, onDone, eyebrow }: { sessionId: string; onDone: () => void; eyebrow?: string }) {
   // 외부 LLM을 부르는 요청이라 실패해도 자동 재시도하지 않음 (비용·호출 제한)
   const topics = useQuery({ queryKey: ["session-topics", sessionId], queryFn: () => api.extractTopics(sessionId), retry: false });
   const shareOk = useHasConsent("LEARNING_RECORD");
@@ -55,22 +95,50 @@ export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: ()
   const [picked, setPicked] = useState<string | null>(null);
   const [quizTopic, setQuizTopic] = useState<SessionTopic | null>(null);
 
+  const head = (
+    <>
+      <StudySteps current="topic" />
+      <div className="page-heading">
+        <div>
+          {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+          <h1>오늘 공부한 주제를 골라 주세요</h1>
+          <p>AI가 내 기록에서 찾았어요. 다 공부한 주제를 고르면 확인 테스트(5문항)를 볼 수 있어요. {QUIZ_NOTICE}</p>
+        </div>
+      </div>
+    </>
+  );
+
   if (quizTopic) return <TopicQuiz sessionId={sessionId} topicId={quizTopic.topicId} onDone={onDone} onBack={() => setQuizTopic(null)} />;
   // AI 오류가 나도 돌아보기(핵심 기능)로는 넘어갈 수 있어야 함
-  if (topics.error) return <SkippableError error={topics.error} onRetry={() => topics.refetch()} onSkip={onDone} />;
-  if (!topics.data) return <Spinner label="AI가 오늘 기록에서 주제를 찾는 중" />;
+  if (topics.error)
+    return (
+      <div>
+        {head}
+        <SkippableError error={topics.error} onRetry={() => topics.refetch()} onSkip={onDone} />
+      </div>
+    );
+  if (!topics.data)
+    return (
+      <div>
+        {head}
+        <Spinner label="AI가 오늘 기록에서 주제를 찾는 중" />
+      </div>
+    );
 
   if (topics.data.length === 0) {
     return (
-      <section className="card quiz-card">
-        <h2 className="quiz-card-title">오늘 공부한 주제</h2>
-        <p className="quiz-note">
-          {shareOk
-            ? "이번 기록에서 주제를 찾지 못했어요. 다음엔 알게 된 개념이나 궁금한 점을 한 줄씩 남겨 보세요. (교사 공개 기록만 살펴봐요)"
-            : "기록 공유에 동의하지 않아 모든 기록이 '나만 보기'라서 AI가 주제를 찾을 수 없어요. 동의 설정에서 바꿀 수 있어요."}
-        </p>
-        <Button onClick={onDone}>돌아보기로 넘어가기</Button>
-      </section>
+      <div>
+        {head}
+        <section className="card quiz-card">
+          <h2 className="quiz-card-title">찾은 주제가 없어요</h2>
+          <p className="quiz-note">
+            {shareOk
+              ? "이번 기록에서 주제를 찾지 못했어요. 다음엔 알게 된 개념이나 궁금한 점을 한 줄씩 남겨 보세요. (교사 공개 기록만 살펴봐요)"
+              : "기록 공유에 동의하지 않아 모든 기록이 '나만 보기'라서 AI가 주제를 찾을 수 없어요. 동의 설정에서 바꿀 수 있어요."}
+          </p>
+          <Button onClick={onDone}>돌아보기로 넘어가기</Button>
+        </section>
+      </div>
     );
   }
 
@@ -79,7 +147,7 @@ export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: ()
 
   return (
     <div>
-      <p className="quiz-intro">AI가 내 기록에서 찾았어요. 다 공부한 주제를 고르면 확인 테스트(5문항)를 볼 수 있어요. {QUIZ_NOTICE}</p>
+      {head}
       <div className="topic-list" role="radiogroup" aria-label="주제">
         {topics.data.map((t) => {
           const evidence = t.evidenceIds
@@ -131,7 +199,12 @@ function QuizLoading() {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
-  return <Spinner label={quizWaitText(now - started)} />;
+  return (
+    <div>
+      <StudySteps current="quiz" />
+      <Spinner label={quizWaitText(now - started)} />
+    </div>
+  );
 }
 
 function SkippableError({ error, onRetry, onSkip, onBack }: { error: unknown; onRetry: () => void; onSkip: () => void; onBack?: () => void }) {
@@ -180,13 +253,22 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
   if (alreadyTaken) {
     if (taken.data) return <QuizResult attempt={taken.data} onNext={finish} />;
     return (
-      <section className="card quiz-card">
-        <p className="quiz-note">이번 학습의 테스트는 이미 제출했어요.</p>
-        <Button onClick={finish}>돌아보기로 넘어가기</Button>
-      </section>
+      <div>
+        <StudySteps current="result" />
+        <section className="card quiz-card">
+          <p className="quiz-note">이번 학습의 테스트는 이미 제출했어요.</p>
+          <Button onClick={finish}>돌아보기로 넘어가기</Button>
+        </section>
+      </div>
     );
   }
-  if (quiz.error) return <SkippableError error={quiz.error} onRetry={() => quiz.refetch()} onSkip={finish} onBack={onBack} />;
+  if (quiz.error)
+    return (
+      <div>
+        <StudySteps current="quiz" />
+        <SkippableError error={quiz.error} onRetry={() => quiz.refetch()} onSkip={finish} onBack={onBack} />
+      </div>
+    );
   if (!quiz.data) return <QuizLoading />;
   const { topic, questions } = quiz.data;
   // 신고 상태는 서버(출제 스냅샷)가 기억 → 새로고침해도 유지
@@ -198,10 +280,11 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
 
   return (
     <div>
+      <StudySteps current="quiz" />
       <div className="page-heading quiz-heading">
         <div>
           <Badge tone="sky">성적에 들어가지 않아요</Badge>
-          <h2>{topic.name} 확인 테스트</h2>
+          <h1>{topic.name} 확인 테스트</h1>
           <p>모두에게 같은 난이도로 나와요. 이상한 문제는 신고하면 AI가 먼저 확인하고, 오류가 있거나 다른 친구도 신고한 문제는 채점에서 빠져요. {QUIZ_NOTICE}</p>
         </div>
         <strong className="question-count">
@@ -291,6 +374,7 @@ export function QuizResult({ attempt, onNext, collapsed = false }: { attempt: Qu
       {attempt.items.map((it, i) => {
         const out = it.reported || it.excluded;
         const mark = out ? "제외" : it.correct ? "맞음" : "틀림";
+        const verdict = out ? "채점 제외" : it.correct ? "맞았어요" : "다시 살펴봐요";
         return (
           <article key={it.questionId} className={`card result-row ${out ? "excluded" : it.correct ? "" : "wrong"}`}>
             <span className="result-mark" role="img" aria-label={mark}>
@@ -298,7 +382,7 @@ export function QuizResult({ attempt, onNext, collapsed = false }: { attempt: Qu
             </span>
             <div>
               <small>
-                {i + 1}번 문항
+                {i + 1}번 문항 · <b className="study-result-verdict">{verdict}</b>
               </small>
               <h3>{it.prompt}</h3>
               {it.reported && <Badge tone="stone">신고함 · 채점 제외</Badge>}
@@ -328,10 +412,11 @@ export function QuizResult({ attempt, onNext, collapsed = false }: { attempt: Qu
   }
   return (
     <div>
+      <StudySteps current="result" />
       <div className="page-heading result-heading">
         <div>
           <p className="eyebrow">확인 테스트 결과</p>
-          <h2>{score}</h2>
+          <h1>{score}</h1>
           <p>틀린 문제는 해설을 보고 다음 학습 때 다시 살펴봐요. {QUIZ_NOTICE}</p>
         </div>
         <Badge tone="sky">성적에 반영되지 않아요</Badge>

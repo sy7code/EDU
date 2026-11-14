@@ -8,7 +8,7 @@ import type { TopicGrowth } from "../../types/domain";
 
 const pct = (r: number | null) => (r === null ? "-" : `${Math.round(r * 100)}%`);
 
-const SIGNAL: Record<NonNullable<TopicGrowth["signal"]>, { label: string; teacherHint: string; studentHint: string }> = {
+export const TOPIC_SIGNAL: Record<NonNullable<TopicGrowth["signal"]>, { label: string; teacherHint: string; studentHint: string }> = {
   OVERCONFIDENT: {
     label: "이해했다는데 점수 낮음",
     teacherHint: "스스로 '설명할 수 있다'고 했지만 확인 테스트가 60% 미만이에요. 오개념이 있는지 이야기해 보세요.",
@@ -50,7 +50,7 @@ export function TopicGrowthView({ studentId, viewer }: { studentId: string; view
       {topics.length === 0 ? (
         <p className="card growth-empty">아직 주제가 없어요. 학습을 마치면 AI가 기록에서 주제를 찾아요.</p>
       ) : (
-        <div className="growth-list">
+        <div className="growth-list stu-growth-list">
           {topics.map((t) => {
             const up = t.firstRate !== null && t.lastRate !== null && t.attempts > 1 ? t.lastRate - t.firstRate : null;
             return (
@@ -73,6 +73,9 @@ export function TopicGrowthView({ studentId, viewer }: { studentId: string; view
                     )}
                   </strong>
                 </div>
+                <div className="progress-line stu-growth-progress" aria-hidden="true">
+                  <span style={{ width: `${t.lastRate === null ? 0 : Math.round(t.lastRate * 100)}%` }} />
+                </div>
                 {t.lastUnderstanding && (
                   <div className="growth-row">
                     <span>스스로 이해도</span>
@@ -83,8 +86,8 @@ export function TopicGrowthView({ studentId, viewer }: { studentId: string; view
                   <div className="conversation-signal">
                     <Icon name="message" />
                     <span>
-                      <strong>{SIGNAL[t.signal].label}</strong>
-                      {viewer === "teacher" ? SIGNAL[t.signal].teacherHint : SIGNAL[t.signal].studentHint}
+                      <strong>{TOPIC_SIGNAL[t.signal].label}</strong>
+                      {viewer === "teacher" ? TOPIC_SIGNAL[t.signal].teacherHint : TOPIC_SIGNAL[t.signal].studentHint}
                     </span>
                   </div>
                 )}

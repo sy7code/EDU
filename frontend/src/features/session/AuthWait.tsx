@@ -12,7 +12,7 @@ const DEMO_DEVICE = "kiosk-study-room-1";
  * 단말기 인증을 기다린다. 학생 기기는 본인의 최근 2분 내 미사용 인증 이벤트를 받아 진행한다.
  * 실서비스: Realtime 구독 / 지금: 1.5초 폴링
  */
-export function AuthWait({ purpose, onAuth }: { purpose: "start" | "end"; onAuth: (ev: AuthEvent) => void }) {
+export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; onAuth: (ev: AuthEvent) => void; note?: string }) {
   const me = useMe();
   const faceOk = useHasConsent("FACEPASS");
   const [qr, setQr] = useState<{ token: string; expiresAt: string } | null>(null);
@@ -47,7 +47,13 @@ export function AuthWait({ purpose, onAuth }: { purpose: "start" | "end"; onAuth
           <Icon name={purpose === "start" ? "users" : "check"} size={32} />
         </span>
       </div>
-      <h2>자습실 단말기에서 {purpose === "start" ? "학습 시작" : "학습 종료"} 인증을 해 주세요</h2>
+      <p className="eyebrow">{purpose === "start" ? "학습 시작 인증" : "학습 종료 인증"}</p>
+      <h1>
+        자습실 단말기에서
+        <br />
+        {purpose === "start" ? "학습 시작" : "학습 종료"} 인증을 해 주세요
+      </h1>
+      {note && <p className="study-auth-note">{note}</p>}
       <p>
         {faceOk ? `${METHOD_LABEL.FACEPASS}, ` : ""}QR, 학생증 바코드로 인증하면 이 화면이 자동으로 넘어가요.
       </p>

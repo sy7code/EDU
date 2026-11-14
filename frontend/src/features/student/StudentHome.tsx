@@ -1,15 +1,17 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api } from "../../api";
 import { useMe } from "../../auth/session";
 import { Icon } from "../../components/Icon";
-import { Badge, ButtonLink, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
+import { Badge, ButtonLink, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { activityLabel, goalLabel } from "../../lib/checklists";
 import { elapsedLabel, formatDateTime, formatDuration } from "../../lib/time";
 import { PaceCard } from "../records/PaceCard";
+import { TOPIC_SIGNAL } from "../records/TopicGrowthView";
 import { latestAttempt, summarizeWeek, unreadFeedback } from "../../lib/studentHome";
 import { FEATURES } from "../../api";
+import type { TopicGrowth } from "../../types/domain";
 
 export function StudentHome() {
   const me = useMe();
@@ -33,18 +35,33 @@ export function StudentHome() {
   const quizQueries = useQueries({
     queries: fbSessions.map((s) => ({ queryKey: ["quiz-attempt", s.id], queryFn: () => api.getQuizAttempt(s.id), enabled: FEATURES.quiz && s.status === "ENDED", staleTime: HOME_STALE })),
   });
+  // '오늘 할 일'의 남은 질문: 같은 최근 학습 5개 중 끝난 학습의 돌아보기에 적은 남은 질문 (기록 상세와 같은 캐시)
+  const reflQueries = useQueries({
+    queries: fbSessions.map((s) => ({ queryKey: ["reflection", s.id], queryFn: () => api.getReflection(s.id), enabled: s.status === "ENDED", staleTime: HOME_STALE })),
+  });
   const fbLoading = fbQueries.some((q) => q.isLoading);
   const fbError = fbQueries.find((q) => q.error);
   const quizLoading = quizQueries.some((q) => q.isLoading) || growth.isLoading;
   const quizError = quizQueries.find((q) => q.error) ?? (growth.error ? growth : undefined);
+  const reflLoading = reflQueries.some((q) => q.isLoading);
+  const reflError = reflQueries.find((q) => q.error);
   const week = summarizeWeek(sessions.data ?? [], new Date());
   const lastQuiz = latestAttempt(quizQueries.map((q) => q.data));
   const lastQuizName = growth.data?.topics.find((t) => t.topicId === lastQuiz?.topicId)?.name;
   const fb = unreadFeedback(fbQueries.flatMap((q) => q.data ?? []));
+  const openQuestions = reflQueries.reduce((n, q) => n + (q.data?.remainingQuestions.filter((t) => t.trim()).length ?? 0), 0);
+  const fbBySession = new Map(fbSessions.map((s, i) => [s.id, fbQueries[i]?.data ?? []]));
+  const fbSessionGoal = fb.latest ? fbSessions.find((s) => s.id === fb.latest?.sessionId) : undefined;
 
   return (
-    <div>
-      <PageTitle sub="오늘은 무엇을 스스로 공부해 볼까요?">{me.data?.name} 학생, 안녕하세요</PageTitle>
+    <div className="stu-home">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">{todayLabel()}</p>
+          <h1>{me.data?.name} 학생, 안녕하세요</h1>
+          <p>오늘도 내 속도에 맞게 한 걸음 시작해 볼까요?</p>
+        </div>
+      </div>
 
       {active.isLoading ? (
         <Spinner />
@@ -64,18 +81,76 @@ export function StudentHome() {
           </span>
           <ButtonLink to={`/student/session/${active.data.id}`}>학습 화면으로</ButtonLink>
         </div>
-      ) : (
-        <div className="start-card home-start">
-          <span className="start-icon">
-            <Icon name="pen" size={26} />
-          </span>
-          <span>
-            <small>오늘의 학습</small>
-            <strong>새 학습 시작하기</strong>
-            <em>목표를 고르고, 자습실 단말기에서 인증하면 시작돼요.</em>
-          </span>
-          <ButtonLink to="/student/start">학습 시작</ButtonLink>
-        </div>
+      ) : null}
+
+      {sessions.isLoading ? null : sessions.error ? null : (
+        <section className="student-task-panel stu-task-panel" aria-labelledby="stu-task-title">
+          <div className="task-panel-top">
+            <div>
+              <small>오늘 할 일</small>
+              <strong id="stu-task-title" aria-live="polite">
+                {fbLoading || reflLoading ? (
+                  "오늘 할 일을 모으고 있어요"
+                ) : fbError || reflError ? (
+                  "오늘 할 일을 다 불러오지 못했어요"
+                ) : fb.count + openQuestions > 0 ? (
+                  <>
+                    오늘 할 일이 <em>{fb.count + openQuestions}</em>개 있어요
+                  </>
+                ) : (
+                  "오늘 할 일을 모두 확인했어요"
+                )}
+              </strong>
+            </div>
+            <Link to="/student/records" className="stu-task-all">
+              전체 기록 <Icon name="chevron" size={15} />
+            </Link>
+          </div>
+          {!fbLoading && !reflLoading && (fbError || reflError) ? (
+            <p>
+              <button
+                type="button"
+                className="stat-retry"
+                onClick={() => [...fbQueries, ...reflQueries].forEach((q) => q.error && q.refetch())}
+              >
+                다시 시도
+              </button>
+            </p>
+          ) : (
+            <>
+              {(fb.count > 0 || openQuestions > 0) && (
+                <div className="task-chips">
+                  {fb.count > 0 && fb.latest && (
+                    <Link to={`/student/records?session=${fb.latest.sessionId}`} className="stu-task-chip is-on">
+                      새 피드백 {fb.count}
+                    </Link>
+                  )}
+                  {openQuestions > 0 && (
+                    <Link to="/student/records?tab=notes" className="stu-task-chip">
+                      남은 질문 {openQuestions}
+                    </Link>
+                  )}
+                </div>
+              )}
+              <p>
+                {fb.latest && fbSessionGoal
+                  ? `${goalLabel(fbSessionGoal.goal)} 기록에 선생님이 피드백을 남겼어요.`
+                  : openQuestions > 0
+                    ? "돌아보기에 적어 둔 남은 질문부터 풀어 볼까요?"
+                    : "최근 학습 5개를 기준으로 새 피드백과 남은 질문을 모아 보여 줘요."}
+              </p>
+            </>
+          )}
+          {active.data ? (
+            <ButtonLink to={`/student/session/${active.data.id}`}>
+              이어서 학습하기 <Icon name="chevron" size={16} />
+            </ButtonLink>
+          ) : (
+            <ButtonLink to="/student/start">
+              학습 시작 <Icon name="chevron" size={16} />
+            </ButtonLink>
+          )}
+        </section>
       )}
 
       {sessions.data && (
@@ -139,11 +214,24 @@ export function StudentHome() {
         </section>
       )}
 
+      {FEATURES.quiz && studentId && (
+        <TopicGrowthGrid
+          loading={growth.isLoading}
+          error={growth.error}
+          onRetry={() => growth.refetch()}
+          shared={growth.data?.shared ?? true}
+          topics={growth.data?.topics ?? []}
+        />
+      )}
+
       <PaceCard studentId={studentId} title="나의 성장 페이스" />
 
       <section>
         <div className="section-title">
           <h2>최근 학습</h2>
+          <Link to="/student/records" className="stu-section-link">
+            전체 보기 <Icon name="chevron" size={15} />
+          </Link>
         </div>
         {sessions.isLoading && <Spinner />}
         {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
@@ -152,6 +240,8 @@ export function StudentHome() {
           <div className="record-list card">
             {recent.map((s) => {
               const d = new Date(s.startedAt);
+              const fbList = fbBySession.get(s.id) ?? [];
+              const unread = fbList.some((f) => !f.readAt);
               return (
                 <Link key={s.id} to={`/student/records?session=${s.id}`} className="record-row">
                   <span className="date-box">
@@ -167,6 +257,7 @@ export function StudentHome() {
                       {s.goal.activities.length > 0 && ` · ${s.goal.activities.map(activityLabel).join(", ")}`}
                     </span>
                   </span>
+                  {fbList.length > 0 && <Badge tone={unread ? "brand" : "stone"}>{unread ? "새 피드백" : "피드백"}</Badge>}
                   <Icon name="chevron" size={18} />
                 </Link>
               );
@@ -176,6 +267,97 @@ export function StudentHome() {
       </section>
     </div>
   );
+}
+
+const HOME_TOPICS = 6; // 홈에는 주제 6개까지만, 나머지는 기록 화면에서
+
+const pct = (r: number | null) => (r === null ? null : Math.round(r * 100));
+
+/** 홈 '주제별 성장' 카드 묶음: AI가 기록에서 찾은 주제(TopicGrowth)를 그대로 보여 준다. 과목 고르기는 받은 데이터 안에서만 */
+function TopicGrowthGrid({
+  loading,
+  error,
+  onRetry,
+  shared,
+  topics,
+}: {
+  loading: boolean;
+  error: Error | null;
+  onRetry: () => void;
+  shared: boolean;
+  topics: TopicGrowth[];
+}) {
+  const [subject, setSubject] = useState<string | null>(null);
+  const subjects = [...new Set(topics.map((t) => t.subject).filter((s): s is string => !!s))];
+  const shown = (subject ? topics.filter((t) => t.subject === subject) : topics).slice(0, HOME_TOPICS);
+  if (!shared) return null;
+  return (
+    <section className="subject-growth-section" aria-labelledby="stu-growth-title">
+      <div className="section-title">
+        <h2 id="stu-growth-title">주제별 성장</h2>
+        {subjects.length >= 2 ? (
+          <div className="growth-filters stu-growth-filters" role="group" aria-label="과목 고르기">
+            {[null, ...subjects].map((s) => (
+              <button key={s ?? "all"} type="button" aria-pressed={subject === s} onClick={() => setSubject(s)}>
+                {s ?? "과목 · 전체"}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span>확인 테스트는 성적에 들어가지 않아요</span>
+        )}
+      </div>
+      {loading ? (
+        <Spinner />
+      ) : error ? (
+        <ErrorState error={error} onRetry={onRetry} />
+      ) : topics.length === 0 ? (
+        <p className="card growth-empty">아직 주제가 없어요. 학습을 마치면 AI가 기록에서 주제를 찾아요.</p>
+      ) : (
+        <>
+          <div className="subject-growth-grid">
+            {shown.map((t) => {
+              const rate = pct(t.lastRate);
+              return (
+                <article className="card subject-card stu-subject-card" key={t.topicId}>
+                  <div>
+                    <span>{t.subject ?? "주제"}</span>
+                    <small>
+                      {t.sessions}회 · {formatDuration(t.minutes)}
+                    </small>
+                  </div>
+                  <h3>{t.name}</h3>
+                  <p>{t.signal ? TOPIC_SIGNAL[t.signal].studentHint : rate === null ? "아직 확인 테스트를 보지 않았어요." : "최근 확인 테스트에서 맞힌 비율이에요."}</p>
+                  <div className="progress-line" aria-hidden="true">
+                    <span style={{ width: `${rate ?? 0}%` }} />
+                  </div>
+                  <strong>
+                    <span className="stu-sr-only">최근 확인 테스트 </span>
+                    {rate === null ? "-" : `${rate}%`}
+                  </strong>
+                  <div className="subject-chips">
+                    {t.signal && <span>{TOPIC_SIGNAL[t.signal].label}</span>}
+                    <span>학습 {t.sessions}번</span>
+                    <span>테스트 {t.attempts}번</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          {topics.length > HOME_TOPICS && !subject && (
+            <p className="stu-growth-more">
+              <Link to="/student/records">주제 {topics.length}개 모두 보기 →</Link>
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** 서울 날짜 기준 "11월 14일 토요일" */
+function todayLabel() {
+  return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long" }).format(new Date());
 }
 
 function StatCard({

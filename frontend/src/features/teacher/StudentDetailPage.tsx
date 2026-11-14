@@ -2,9 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, FEATURES } from "../../api";
+import { useMe } from "../../auth/session";
 import { Icon } from "../../components/Icon";
-import { Button, EmptyState, ErrorState, Spinner } from "../../components/ui";
+import { SearchBox } from "../../components/SearchBox";
+import { Badge, Button, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { goalLabel } from "../../lib/checklists";
+import { matchStudent } from "../../lib/studentSearch";
+import type { DashboardRow } from "../../types/domain";
 import { formatDateTime, formatDuration } from "../../lib/time";
 import { SessionDetail } from "../records/SessionDetail";
 import { TopicGrowthView } from "../records/TopicGrowthView";
@@ -20,11 +24,11 @@ export function StudentDetailPage() {
   const [params, setParams] = useSearchParams();
   const [highlight, setHighlight] = useState<string[]>([]);
   const sessions = useQuery({ queryKey: ["sessions", studentId], queryFn: () => api.listSessions({ studentId }) });
-  const dash = useQuery({ queryKey: ["dashboard-name", studentId], queryFn: async () => {
-    const me = await api.me();
-    const d = await api.getDashboard(me!.classId);
-    return d.students.find((s) => s.studentId === studentId) ?? null;
-  } });
+  const me = useMe();
+  const classId = me.data?.classId ?? "";
+  // 반 대시보드와 같은 캐시(최근 7일 반 명단·숫자). 학생 목록 열과 학생정보 카드에 쓴다
+  const roster = useQuery({ queryKey: ["dashboard", classId], queryFn: () => api.getDashboard(classId), enabled: !!classId });
+  const row = roster.data?.students.find((s) => s.studentId === studentId) ?? null;
 
   const qCount = useQuestionCountBySession(studentId);
   // ?session= 만 붙은 예전 링크는 학습 기록 탭으로, 잘못된 tab 값은 요약 탭으로
@@ -58,84 +62,168 @@ export function StudentDetailPage() {
     if (highlight[0]) document.getElementById(`ev-${highlight[0]}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [highlight]);
 
-  const name = dash.data ? `${dash.data.number}번 ${dash.data.name}` : "학생 기록";
+  const name = row ? `${row.number}번 ${row.name}` : "학생 기록";
+  const questionTotal = [...qCount.values()].reduce((n, v) => n + v, 0);
+  const studentLink = (id: string) => {
+    const q = new URLSearchParams({ ...(tab !== "summary" ? { tab } : {}), ...(fromAnalytics ? { from: "analytics" } : {}) }).toString();
+    return `/teacher/students/${id}${q ? `?${q}` : ""}`;
+  };
   return (
-    <div className="page teacher-page">
+    <div className="tdetail-page">
       <Link to={fromAnalytics ? "/teacher/analytics" : "/teacher"} className="student-back">
         ← {fromAnalytics ? "반 분석" : "반 대시보드"}
       </Link>
-      <div className="student-profile-head">
-        <div className="avatar" aria-hidden="true">{dash.data ? String(dash.data.number).padStart(2, "0") : "-"}</div>
-        <div>
-          <h1>{name}</h1>
-          <p>
-            {FEATURES.audit && <Icon name="lock" size={14} />}
-            {`학생이 '교사 공개'로 남긴 기록만 보여요${FEATURES.audit ? " · 열람 기록이 남아요" : ""}`}
-          </p>
-        </div>
-      </div>
-      <nav className="tabs wide" aria-label="학생 정보 보기">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            aria-current={tab === t ? "page" : undefined}
-            onClick={() => {
-              setHighlight([]);
-              go({ tab: t });
-            }}
-            className={tab === t ? "active" : ""}
-          >
-            {TAB_LABEL[t]}
-          </button>
-        ))}
-      </nav>
-
-      {tab === "summary" && (
-        <>
-          <ProfileSummary studentId={studentId} />
-          {FEATURES.quiz && <TopicGrowthView studentId={studentId} viewer="teacher" />}
-        </>
-      )}
-
-      {tab === "questions" && <QuestionList studentId={studentId} />}
-
-      {tab === "records" && (
-        <>
-          {sessions.isLoading && <Spinner />}
-          {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
-          {sessions.data?.length === 0 && <EmptyState title="학습 기록이 없어요">먼저 학생과 학습 계획을 이야기해 보세요.</EmptyState>}
-          {sessions.data && sessions.data.length > 0 && (
-            <div className="card split-record">
-              <div className="session-list">
-                <h2>학습 목록</h2>
-                <p className="session-list-note">AI 질문 수는 최근 4주 학습에만 표시돼요</p>
-                <ul>
-                  {sessions.data.map((s) => (
-                    <li key={s.id}>
-                      <button onClick={() => chooseSession(s.id)} className={s.id === selectedId ? "active" : ""}>
-                        <small>{formatDateTime(s.startedAt)}</small>
-                        <strong>{goalLabel(s.goal)}</strong>
-                        <span>
-                          {s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}
-                          {qCount.get(s.id) ? ` · AI 질문 ${qCount.get(s.id)}회` : null}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              {selected && (
-                <div ref={detailRef} className="session-detail scroll-mt-4">
-                  <FeedbackForm sessionId={selected.id} />
-                  <SessionDetail session={selected} highlight={highlight} />
-                  {FEATURES.assessment && <AssessmentPanel session={selected} onEvidence={setHighlight} />}
+      <div className="tdetail-layout">
+        {roster.data && roster.data.students.length > 0 && (
+          <Roster students={roster.data.students} currentId={studentId} linkTo={studentLink} />
+        )}
+        <div className="tdetail-main">
+          <section className="card tdetail-info" aria-labelledby="tdetail-name">
+            <div className="student-profile-head">
+              <div className="avatar" aria-hidden="true">{row ? String(row.number).padStart(2, "0") : "-"}</div>
+              <div>
+                <div className="tdetail-title">
+                  <h1 id="tdetail-name">{name}</h1>
+                  {row && (row.shared ? <Badge tone="brand">기록 공유 동의</Badge> : <Badge tone="stone">기록 비공개</Badge>)}
                 </div>
+                <p>
+                  {FEATURES.audit && <Icon name="lock" size={14} />}
+                  {`학생이 '교사 공개'로 남긴 기록만 보여요${FEATURES.audit ? " · 열람 기록이 남아요" : ""}`}
+                </p>
+              </div>
+              {tab !== "records" && sessions.data && sessions.data.length > 0 && (
+                <Button variant="secondary" onClick={() => go({ tab: "records" })}>
+                  <Icon name="message" /> 피드백 남기기
+                </Button>
               )}
             </div>
+            {row && <InfoGrid row={row} />}
+          </section>
+          <nav className="tabs wide" aria-label="학생 정보 보기">
+            {TABS.map((t) => (
+              <button
+                key={t}
+                aria-current={tab === t ? "page" : undefined}
+                onClick={() => {
+                  setHighlight([]);
+                  go({ tab: t });
+                }}
+                className={tab === t ? "active" : ""}
+              >
+                {TAB_LABEL[t]}
+                {t === "questions" && questionTotal > 0 && (
+                  <span>
+                    {questionTotal}
+                    <span className="sr-only">개 (최근 4주)</span>
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+
+          {tab === "summary" && (
+            <>
+              <ProfileSummary studentId={studentId} />
+              {FEATURES.quiz && <TopicGrowthView studentId={studentId} viewer="teacher" />}
+            </>
           )}
-        </>
-      )}
+
+          {tab === "questions" && <QuestionList key={studentId} studentId={studentId} />}
+
+          {tab === "records" && (
+            <>
+              {sessions.isLoading && <Spinner />}
+              {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
+              {sessions.data?.length === 0 && <EmptyState title="학습 기록이 없어요">먼저 학생과 학습 계획을 이야기해 보세요.</EmptyState>}
+              {sessions.data && sessions.data.length > 0 && (
+                <div className="card split-record">
+                  <div className="session-list">
+                    <h2>학습 목록</h2>
+                    <p className="session-list-note">AI 질문 수는 최근 4주 학습에만 표시돼요</p>
+                    <ul>
+                      {sessions.data.map((s) => (
+                        <li key={s.id}>
+                          <button onClick={() => chooseSession(s.id)} className={s.id === selectedId ? "active" : ""}>
+                            <small>{formatDateTime(s.startedAt)}</small>
+                            <strong>{goalLabel(s.goal)}</strong>
+                            <span>
+                              {s.status === "ACTIVE" ? "학습 중" : formatDuration(s.durationMinutes ?? 0)}
+                              {qCount.get(s.id) ? ` · AI 질문 ${qCount.get(s.id)}회` : null}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  {selected && (
+                    <div ref={detailRef} className="session-detail scroll-mt-4">
+                      <FeedbackForm key={selected.id} sessionId={selected.id} />
+                      <SessionDetail session={selected} highlight={highlight} />
+                      {FEATURES.assessment && <AssessmentPanel session={selected} onEvidence={setHighlight} />}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
+  );
+}
+
+/** 학생정보 카드의 이름표–값. 반 대시보드와 같은 최근 7일 숫자, 기록 공유 미동의면 내용 기반 값은 '기록 비공개' */
+function InfoGrid({ row }: { row: DashboardRow }) {
+  const hidden = "기록 비공개";
+  const items: Array<[string, string]> = [
+    ["번호", `${row.number}번`],
+    ["최근 학습", row.lastSessionAt ? formatDateTime(row.lastSessionAt) : "기록 없음"],
+    ["학습 횟수 (최근 7일)", `${row.sessionCount}회`],
+    ["학습 시간 (최근 7일)", formatDuration(row.totalMinutes)],
+    ["최근 테스트 정답률", !row.shared ? hidden : row.lastQuizRate === null ? "-" : `${Math.round(row.lastQuizRate * 100)}%`],
+    ["남은 질문 (최근 7일)", !row.shared ? hidden : `${row.openQuestionCount}개`],
+  ];
+  return (
+    <dl className="tdetail-kv">
+      {items.map(([k, v]) => (
+        <div key={k}>
+          <dt>{k}</dt>
+          <dd>{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** 학생 상세 왼쪽 학생 목록 열 (넓은 화면에서만 보임, styles 참고). 누르면 같은 탭으로 그 학생 상세 */
+function Roster({ students, currentId, linkTo }: { students: DashboardRow[]; currentId: string; linkTo: (id: string) => string }) {
+  const [query, setQuery] = useState("");
+  const found = students.filter((s) => matchStudent(s, query));
+  return (
+    <aside className="card tdetail-roster" aria-labelledby="tdetail-roster-title">
+      <h2 id="tdetail-roster-title">학생 목록</h2>
+      <SearchBox value={query} onChange={setQuery} />
+      {found.length === 0 ? (
+        <p className="tdetail-roster-empty">검색 결과가 없어요</p>
+      ) : (
+        <ul>
+          {found.map((s) => (
+            <li key={s.studentId}>
+              <Link
+                to={linkTo(s.studentId)}
+                aria-current={s.studentId === currentId ? "page" : undefined}
+                className={s.studentId === currentId ? "active" : undefined}
+              >
+                <strong>
+                  {s.number}번 {s.name}
+                </strong>
+                <small>{!s.shared ? "기록 비공개" : s.lastSessionAt ? `최근 학습 ${formatDateTime(s.lastSessionAt)}` : "학습 기록 없음"}</small>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </aside>
   );
 }
 

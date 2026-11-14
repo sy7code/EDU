@@ -5,7 +5,7 @@ import { api, FEATURES } from "../../api";
 import { useMe } from "../../auth/session";
 import { TopicGrowthView } from "./TopicGrowthView";
 import { Icon } from "../../components/Icon";
-import { Badge, Card, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
+import { Badge, Card, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { goalLabel } from "../../lib/checklists";
 import { formatDateTime, formatDuration } from "../../lib/time";
 import { SessionDetail } from "./SessionDetail";
@@ -39,9 +39,13 @@ export function MyRecordsPage() {
 
   return (
     <div>
-      <PageTitle sub={sessions.data ? `지금까지 ${sessions.data.length}번, ${formatDuration(totalMin)} 스스로 공부했어요` : undefined}>
-        내 학습 기록
-      </PageTitle>
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">나의 기록</p>
+          <h1>{sessions.data ? `지금까지 ${sessions.data.length}번, ${formatDuration(totalMin)}` : "내 학습 기록"}</h1>
+          <p>점수가 아니라, 내가 공부해 온 과정을 살펴보세요.</p>
+        </div>
+      </div>
       <nav className="tabs wide" aria-label="내 기록 보기">
         {(["list", "notes"] as const).map((t) => (
           <button

@@ -32,7 +32,7 @@ function Compare({ label, value, avg, format, icon, tone = "" }: { label: string
   );
 }
 
-/** 교사 학생 상세 '요약' 탭: 최근 4주 숫자(반 평균 비교) + 질문 유형 비율 */
+/** 교사 학생 상세 '요약' 탭: 한눈에 보기 → 최근 4주 숫자(반 평균 비교) → Pace → 질문 유형 비율 */
 export function ProfileSummary({ studentId }: { studentId: string }) {
   const q = useClassAnalytics("4w");
   if (q.isLoading) return <Spinner label="종합 정보를 모으는 중" />;
@@ -54,19 +54,21 @@ export function ProfileSummary({ studentId }: { studentId: string }) {
           types: st.types,
         }}
       />
-      <PaceCard studentId={studentId} shared={st.shared} title="Pace 성장 그래프" viewer="teacher" />
+      <h2 className="tdetail-section-title">최근 4주 숫자 · 반 평균과 비교</h2>
       <div className="teacher-stats four">
         <Compare icon="book" label="학습 횟수" value={st.sessionCount} avg={avg(summary.students.map((s) => s.sessionCount))} format={(v) => (v === null ? "-" : `${Math.round(v * 10) / 10}회`)} />
         <Compare icon="clock" label="학습 시간" value={st.minutes} avg={summary.minutes.mean} format={minutesText} />
         {st.shared && <Compare icon="check" tone="blue-tone" label="확인 테스트 정답률" value={st.quizRate} avg={summary.quizRate.mean} format={pct} />}
         {st.shared && <Compare icon="message" tone="orange-tone" label="AI 질문 수" value={st.questionCount} avg={summary.questions.mean} format={countText} />}
       </div>
+      <PaceCard studentId={studentId} shared={st.shared} title="Pace 성장 그래프" viewer="teacher" />
       <section className="card ratio-card profile-types">
         <div className="card-heading">
           <div>
-            <h2>최근 4주 종합</h2>
-            {st.shared && <p>AI에 어떻게 물었나</p>}
+            <h2>질문 유형</h2>
+            <p>{st.shared ? "최근 4주 · AI에 어떻게 물었나" : "최근 4주"}</p>
           </div>
+          {st.shared && <Badge tone="sky">자동 분류 · 참고용</Badge>}
         </div>
         {!st.shared ? (
           <p className="profile-note">기록 공유에 동의하지 않아 질문·정답률은 보이지 않아요.</p>
@@ -95,8 +97,8 @@ export function QuestionList({ studentId }: { studentId: string }) {
     <section className="card question-list">
       <div className="card-heading">
         <div>
-          <h2>AI에 한 질문 (최근 4주 {questions.length}개, 최근 순)</h2>
-          <p>유형은 자동 분류 · 참고용</p>
+          <h2>최근 4주 질문 원문</h2>
+          <p>학생이 AI에 실제로 남긴 질문 {questions.length}개, 최근 순이에요. 유형은 자동 분류 · 참고용이에요.</p>
         </div>
       </div>
       {questions.length === 0 ? (

@@ -135,3 +135,91 @@ button.stat-card:focus-visible {
   font-size: 12px;
   max-width: 220px;
 }
+
+/* 대시보드 (Figma v2): 배너·챙길 학생·오늘 칸. 기본 모양은 design.css의 프로토타입 클래스를 그대로 쓴다 */
+.dash-banner > div:first-child {
+  padding-right: 150px; /* 오른쪽 '확인하기' 버튼과 겹치지 않게 */
+}
+.dash-banner .banner-dots {
+  bottom: 12px;
+}
+.dash-banner-nav {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.dash-banner-nav:hover {
+  background: rgba(194, 24, 91, 0.08);
+  color: var(--green);
+}
+.dash-banner-nav:focus-visible,
+.dash-banner > button:focus-visible,
+.today-item button:focus-visible,
+.dash-filter-chip:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.dash-stat-note {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* 채점 확정 카드까지 다섯 개일 때 */
+.care-tiles.dash-tiles-five {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+.today-item button {
+  cursor: pointer;
+}
+.dash-table-card {
+  scroll-margin-top: 80px; /* 좁은 화면 상단 고정 바에 가리지 않게 */
+}
+.dash-table-card .filter-row {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.dash-filter-chip {
+  min-height: 34px;
+  border: 1px solid #df87aa;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--green);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+/* 사이드바가 남아 있는 중간 폭(641~900px)에서는 오른쪽 칸을 아래로 내린다 */
+@media (max-width: 900px) {
+  .dash-columns {
+    grid-template-columns: 1fr;
+  }
+  .dash-columns .care-tiles {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .dash-banner > div:first-child {
+    padding-right: 0;
+  }
+  .dash-banner .banner-dots {
+    left: 10px;
+  }
+  .dash-columns .care-tiles {
+    grid-template-columns: 1fr;
+  }
+  .dash-stat-note {
+    grid-column: 2;
+  }
+  .dash-filter-chip {
+    width: 100%;
+  }
+}

@@ -9,12 +9,13 @@ import { formatDuration, formatTime } from "../../lib/time";
 import type { AuthEvent, GroundedItem, LearningSession } from "../../types/domain";
 import { AuthWait } from "./AuthWait";
 import { useHasConsent } from "../../auth/session";
-import { ChoiceChip, TopicStep } from "./TopicQuiz";
+import { ChoiceChip, StudySteps, TopicStep } from "./TopicQuiz";
 
 export function EndPage() {
   const { id = "" } = useParams();
   const qc = useQueryClient();
   const session = useQuery({ queryKey: ["session", id], queryFn: () => api.getSession(id) });
+  const aiOk = useHasConsent("AI");
 
   const end = useMutation({
     mutationFn: (ev: AuthEvent) => api.endSession(id, ev.id),
@@ -38,8 +39,15 @@ export function EndPage() {
   if (s.status === "ACTIVE") {
     return (
       <div>
-        <PageTitle sub="인증하면 학습 시간이 기록돼요">학습 마치기</PageTitle>
-        {end.error ? <ErrorState error={end.error} onRetry={() => end.reset()} /> : <AuthWait purpose="end" onAuth={onAuth} />}
+        <StudySteps current="authEnd" withQuiz={FEATURES.quiz && aiOk} />
+        {end.error ? (
+          <>
+            <PageTitle sub="인증하면 학습 시간이 기록돼요">학습 마치기</PageTitle>
+            <ErrorState error={end.error} onRetry={() => end.reset()} />
+          </>
+        ) : (
+          <AuthWait purpose="end" onAuth={onAuth} note="종료 시각을 확인하고 오늘의 학습을 정리할게요. 인증하면 학습 시간이 기록돼요." />
+        )}
       </div>
     );
   }
@@ -62,19 +70,18 @@ function AfterEnd({ session }: { session: LearningSession }) {
     if (attempt.isLoading) return <Spinner />;
     if (!attempt.data) {
       return (
-        <div>
-          <PageTitle sub={`${formatTime(session.startedAt)} ~ ${formatTime(session.endedAt!)}`}>
-            오늘 {formatDuration(session.durationMinutes ?? 0)} 공부했어요
-          </PageTitle>
-          <TopicStep sessionId={session.id} onDone={() => setQuizDone(true)} />
-        </div>
+        <TopicStep
+          sessionId={session.id}
+          onDone={() => setQuizDone(true)}
+          eyebrow={`오늘 ${formatDuration(session.durationMinutes ?? 0)} 공부했어요 · ${formatTime(session.startedAt)} ~ ${formatTime(session.endedAt!)}`}
+        />
       );
     }
   }
-  return <Wrapup session={session} />;
+  return <Wrapup session={session} withQuiz={topicsOn} />;
 }
 
-function Wrapup({ session }: { session: LearningSession }) {
+function Wrapup({ session, withQuiz }: { session: LearningSession; withQuiz: boolean }) {
   const nav = useNavigate();
   const qc = useQueryClient();
   // 요약도 기록을 AI로 보내므로 AI 동의가 없으면 부르지 않는다 (서버도 403 CONSENT_REQUIRED)
@@ -99,11 +106,14 @@ function Wrapup({ session }: { session: LearningSession }) {
 
   return (
     <div>
+      <StudySteps current="reflect" withQuiz={withQuiz} />
       <div className="page-heading">
         <div>
-          <p className="eyebrow">학습 돌아보기</p>
-          <h1>오늘 {formatDuration(session.durationMinutes ?? 0)} 공부했어요</h1>
-          <p>{formatTime(session.startedAt)} ~ {formatTime(session.endedAt!)}</p>
+          <p className="eyebrow">학습 돌아보기 · 오늘 {formatDuration(session.durationMinutes ?? 0)} 공부했어요</p>
+          <h1>오늘의 배움을 내 것으로 만들어요</h1>
+          <p>
+            {formatTime(session.startedAt)} ~ {formatTime(session.endedAt!)} · 정답보다 내가 어떻게 공부했는지 돌아보는 시간이 중요해요.
+          </p>
         </div>
       </div>
 
@@ -209,7 +219,7 @@ function Wrapup({ session }: { session: LearningSession }) {
 
         {save.error && <ErrorState error={save.error} />}
         <Button className="full" disabled={understanding === null || save.isPending} onClick={() => save.mutate()}>
-          저장하기
+          돌아보기 저장하기
         </Button>
       </section>
     </div>

@@ -42,7 +42,7 @@ export function ReportsPage() {
   const counts = reportCountsByStudent(list.data);
 
   return (
-    <div className="page teacher-page">
+    <div className="tdetail-reports">
       <div className="page-heading">
         <div>
           <p className="eyebrow">확인 테스트 관리</p>
@@ -51,7 +51,7 @@ export function ReportsPage() {
             문항의 첫 신고는 AI가 먼저 검토해요. AI가 오류로 보거나 같은 문항이 다시 신고되면 여기로 오고, 그 문항은 일단 채점에서 빠져 있어요.
           </p>
         </div>
-        {open > 0 && <Badge tone="amber">확인 필요 {open}</Badge>}
+        {open > 0 && <Badge tone="amber">확인 필요 {open}건</Badge>}
       </div>
       {list.data.length === 0 && <EmptyState title="신고된 문제가 없어요" />}
       {list.data.length > 0 && shown.length === 0 && <EmptyState title="선생님 확인이 필요한 신고가 없어요">AI가 검토해 문제 없다고 본 신고만 있어요.</EmptyState>}
@@ -82,16 +82,24 @@ export function ReportsPage() {
                 </ol>
                 <p>해설: {r.explanation}</p>
               </div>
-              <div className="report-meta">
+              <div className={`tdetail-ai-review${r.aiReview?.verdict === "OK" ? " is-ok" : r.aiReview ? " is-error" : ""}`}>
+                <Icon name="spark" />
+                <div>
+                  <small>AI 1차 검토</small>
+                  {r.aiReview ? (
+                    <p>
+                      <strong>{r.aiReview.verdict === "OK" ? "문제 없음" : "오류 있음"}</strong> · {r.aiReview.reason}
+                    </p>
+                  ) : (
+                    <p>검토 없음</p>
+                  )}
+                </div>
+              </div>
+              <div className="report-meta tdetail-report-meta">
                 <span>
                   <Icon name="alert" />
                   <small>신고 이유</small>
                   <strong>{REASON[r.reason]}</strong>
-                </span>
-                <span>
-                  <Icon name="spark" />
-                  <small>AI 1차 검토</small>
-                  <strong>{r.aiReview ? `${r.aiReview.verdict === "OK" ? "문제 없음" : "오류 있음"} · ${r.aiReview.reason}` : "검토 없음"}</strong>
                 </span>
                 <span>
                   <Icon name="alert" />
@@ -102,6 +110,11 @@ export function ReportsPage() {
                   <Icon name={r.studentNumber === null ? "lock" : "users"} />
                   <small>신고 학생</small>
                   <strong>{r.studentNumber === null ? "학생(기록 비공개)" : `${r.studentNumber}번 학생`}</strong>
+                </span>
+                <span>
+                  <Icon name="book" />
+                  <small>이 학생의 신고</small>
+                  <strong>{r.studentReportCount === null ? "-" : `${r.studentReportCount}건`}</strong>
                 </span>
               </div>
               {r.status === "OPEN" && (
@@ -122,31 +135,33 @@ export function ReportsPage() {
         <section className="card report-counts">
           <h2>학생별 신고 수</h2>
           <p>AI가 문제 없다고 본 신고까지 세요. 신고가 많다고 바로 문제라는 뜻은 아니에요. 문항이 실제로 헷갈렸을 수도 있어요.</p>
-          <table className="overview-table">
-            <thead>
-              <tr>
-                <th>학생</th>
-                <th>신고</th>
-                <th>AI가 문제 없다고 본 신고</th>
-              </tr>
-            </thead>
-            <tbody>
-              {counts.students.map((c) => (
-                <tr key={c.studentNumber}>
-                  <td>{c.studentNumber}번</td>
-                  <td>{c.total >= 3 ? <strong className="low">{c.total}건</strong> : `${c.total}건`}</td>
-                  <td>{c.aiCleared}건</td>
-                </tr>
-              ))}
-              {counts.anonymous > 0 && (
+          <div className="table-wrap">
+            <table className="overview-table">
+              <thead>
                 <tr>
-                  <td>기록 비공개 학생</td>
-                  <td>{counts.anonymous}건</td>
-                  <td>-</td>
+                  <th>학생</th>
+                  <th>신고</th>
+                  <th>AI가 문제 없다고 본 신고</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {counts.students.map((c) => (
+                  <tr key={c.studentNumber}>
+                    <td>{c.studentNumber}번</td>
+                    <td>{c.total >= 3 ? <strong className="low">{c.total}건</strong> : `${c.total}건`}</td>
+                    <td>{c.aiCleared}건</td>
+                  </tr>
+                ))}
+                {counts.anonymous > 0 && (
+                  <tr>
+                    <td>기록 비공개 학생</td>
+                    <td>{counts.anonymous}건</td>
+                    <td>-</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </div>
