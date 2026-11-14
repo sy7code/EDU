@@ -1443,6 +1443,22 @@ describe("교과 교사", () => {
     expect(students.some((x) => x.id === "s02")).toBe(false);
   });
 
+  it("교과 교사 집계는 지난 학기 학습을 세지 않는다", async () => {
+    // 2027-09-02(목): 이번 주(월 8/30~)에 8/31(1학기) 학습이 걸친다. 현재 학기(2027-2)가 아니라서 세지 않는다
+    const now = new Date("2027-09-02T19:00:00+09:00");
+    const count = async (extra: boolean) => {
+      const seed = createSeed(now);
+      if (extra) {
+        const start = new Date("2027-08-31T15:00:00+09:00");
+        seed.sessions.push({ id: "old-term-math", studentId: "s01", goal: { subject: "수학", activities: ["concept"] }, startedAt: start.toISOString(), endedAt: new Date(start.getTime() + 30 * 60000).toISOString(), startAuth: "FACEPASS", endAuth: "FACEPASS", status: "ENDED", durationMinutes: 30 });
+      }
+      const a = createMockApi({ seed, now: () => now, latencyMs: 0, storage: null });
+      await a.login("t3");
+      return (await a.getSubjectSummary("c1", "수학")).sessionCount;
+    };
+    expect(await count(true)).toBe(await count(false));
+  });
+
   it("시드: 김가온 다시 볼 주제에 수학 - 이차함수 꼭짓점", async () => {
     await api.login("s01");
     const groups = reviewTopicsBySubject(await api.getReviewInputs("s01"));

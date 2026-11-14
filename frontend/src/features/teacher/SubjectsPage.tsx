@@ -21,7 +21,7 @@ export function SubjectsPage() {
   return (
     <div className="subj-page">
       <h1>내 과목</h1>
-      <p className="subj-lead">이번 주 학습을 반·과목별로 모아 보여요. 학생이 '교사 공개'와 교과 공개에 동의한 기록만 집계돼요.</p>
+      <p className="subj-lead">이번 주 학습을 반·과목별로 모아 보여요. 학습 기록 공개와 교과 공개에 모두 동의한 학생의 학습만 집계돼요.</p>
       {!FEATURES.subjectTeacher && <EmptyState title="아직 쓸 수 없는 기능이에요">교과 선생님 화면은 준비 중이에요.</EmptyState>}
       {FEATURES.subjectTeacher && asg.isLoading && <Spinner />}
       {asg.error && <ErrorState error={asg.error} onRetry={isRetryable(asg.error) ? () => asg.refetch() : undefined} />}

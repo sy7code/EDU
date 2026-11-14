@@ -40,7 +40,7 @@ const ITEMS: Array<{
   {
     kind: "SUBJECT_SHARE",
     title: "교과 선생님에게 공개",
-    body: "수학으로 시작한 학습은 수학 선생님도 볼 수 있어요. '나만 보기' 기록은 보이지 않아요.",
+    body: "수학으로 시작한 학습은 수학 선생님도 볼 수 있어요. 공개 기록·돌아보기·확인 테스트 결과가 보이고, '나만 보기' 기록은 보이지 않아요.",
     ifNo: "동의하지 않으면 담임 선생님만 볼 수 있어요.",
   },
 ];
@@ -103,10 +103,13 @@ export function ConsentPage() {
 
   if (consents.isLoading || me.isLoading) return <Spinner />;
   const recordOn = values.LEARNING_RECORD === true;
+  // 이미 동의를 저장한 학생이 새로 생긴 교과 공개 항목을 안 골라도 나머지는 저장할 수 있다 (null = 미동의로 저장)
+  const hasSaved = !!consents.data?.length;
   const allDecided = items.every(
     (i) =>
       values[i.kind] !== null ||
-      (i.kind === "SUBJECT_SHARE" && values.LEARNING_RECORD === false),
+      (i.kind === "SUBJECT_SHARE" &&
+        (values.LEARNING_RECORD === false || hasSaved)),
   );
   const needGuardian = !!me.data?.under14;
   // 거부·철회는 보호자 동의 없이도 된다 (서버 4-7과 같은 규칙). "동의해요"를 하나라도 골랐을 때만 막는다
@@ -133,6 +136,9 @@ export function ConsentPage() {
                 <h2>{i.title}</h2>
                 <p>{i.body}</p>
                 <small>{i.ifNo}</small>
+                {i.kind === "SUBJECT_SHARE" && !locked && values.SUBJECT_SHARE === null && hasSaved && (
+                  <small className="subj-consent-lock">선택하지 않으면 공개하지 않아요</small>
+                )}
                 {locked && (
                   <small className="subj-consent-lock" id="subj-consent-lock">
                     {SUBJECT_NEEDS_RECORD}

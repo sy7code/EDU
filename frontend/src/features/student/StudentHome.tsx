@@ -198,6 +198,7 @@ export function StudentHome() {
                   tone="orange-tone"
                   badge={<Badge tone="brand">새 피드백 {fb.count}개</Badge>}
                 >
+                  {fb.latest.authorSubject && <small className="subj-author">{fb.latest.authorSubject} 선생님</small>}
                   <p className="line-clamp-2 stat-quote">{fb.latest.content}</p>
                   <p className="stat-more">기록에서 보기 →</p>
                 </StatCard>

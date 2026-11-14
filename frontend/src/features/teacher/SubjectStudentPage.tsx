@@ -14,25 +14,27 @@ const KIND: Record<string, string> = { MEMO: "메모", QUESTION: "궁금한 점"
 
 export function SubjectStudentPage() {
   const { classId = "", subject = "", studentId = "" } = useParams();
+  const students = useQuery({ queryKey: ["subject-students", classId, subject], queryFn: () => api.listSubjectStudents(classId, subject), enabled: FEATURES.subjectTeacher });
+  const student = students.data?.find((s) => s.id === studentId);
+  // 목록이 로드됐는데 이 학생이 없으면 (주소 직접 입력) 기록도 열람 기록도 만들지 않는다
+  const notAllowed = !!students.data && !student;
   const sessions = useQuery({
     queryKey: ["subj", "sessions", studentId, subject],
     queryFn: () => api.listSessions({ studentId, subject }),
-    enabled: FEATURES.subjectTeacher,
+    enabled: FEATURES.subjectTeacher && !notAllowed,
   });
-  const students = useQuery({ queryKey: ["subject-students", classId, subject], queryFn: () => api.listSubjectStudents(classId, subject), enabled: FEATURES.subjectTeacher });
-  const student = students.data?.find((s) => s.id === studentId);
   const [openId, setOpenId] = useState<string | null>(null);
 
   // 열람 기록은 이 화면을 열 때 한 번만 (StrictMode 이중 실행에도 ref로 막는다). 실패하면 다음에 열 때 다시 시도
   const logged = useRef<string | null>(null);
   useEffect(() => {
     const key = `${studentId}|${subject}`;
-    if (!FEATURES.subjectTeacher || logged.current === key) return;
+    if (!FEATURES.subjectTeacher || !students.data || notAllowed || logged.current === key) return;
     logged.current = key;
     api.logStudentView(studentId, subject).catch(() => {
       if (logged.current === key) logged.current = null;
     });
-  }, [studentId, subject]);
+  }, [studentId, subject, students.data, notAllowed]);
 
   const back = `/teacher/subjects/${classId}/${encodeURIComponent(subject)}`;
   return (
@@ -43,14 +45,16 @@ export function SubjectStudentPage() {
       <h1>{student ? `${student.number}번 ${student.name}` : "학생 기록"}</h1>
       <p className="subj-notice">
         <Icon name="lock" size={14} />
-        <span>학생이 '교사 공개'로 남긴 {subject} 학습 기록만 보여요 · 열람 기록이 남아요</span>
+        <span>학생이 '교사 공개'로 남긴 {subject} 학습 기록과 돌아보기·확인 테스트 결과만 보여요 · 열람 기록이 남아요</span>
       </p>
 
-      {sessions.isLoading && <Spinner />}
-      {sessions.error && <ErrorState error={sessions.error} onRetry={isRetryable(sessions.error) ? () => sessions.refetch() : undefined} />}
-      {sessions.data?.length === 0 && <EmptyState title={`열람할 ${subject} 학습 기록이 없어요`}>학생이 동의하지 않았거나 이번 학기 기록이 없어요.</EmptyState>}
-      {sessions.data && sessions.data.length > 0 && <h2 className="sr-only">{subject} 학습 목록</h2>}
-      {sessions.data && sessions.data.length > 0 && (
+      {students.isLoading && <Spinner />}
+      {notAllowed && <EmptyState title="이 반·과목에서 볼 수 있는 학생이 아니에요">목록에서 학생을 골라 주세요.</EmptyState>}
+      {!notAllowed && sessions.isLoading && <Spinner />}
+      {!notAllowed && sessions.error && <ErrorState error={sessions.error} onRetry={isRetryable(sessions.error) ? () => sessions.refetch() : undefined} />}
+      {!notAllowed && sessions.data?.length === 0 && <EmptyState title={`열람할 ${subject} 학습 기록이 없어요`}>학생이 동의하지 않았거나 이번 학기 기록이 없어요.</EmptyState>}
+      {!notAllowed && sessions.data && sessions.data.length > 0 && <h2 className="sr-only">{subject} 학습 목록</h2>}
+      {!notAllowed && sessions.data && sessions.data.length > 0 && (
         <ul className="subj-sessions" aria-label={`${subject} 학습 목록`}>
           {sessions.data.map((s) => (
             <li key={s.id} className="card">

@@ -205,6 +205,11 @@ describe("v0.5.1 백엔드 반영", () => {
     expect(rowToUser({ id: "u", name: "학생01", role: "student", classId: "c", number: 1 }).under14).toBe(false);
   });
 
+  it("classId가 NULL이면 빈 문자열", () => {
+    expect(rowToUser({ id: "t", name: "교과", role: "teacher", classId: null }).classId).toBe("");
+    expect(rowToUser({ id: "t", name: "교과", role: "teacher" }).classId).toBe("");
+  });
+
   it("동의 저장 행에 by_guardian을 넣는다", () => {
     expect(consentRows("s", "v1", [{ kind: "AI", granted: true, byGuardian: true }])).toEqual([
       { student_id: "s", kind: "AI", granted: true, by_guardian: true, policy_version: "v1" },

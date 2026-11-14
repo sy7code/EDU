@@ -213,7 +213,7 @@ export function pickQuizQuestions(raw: unknown[]): StudentQuizQuestion[] {
 
 /** v_me 행 → User */
 export function rowToUser(row: Record<string, unknown>): User {
-  return { id: String(row.id), name: String(row.name), role: row.role === "teacher" ? "teacher" : "student", classId: String(row.classId), number: (row.number as number) ?? undefined, under14: row.under14 === true };
+  return { id: String(row.id), name: String(row.name), role: row.role === "teacher" ? "teacher" : "student", classId: row.classId == null ? "" : String(row.classId), number: (row.number as number) ?? undefined, under14: row.under14 === true };
 }
 
 /** 동의 입력 → consents insert 행 (snake_case) */
