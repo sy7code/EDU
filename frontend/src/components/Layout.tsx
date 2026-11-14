@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { useLogout, useMe } from "../auth/session";
 import { api, FEATURES, resetMockData, USE_MOCK } from "../api";
 import { navItemActive, teacherNavLinks } from "../lib/teacherNav";
@@ -107,12 +107,13 @@ export function AppLayout() {
               )}
               <p className="nav-label">{me.role === "student" ? "학습" : homeroom ? "학급 관리" : "교과 관리"}</p>
               <nav aria-label="주요 메뉴">
+                {/* 활성 판정은 navItemActive 하나로: NavLink는 /teacher 접두 일치로 aria-current를 덧붙여 Link를 쓴다 */}
                 {links.map(([to, icon, label]) => (
-                  <NavLink key={to} to={to} className={() => (navItemActive(to, pathname) ? "active" : "")} aria-current={navItemActive(to, pathname) ? "page" : undefined}>
+                  <Link key={to} to={to} className={navItemActive(to, pathname) ? "active" : ""} aria-current={navItemActive(to, pathname) ? "page" : undefined}>
                     <Icon name={icon} />
                     <span>{label}</span>
                     <Icon name="chevron" size={15} />
-                  </NavLink>
+                  </Link>
                 ))}
               </nav>
             </div>
