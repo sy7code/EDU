@@ -1,0 +1,1664 @@
+import { useState, type ReactNode } from "react";
+
+type Role = "student" | "teacher";
+type View =
+  | "login"
+  | "home"
+  | "study"
+  | "records"
+  | "consent"
+  | "dashboard"
+  | "analysis"
+  | "student"
+  | "reports";
+type DataState = "ready" | "loading" | "empty" | "error";
+
+const Icon = ({ name, size = 20 }: { name: string; size?: number }) => {
+  const paths: Record<string, ReactNode> = {
+    leaf: (
+      <>
+        <path d="M5 21c4-7 8-10 14-14" />
+        <path d="M6 16C3 11 6 5 20 3c0 11-5 17-14 13Z" />
+      </>
+    ),
+    home: (
+      <>
+        <path d="m3 11 9-8 9 8" />
+        <path d="M5 10v10h14V10M9 20v-6h6v6" />
+      </>
+    ),
+    pen: (
+      <>
+        <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" />
+        <path d="m14 7 3 3" />
+      </>
+    ),
+    book: (
+      <>
+        <path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H11v18H7.5A3.5 3.5 0 0 0 4 23V5.5Z" />
+        <path d="M20 5.5A3.5 3.5 0 0 0 16.5 2H13v18h3.5a3.5 3.5 0 0 1 3.5 3V5.5Z" />
+      </>
+    ),
+    chart: (
+      <>
+        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+      </>
+    ),
+    users: (
+      <>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+      </>
+    ),
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V21h-4v-.08a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3v-4h.08a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3h4v.08a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.12.6.54 1 1.15 1H21v4h-.45c-.61 0-1.03.4-1.15 1Z" />
+      </>
+    ),
+    search: (
+      <>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-4-4" />
+      </>
+    ),
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+    message: <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z" />,
+    check: <path d="m5 12 4 4L19 6" />,
+    lock: (
+      <>
+        <rect x="4" y="10" width="16" height="11" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </>
+    ),
+    alert: (
+      <>
+        <path d="M10.3 3.7 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" />
+        <path d="M12 9v4M12 17h.01" />
+      </>
+    ),
+    chevron: <path d="m9 18 6-6-6-6" />,
+    logout: (
+      <>
+        <path d="M10 17l5-5-5-5M15 12H3" />
+        <path d="M14 3h6a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-6" />
+      </>
+    ),
+    spark: (
+      <>
+        <path d="m12 3-1.2 3.8L7 8l3.8 1.2L12 13l1.2-3.8L17 8l-3.8-1.2L12 3Z" />
+        <path d="m5 14-.7 2.3L2 17l2.3.7L5 20l.7-2.3L8 17l-2.3-.7L5 14Z" />
+      </>
+    ),
+    more: (
+      <>
+        <circle cx="5" cy="12" r="1" />
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="19" cy="12" r="1" />
+      </>
+    ),
+  };
+  return (
+    <svg
+      className="icon"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
+};
+
+const Badge = ({
+  children,
+  tone = "green",
+}: {
+  children: ReactNode;
+  tone?: "green" | "orange" | "blue" | "gray";
+}) => (
+  <span className={`badge ${tone}`}>
+    <span className="badge-dot" />
+    {children}
+  </span>
+);
+
+const Button = ({
+  children,
+  variant = "primary",
+  onClick,
+  className = "",
+}: {
+  children: ReactNode;
+  variant?: "primary" | "secondary" | "text";
+  onClick?: () => void;
+  className?: string;
+}) => (
+  <button className={`button ${variant} ${className}`} onClick={onClick}>
+    {children}
+  </button>
+);
+
+const StateBlock = ({ state, onRetry }: { state: DataState; onRetry?: () => void }) => {
+  if (state === "loading")
+    return (
+      <div className="state-block">
+        <span className="spinner" />
+        <strong>불러오는 중</strong>
+        <p>기록을 안전하게 가져오고 있어요.</p>
+      </div>
+    );
+  if (state === "empty")
+    return (
+      <div className="state-block">
+        <span className="state-icon">
+          <Icon name="book" />
+        </span>
+        <strong>아직 기록이 없어요</strong>
+        <p>첫 학습을 시작하면 여기에 차곡차곡 쌓여요.</p>
+      </div>
+    );
+  if (state === "error")
+    return (
+      <div className="state-block">
+        <span className="state-icon error">
+          <Icon name="alert" />
+        </span>
+        <strong>불러오지 못했어요</strong>
+        <p>잠시 후 다시 시도해 주세요.</p>
+        <Button variant="secondary" onClick={onRetry}>
+          다시 시도
+        </Button>
+      </div>
+    );
+  return null;
+};
+
+const AppHeader = ({
+  role,
+  setRole,
+  onLogout,
+}: {
+  role: Role;
+  setRole: (role: Role) => void;
+  onLogout: () => void;
+}) => (
+  <header className="topbar">
+    <div className="brand">
+      <span className="brandmark">
+        <Icon name="leaf" size={21} />
+      </span>
+      <span>성장 페이스</span>
+    </div>
+    <div className="top-actions">
+      <div className="role-switch" aria-label="화면 역할 전환">
+        <button className={role === "student" ? "active" : ""} onClick={() => setRole("student")}>
+          학생
+        </button>
+        <button className={role === "teacher" ? "active" : ""} onClick={() => setRole("teacher")}>
+          교사
+        </button>
+      </div>
+      <span className="user-name">{role === "student" ? "김하늘 학생" : "김교사 선생님"}</span>
+      <button className="icon-button" aria-label="로그아웃" onClick={onLogout}>
+        <Icon name="logout" />
+      </button>
+    </div>
+  </header>
+);
+
+const Sidebar = ({
+  role,
+  view,
+  setView,
+  setRole,
+}: {
+  role: Role;
+  view: View;
+  setView: (view: View) => void;
+  setRole: (role: Role) => void;
+}) => {
+  const studentItems: [View, string, string][] = [
+    ["home", "home", "홈"],
+    ["study", "pen", "학습하기"],
+    ["records", "book", "내 기록"],
+    ["consent", "settings", "동의 설정"],
+  ];
+  const teacherItems: [View, string, string][] = [
+    ["dashboard", "users", "반 대시보드"],
+    ["analysis", "chart", "반 분석"],
+    ["student", "book", "학생 상세"],
+    ["reports", "alert", "신고된 문제"],
+  ];
+  const items = role === "student" ? studentItems : teacherItems;
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-content">
+        <div className="sidebar-logo">
+          <div className="brand">
+            <span className="brandmark">
+              <Icon name="leaf" size={21} />
+            </span>
+            <span>성장 페이스</span>
+          </div>
+          <button aria-label="알림 확인">
+            <Icon name="alert" />
+          </button>
+        </div>
+        <div className="sidebar-profile">
+          <span className="profile-avatar">{role === "student" ? "09" : "김"}</span>
+          <div>
+            <strong>{role === "student" ? "학생09" : "김교사 선생님"}</strong>
+            <small>{role === "student" ? "2학년 3반 · 9번" : "2학년 3반 담임"}</small>
+            <small>{role === "student" ? "student09@school.kr" : "teacher@school.kr"}</small>
+          </div>
+          <button aria-label="프로필 더 보기">
+            <Icon name="more" />
+          </button>
+        </div>
+        <button
+          className="sidebar-outline-action"
+          onClick={() => setView(role === "student" ? "consent" : "dashboard")}
+        >
+          {role === "student" ? "동의 설정" : "반 바꾸기"}
+          <Icon name="chevron" size={16} />
+        </button>
+        {role === "teacher" && (
+          <button className="sidebar-highlight-action">
+            <Icon name="home" size={17} /> 전체 메뉴 살펴보기
+          </button>
+        )}
+        <div className="sidebar-tabs">
+          <button className="active">자주 쓰는 메뉴</button>
+          <button>전체 메뉴</button>
+        </div>
+        <p className="nav-label">{role === "student" ? "학습" : "학급 관리"}</p>
+        <nav>
+          {items.map(([id, icon, label]) => (
+            <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)}>
+              <Icon name={icon} />
+              <span>{label}</span>
+              <Icon name="chevron" size={15} />
+            </button>
+          ))}
+        </nav>
+      </div>
+      <div>
+        <div className="side-role-switch">
+          <span>화면 미리보기</span>
+          <button className={role === "student" ? "active" : ""} onClick={() => setRole("student")}>
+            학생
+          </button>
+          <button className={role === "teacher" ? "active" : ""} onClick={() => setRole("teacher")}>
+            교사
+          </button>
+        </div>
+        <div className="sidebar-note">
+          <Icon name="message" />
+          <div>
+            <strong>도움이 필요하신가요?</strong>
+            <p>사용 방법을 살펴보세요</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+};
+
+const StatCard = ({
+  label,
+  value,
+  note,
+  icon,
+  tone = "",
+}: {
+  label: string;
+  value: string;
+  note: string;
+  icon: string;
+  tone?: string;
+}) => (
+  <article className={`card stat-card ${tone}`}>
+    <div className="stat-head">
+      <span className="stat-icon">
+        <Icon name={icon} />
+      </span>
+      <span>{label}</span>
+    </div>
+    <strong className="stat-value">{value}</strong>
+    <p>{note}</p>
+  </article>
+);
+
+const StudentHome = ({
+  setView,
+  dataState,
+}: {
+  setView: (v: View) => void;
+  dataState: DataState;
+}) => (
+  <div className="page student-page">
+    <div className="page-heading">
+      <div>
+        <p className="eyebrow">5월 28일 수요일</p>
+        <h1>김하늘 학생, 안녕하세요</h1>
+        <p>오늘도 내 속도에 맞게 한 걸음 시작해 볼까요?</p>
+      </div>
+    </div>
+    <div className="student-task-panel">
+      <div className="task-panel-top">
+        <div>
+          <small>오늘 할 일</small>
+          <strong>
+            오늘 할 일이 <em>2</em>개 있어요
+          </strong>
+        </div>
+        <button>
+          전체보기 <Icon name="chevron" size={15} />
+        </button>
+      </div>
+      <div className="task-chips">
+        <button className="active">새 피드백 1</button>
+        <button>남은 질문 3</button>
+      </div>
+      <p>어제 공부한 등차수열 기록에 선생님이 피드백을 남겼어요.</p>
+      <Button onClick={() => setView("study")}>
+        학습 시작 <Icon name="chevron" size={16} />
+      </Button>
+    </div>
+    <section>
+      <div className="section-title">
+        <h2>나의 학습 요약</h2>
+        <span>최근 7일</span>
+      </div>
+      <div className="stats-grid">
+        <StatCard
+          label="학습 기록"
+          value="4번 · 3시간 20분"
+          note="지난주보다 1번 더 기록했어요"
+          icon="clock"
+        />
+        <StatCard
+          label="최근 확인 테스트"
+          value="5 / 5"
+          note="등차수열 · 5월 27일"
+          icon="check"
+          tone="blue-tone"
+        />
+        <StatCard
+          label="선생님 피드백"
+          value="새 피드백 2개"
+          note="“문제를 풀 때 식을 먼저...”"
+          icon="message"
+          tone="orange-tone"
+        />
+      </div>
+    </section>
+    <section className="subject-growth-section">
+      <div className="section-title">
+        <h2>주제별 성장</h2>
+        <div className="growth-filters">
+          <button>기간 · 최근 4주</button>
+          <button>과목 · 전체</button>
+        </div>
+      </div>
+      <div className="subject-growth-grid">
+        {[
+          ["수학", "수열", "등차수열의 합", "80%", "남은 질문 1개"],
+          ["영어", "독해", "중심 내용 찾기", "72%", "새 피드백 1개"],
+          ["과학", "생명과학", "세포 호흡", "65%", "남은 질문 2개"],
+        ].map((item, index) => (
+          <article className="card subject-card" key={item[2]}>
+            <div>
+              <span>{item[0]}</span>
+              <small>{item[1]}</small>
+            </div>
+            <h3>
+              {item[2]} {index === 1 && <em>1</em>}
+            </h3>
+            <p>최근 학습 기록과 확인 테스트를 함께 살펴본 내용이에요.</p>
+            <div className="progress-line">
+              <span style={{ width: item[3] }} />
+            </div>
+            <strong>{item[3]}</strong>
+            <div className="subject-chips">
+              <span>{item[4]}</span>
+              <span>테스트 {index + 1}번</span>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+    <section>
+      <div className="section-title">
+        <h2>최근 학습</h2>
+        <button onClick={() => setView("records")}>
+          전체 보기 <Icon name="chevron" size={15} />
+        </button>
+      </div>
+      {dataState !== "ready" ? (
+        <div className="card">
+          <StateBlock state={dataState} />
+        </div>
+      ) : (
+        <div className="record-list card">
+          {[
+            ["5월 27일", "등차수열의 합 공식 이해하기", "52분", "새 피드백"],
+            ["5월 25일", "영어 지문에서 핵심 문장 찾기", "45분", "피드백"],
+            ["5월 23일", "세포 호흡 과정 다시 정리하기", "1시간 05분", ""],
+          ].map((r, i) => (
+            <button className="record-row" key={r[0]}>
+              <span className="date-box">
+                <strong>{r[0].split(" ")[1].replace("일", "")}</strong>
+                <small>5월</small>
+              </span>
+              <span className="record-main">
+                <strong>{r[1]}</strong>
+                <span>
+                  <Icon name="clock" size={15} />
+                  {r[2]}
+                </span>
+              </span>
+              {r[3] && <Badge tone={i === 0 ? "green" : "gray"}>{r[3]}</Badge>}
+              <Icon name="chevron" size={18} />
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  </div>
+);
+
+const Study = () => {
+  const [step, setStep] = useState(0);
+  const [activity, setActivity] = useState("개념 이해");
+  const [memo, setMemo] = useState("");
+  const steps = [
+    "학습 시작",
+    "시작 인증",
+    "학습 중",
+    "종료 인증",
+    "주제 선택",
+    "확인 테스트",
+    "테스트 결과",
+    "돌아보기",
+  ];
+  return (
+    <div className="page student-page">
+      <div className="study-progress">
+        {steps.map((s, i) => (
+          <button
+            key={s}
+            className={step === i ? "active" : step > i ? "done" : ""}
+            onClick={() => setStep(i)}
+          >
+            <span>{step > i ? <Icon name="check" size={14} /> : i + 1}</span>
+            <small>{s}</small>
+          </button>
+        ))}
+      </div>
+      {step === 0 && (
+        <>
+          <div className="page-heading">
+            <div>
+              <p className="eyebrow">학습 시작</p>
+              <h1>오늘은 무엇을 공부하나요?</h1>
+              <p>짧게 적어도 괜찮아요. 끝난 뒤 함께 돌아볼게요.</p>
+            </div>
+          </div>
+          <div className="card form-card">
+            <label>오늘 할 것</label>
+            <input className="large-input" placeholder="예: 등차수열의 합 공식 이해하기" />
+            <label>어떤 활동을 할 건가요?</label>
+            <div className="chips">
+              {["개념 이해", "문제 풀기", "틀린 문제 다시 보기", "내용 정리하기", "시험 준비"].map(
+                (x) => (
+                  <button
+                    onClick={() => setActivity(x)}
+                    className={activity === x ? "selected" : ""}
+                    key={x}
+                  >
+                    {activity === x && <Icon name="check" size={15} />} {x}
+                  </button>
+                ),
+              )}
+            </div>
+            <Button onClick={() => setStep(1)} className="full">
+              다음: 단말기에서 인증하기 <Icon name="chevron" />
+            </Button>
+          </div>
+        </>
+      )}
+      {step === 1 && (
+        <div className="card auth-card">
+          <div className="auth-pulse">
+            <span>
+              <Icon name="users" size={32} />
+            </span>
+          </div>
+          <p className="eyebrow">학습 시작 인증</p>
+          <h1>
+            자습실 단말기에서
+            <br />
+            얼굴 인증을 해 주세요
+          </h1>
+          <p>인증이 끝나면 이 화면이 자동으로 바뀌어요.</p>
+          <div className="waiting">
+            <span className="spinner" /> 인증을 기다리고 있어요
+          </div>
+          <Button variant="secondary">QR 코드 보여주기</Button>
+          <p className="subtle">3분 안에 인증되지 않으면 다시 시도할 수 있어요.</p>
+          <button className="demo-link" onClick={() => setStep(2)}>
+            프로토타입: 인증 완료하기
+          </button>
+        </div>
+      )}
+      {step === 2 && (
+        <>
+          <div className="live-header">
+            <div>
+              <Badge>학습 중</Badge>
+              <h2>등차수열의 합 공식 이해하기</h2>
+            </div>
+            <div className="timer">
+              <Icon name="clock" />
+              <strong>00:25:18</strong>
+            </div>
+            <Button variant="secondary" onClick={() => setStep(3)}>
+              학습 끝내기
+            </Button>
+          </div>
+          <div className="study-layout">
+            <div>
+              <div className="card composer">
+                <div className="tabs">
+                  {["메모", "궁금한 점", "짧은 테스트", "종이에 기록"].map((x, i) => (
+                    <button className={i === 0 ? "active" : ""} key={x}>
+                      {x}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder="배운 내용이나 기억해 둘 것을 적어 보세요."
+                />
+                <div className="composer-foot">
+                  <div className="scope">
+                    <button className="active">
+                      <Icon name="users" size={16} /> 교사 공개
+                    </button>
+                    <button>
+                      <Icon name="lock" size={16} /> 나만 보기
+                    </button>
+                  </div>
+                  <Button>기록하기</Button>
+                </div>
+              </div>
+              <h2 className="subheading">오늘의 기록</h2>
+              <div className="timeline">
+                {[
+                  ["10:18", "메모", "첫째항과 공차를 알면 n번째 항을 구할 수 있다."],
+                  ["10:31", "궁금한 점", "왜 합 공식에는 n/2가 들어갈까?"],
+                  ["10:42", "AI에게 질문", "공식을 그림으로 이해할 수 있을까?"],
+                ].map((x, i) => (
+                  <div className="timeline-item" key={x[0]}>
+                    <span className={`timeline-dot t${i}`} />
+                    <small>
+                      {x[0]} · {x[1]}
+                    </small>
+                    <p>{x[2]}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <aside className="card ai-card">
+              <div className="ai-title">
+                <span>
+                  <Icon name="spark" />
+                </span>
+                <div>
+                  <strong>AI 학습 도우미</strong>
+                  <small>질문으로 생각을 도와요</small>
+                </div>
+              </div>
+              <div className="ai-notice">
+                <Icon name="spark" size={16} />
+                AI가 만든 답변 · 참고용
+              </div>
+              <div className="chat assistant">
+                두 수를 더해 같은 합이 되는 짝을 만들어 보면 어떨까요? 첫 항과 마지막 항부터 연결해
+                보세요.
+              </div>
+              <div className="chat user">그러면 같은 합이 n/2개 생기는 건가?</div>
+              <div className="typing">
+                <span />
+                <span />
+                <span /> 답변을 생각하고 있어요
+              </div>
+              <div className="chat-input">
+                <input placeholder="궁금한 점을 물어보세요" />
+                <button aria-label="보내기">
+                  <Icon name="chevron" />
+                </button>
+              </div>
+            </aside>
+          </div>
+        </>
+      )}
+      {step === 3 && (
+        <div className="card auth-card">
+          <div className="auth-pulse">
+            <span>
+              <Icon name="check" size={32} />
+            </span>
+          </div>
+          <p className="eyebrow">학습 종료 인증</p>
+          <h1>
+            자습실 단말기에서
+            <br />
+            종료 인증을 해 주세요
+          </h1>
+          <p>종료 시각을 확인하고 오늘의 학습을 정리할게요.</p>
+          <div className="waiting">
+            <span className="spinner" /> 인증을 기다리고 있어요
+          </div>
+          <Button variant="secondary">QR 코드 보여주기</Button>
+          <button className="demo-link" onClick={() => setStep(4)}>
+            프로토타입: 종료 인증 완료
+          </button>
+        </div>
+      )}
+      {step === 4 && (
+        <>
+          <div className="page-heading">
+            <div>
+              <p className="eyebrow">오늘 52분 공부했어요</p>
+              <h1>오늘 공부한 주제를 골라 주세요</h1>
+              <p>AI가 기록을 바탕으로 찾았어요. 가장 가까운 주제 하나를 선택해 주세요.</p>
+            </div>
+          </div>
+          <div className="topic-list">
+            {["등차수열의 합", "수열의 일반항", "등차중항"].map((x, i) => (
+              <button className={`card topic-card ${i === 0 ? "selected" : ""}`} key={x}>
+                <div>
+                  <Badge tone="blue">AI 자동 분류 · 참고용</Badge>
+                  <h3>{x}</h3>
+                  <p>수학 · 수학 I</p>
+                  <blockquote>
+                    근거 “
+                    {i === 0
+                      ? "합 공식에 n/2가 들어가는 이유를 짝으로 이해했다."
+                      : "첫째항과 공차를 이용해 일반항을 구했다."}
+                    ”
+                  </blockquote>
+                </div>
+                <span className="radio">{i === 0 && <span />}</span>
+              </button>
+            ))}
+          </div>
+          <div className="sticky-actions">
+            <Button variant="text">이번엔 건너뛸게요</Button>
+            <Button onClick={() => setStep(5)}>이 주제 다 공부했어요, 테스트 보기</Button>
+          </div>
+        </>
+      )}
+      {step === 5 && (
+        <>
+          <div className="page-heading">
+            <div>
+              <Badge tone="blue">성적에 들어가지 않아요</Badge>
+              <h1>등차수열 확인 테스트</h1>
+              <p>모두에게 같은 난이도로 출제돼요. 편하게 확인해 보세요.</p>
+            </div>
+            <strong className="question-count">3 / 5 선택</strong>
+          </div>
+          <div className="question card">
+            <div className="question-top">
+              <Badge tone="gray">2번 · 4지선다</Badge>
+              <button>
+                <Icon name="alert" size={16} /> 이 문제 이상해요
+              </button>
+            </div>
+            <h3>첫째항이 3이고 공차가 2인 등차수열의 제5항은?</h3>
+            <div className="answers">
+              {["9", "10", "11", "13"].map((x, i) => (
+                <button className={i === 2 ? "selected" : ""} key={x}>
+                  <span>{i + 1}</span>
+                  {x}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="question card reported">
+            <div className="question-top">
+              <Badge tone="orange">신고함 · 채점 제외</Badge>
+            </div>
+            <h3>등차수열의 합에 대한 설명으로 알맞은 것은?</h3>
+            <p className="report-note">
+              <Icon name="alert" /> 신고 이유: 문제가 애매해요
+            </p>
+          </div>
+          <div className="sticky-actions">
+            <Button variant="secondary">이전 문제</Button>
+            <Button onClick={() => setStep(6)}>답안 제출하기</Button>
+          </div>
+        </>
+      )}
+      {step === 6 && (
+        <>
+          <div className="page-heading result-heading">
+            <div>
+              <p className="eyebrow">확인 테스트 결과</p>
+              <h1>4 / 5</h1>
+              <p>틀린 문제는 점수가 아니라, 다음에 다시 살펴볼 단서예요.</p>
+            </div>
+            <Badge tone="blue">성적에 반영되지 않아요</Badge>
+          </div>
+          <div className="result-list">
+            {[
+              [
+                "1",
+                "맞았어요",
+                "내 답 O · 정답 O",
+                "등차수열은 이웃한 두 항의 차가 일정한 수열이에요.",
+              ],
+              ["2", "맞았어요", "내 답 11 · 정답 11", "제5항은 3 + (5-1) × 2 = 11이에요."],
+              [
+                "3",
+                "다시 살펴봐요",
+                "내 답 35 · 정답 40",
+                "각 항을 모두 더하거나 합 공식을 이용할 수 있어요.",
+              ],
+            ].map((item, i) => (
+              <article className={`card result-row ${i === 2 ? "wrong" : ""}`} key={item[0]}>
+                <span className="result-mark">{i === 2 ? "×" : <Icon name="check" />}</span>
+                <div>
+                  <small>{item[0]}번 문항</small>
+                  <h3>{item[1]}</h3>
+                  <strong>{item[2]}</strong>
+                  <p>{item[3]}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="sticky-actions">
+            <Button onClick={() => setStep(7)}>다음: 오늘 학습 돌아보기</Button>
+          </div>
+        </>
+      )}
+      {step === 7 && (
+        <>
+          <div className="page-heading">
+            <div>
+              <p className="eyebrow">학습 돌아보기</p>
+              <h1>오늘의 배움을 내 것으로 만들어요</h1>
+              <p>정답보다 내가 어떻게 공부했는지 돌아보는 시간이 중요해요.</p>
+            </div>
+          </div>
+          <div className="card reflection">
+            <div className="reflection-head">
+              <h2>오늘 한 일</h2>
+              <Badge tone="blue">AI 요약 · 근거 포함</Badge>
+            </div>
+            <p>
+              등차수열의 합 공식을 수의 짝으로 이해하고, 일반항 문제를 풀었어요.{" "}
+              <button>근거 보기</button>
+            </p>
+            <h2>오늘 나는</h2>
+            <div className="checklist">
+              {[
+                "새로 알게 된 것이 있어요",
+                "궁금한 점을 질문했어요",
+                "틀린 이유를 다시 살펴봤어요",
+                "배운 내용을 내 말로 정리했어요",
+              ].map((x, i) => (
+                <button className={i < 3 ? "checked" : ""} key={x}>
+                  <span>{i < 3 && <Icon name="check" size={15} />}</span>
+                  {x}
+                </button>
+              ))}
+            </div>
+            <h2>지금 얼마나 이해했나요?</h2>
+            <div className="understanding">
+              {["아직 어려워요", "조금 이해했어요", "친구에게 설명할 수 있어요"].map((x, i) => (
+                <button className={i === 1 ? "selected" : ""} key={x}>
+                  {x}
+                </button>
+              ))}
+            </div>
+            <label>
+              나에게 남기는 메모 <small>선택</small>
+            </label>
+            <textarea placeholder="다음에 이어서 공부할 내용을 적어 보세요." />
+            <Button className="full">돌아보기 저장하기</Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+const Records = ({ dataState }: { dataState: DataState }) => (
+  <div className="page student-page">
+    <div className="page-heading">
+      <div>
+        <p className="eyebrow">나의 기록</p>
+        <h1>지금까지 18번, 14시간 25분</h1>
+        <p>점수가 아니라, 내가 공부해 온 과정을 살펴보세요.</p>
+      </div>
+    </div>
+    <section>
+      <div className="section-title">
+        <h2>내 성장</h2>
+        <span>최근 4주</span>
+      </div>
+      <div className="growth-grid">
+        <div className="card growth-card">
+          <Badge tone="blue">수학 · 수열</Badge>
+          <h3>5번 · 4시간 10분</h3>
+          <div className="growth-row">
+            <span>확인 테스트</span>
+            <strong>60% → 80%</strong>
+          </div>
+          <div className="growth-row">
+            <span>스스로 이해도</span>
+            <strong>조금 이해했어요</strong>
+          </div>
+          <div className="conversation-signal">
+            <Icon name="message" />
+            <span>
+              <strong>함께 이야기해 볼 신호</strong>이해한 부분을 직접 설명해 보세요.
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section>
+      <div className="section-title">
+        <h2>학습 목록</h2>
+        <button>
+          날짜순 <Icon name="chevron" size={14} />
+        </button>
+      </div>
+      {dataState !== "ready" ? (
+        <div className="card">
+          <StateBlock state={dataState} />
+        </div>
+      ) : (
+        <div className="card record-detail">
+          <div className="record-list compact">
+            {[
+              ["5월 27일", "등차수열의 합 공식 이해하기", "52분"],
+              ["5월 25일", "영어 핵심 문장 찾기", "45분"],
+              ["5월 23일", "세포 호흡 과정 정리", "1시간 05분"],
+            ].map((r, i) => (
+              <button className={`record-row ${i === 0 ? "selected" : ""}`} key={r[0]}>
+                <span className="record-main">
+                  <small>{r[0]}</small>
+                  <strong>{r[1]}</strong>
+                  <span>{r[2]}</span>
+                </span>
+                {i === 0 && <Badge>새 피드백</Badge>}
+                <Icon name="chevron" />
+              </button>
+            ))}
+          </div>
+          <div className="detail-panel">
+            <Badge tone="gray">5월 27일 · 52분</Badge>
+            <h2>등차수열의 합 공식 이해하기</h2>
+            <div className="info-line">
+              <span>시작 10:03</span>
+              <span>종료 10:55</span>
+              <span>얼굴 인증</span>
+            </div>
+            <h3>학습 과정</h3>
+            <div className="mini-timeline">
+              <p>
+                <strong>메모</strong>첫째항과 공차로 일반항을 구했다.
+              </p>
+              <p>
+                <strong>궁금한 점</strong>왜 합 공식에 n/2가 들어갈까?
+              </p>
+            </div>
+            <div className="feedback">
+              <Badge>새 피드백</Badge>
+              <strong>김교사 선생님</strong>
+              <p>
+                식을 외우기보다 짝을 지어 이해한 과정이 좋아요. 다음에는 직접 그림으로 설명해
+                봅시다.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  </div>
+);
+
+const Consent = () => (
+  <div className="page student-page">
+    <div className="page-heading">
+      <div>
+        <p className="eyebrow">내 정보와 기록</p>
+        <h1>동의 설정</h1>
+        <p>각 기능에 내 정보를 어떻게 사용할지 직접 선택할 수 있어요.</p>
+      </div>
+    </div>
+    <div className="card consent-card">
+      {[
+        ["users", "얼굴 인증", "자습실에서 학습 시작과 종료를 확인할 때 사용해요."],
+        ["spark", "AI 사용", "기록에서 주제를 찾고 질문으로 학습을 도와요."],
+        ["book", "기록 공유", "담임 선생님이 내 학습 기록을 보고 피드백할 수 있어요."],
+      ].map((x, i) => (
+        <div className="consent-row" key={x[1]}>
+          <span className="consent-icon">
+            <Icon name={x[0]} />
+          </span>
+          <div>
+            <h3>{x[1]}</h3>
+            <p>{x[2]}</p>
+            {i === 1 && <small>AI가 만든 내용은 참고용이며, 언제든 사용하지 않을 수 있어요.</small>}
+          </div>
+          <div className="segmented">
+            <button className={i !== 0 ? "active" : ""}>동의해요</button>
+            <button className={i === 0 ? "active no" : ""}>동의하지 않아요</button>
+          </div>
+        </div>
+      ))}
+      <label className="guardian">
+        <input type="checkbox" />{" "}
+        <span>
+          <strong>보호자 동의를 받았어요</strong>
+          <small>만 14세 미만인 경우에만 확인해 주세요.</small>
+        </span>
+      </label>
+      <Button className="full">저장하고 시작하기</Button>
+    </div>
+    <section>
+      <div className="section-title">
+        <h2>내 기록을 본 사람</h2>
+        <span>최근 10개</span>
+      </div>
+      <div className="card access-list">
+        {[
+          "김교사 선생님이 내 기록을 봤어요 · 5월 28일 09:42",
+          "이상담 선생님이 내 기록을 봤어요 · 5월 22일 14:10",
+        ].map((x) => (
+          <div key={x}>
+            <span>
+              <Icon name="users" />
+            </span>
+            <p>{x}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  </div>
+);
+
+const Login = ({ onLogin }: { onLogin: () => void }) => (
+  <div className="login-page">
+    <div className="login-message">
+      <span className="brandmark">
+        <Icon name="leaf" size={22} />
+      </span>
+      <p className="eyebrow">나의 배움을 천천히 기록하는 곳</p>
+      <h1>
+        오늘의 공부가
+        <br />
+        내일의 성장으로 이어지도록
+      </h1>
+      <p>성장 페이스는 점수보다 과정과 질문을 소중하게 기록합니다.</p>
+    </div>
+    <div className="card login-card">
+      <div className="brand mobile-login-brand">
+        <span className="brandmark">
+          <Icon name="leaf" size={21} />
+        </span>
+        <span>성장 페이스</span>
+      </div>
+      <h2>학교 계정으로 로그인</h2>
+      <p>학교에서 안내받은 이메일과 비밀번호를 입력해 주세요.</p>
+      <label>이메일</label>
+      <input type="email" placeholder="name@school.kr" />
+      <label>비밀번호</label>
+      <input type="password" placeholder="비밀번호 입력" />
+      <Button className="full" onClick={onLogin}>
+        로그인
+      </Button>
+      <div className="school-account">
+        <Icon name="lock" />
+        <p>
+          <strong>학교 계정을 잊었나요?</strong>
+          담임 선생님이나 학교 담당자에게 문의해 주세요.
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
+const FilterSearch = () => (
+  <div className="filter-row">
+    <div className="search">
+      <Icon name="search" />
+      <input placeholder="이름 또는 번호 검색" />
+    </div>
+    <button className="filter-button">
+      최근 7일 <Icon name="chevron" size={15} />
+    </button>
+  </div>
+);
+
+const StudentTable = ({
+  dataState,
+  onStudent,
+}: {
+  dataState: DataState;
+  onStudent?: () => void;
+}) => {
+  const students = [
+    ["01", "강민서", "3번", "2시간 10분", "1개", "72%", "오늘 09:20", "학습 중", "green"],
+    ["03", "김도윤", "1번", "45분", "4개", "38%", "어제 16:40", "질문이 쌓임", "orange"],
+    ["09", "김하늘", "4번", "3시간 20분", "2개", "80%", "오늘 10:55", "새 피드백", "blue"],
+    ["12", "박서준", "—", "—", "—", "—", "7일 전", "최근 기록 없음", "gray"],
+    ["15", "윤가은", "2번", "1시간 35분", "1개", "65%", "2일 전", "차분히 학습 중", "green"],
+  ];
+  if (dataState !== "ready") return <StateBlock state={dataState} />;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {[
+              "번호",
+              "이름",
+              "학습 횟수",
+              "학습 시간",
+              "남은 질문",
+              "최근 테스트",
+              "최근 학습",
+              "상태",
+            ].map((x) => (
+              <th key={x}>{x}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {students.map((s, i) => (
+            <tr
+              key={s[0]}
+              onClick={i === 2 ? onStudent : undefined}
+              className={i === 2 ? "clickable" : ""}
+            >
+              <td>{s[0]}</td>
+              <td>
+                <strong>{s[1]}</strong>
+              </td>
+              <td>{s[2]}</td>
+              <td>{s[3]}</td>
+              <td>{s[4]}</td>
+              <td>
+                <strong className={s[5] === "38%" ? "low" : ""}>{s[5]}</strong>
+              </td>
+              <td>{s[6]}</td>
+              <td>
+                <Badge tone={s[8] as "green" | "orange" | "blue" | "gray"}>{s[7]}</Badge>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="pagination">
+        <button disabled>이전</button>
+        <button className="active">1</button>
+        <button>2</button>
+        <button>3</button>
+        <button>다음</button>
+      </div>
+    </div>
+  );
+};
+
+const Dashboard = ({
+  dataState,
+  setView,
+}: {
+  dataState: DataState;
+  setView: (v: View) => void;
+}) => (
+  <div className="page teacher-page">
+    <div className="page-heading">
+      <div>
+        <p className="eyebrow">최근 7일 · 5월 22일–28일</p>
+        <h1>2학년 3반 자기주도학습</h1>
+        <p>숫자로 판단하기보다, 오늘 이야기 나눠 볼 학생을 찾아보세요.</p>
+      </div>
+      <Button variant="secondary">학습 기록 내려받기</Button>
+    </div>
+    <section className="dashboard-banner">
+      <div>
+        <span>02</span>
+        <small>오늘 먼저 확인해 보세요</small>
+        <h2>피드백을 기다리는 돌아보기 24개</h2>
+        <p>학생이 학습을 마치고 선생님의 한마디를 기다리고 있어요.</p>
+      </div>
+      <button>
+        확인하기 <Icon name="chevron" size={16} />
+      </button>
+      <div className="banner-dots">
+        <i />
+        <i className="active" />
+        <i />
+        <small>2 / 6</small>
+      </div>
+    </section>
+    <div className="dashboard-columns">
+      <div className="dashboard-main">
+        <section className="card care-widget">
+          <div className="card-heading">
+            <div>
+              <h2>챙길 학생</h2>
+              <p>오늘 대화를 시작할 단서를 모았어요.</p>
+            </div>
+            <button className="widget-control" aria-label="위젯 설정">
+              <Icon name="settings" size={17} />
+            </button>
+          </div>
+          <div className="care-tiles">
+            <StatCard label="지금 학습 중" value="6명" note="오늘 참여 18명" icon="clock" />
+            <StatCard
+              label="이야기 나눠 볼 학생"
+              value="4명"
+              note="질문이 쌓였어요"
+              icon="message"
+              tone="attention"
+            />
+            <StatCard label="피드백 기다림" value="24개" note="새 돌아보기" icon="pen" />
+            <StatCard label="채점 확정 대기" value="2건" note="신고된 문제" icon="alert" />
+          </div>
+        </section>
+        <div className="small-widget-grid">
+          <div className="card compact-widget">
+            <div className="card-heading">
+              <h2>바로가기</h2>
+              <button>편집</button>
+            </div>
+            <StateBlock state="empty" />
+          </div>
+          <div className="card compact-widget">
+            <div className="card-heading">
+              <h2>메모</h2>
+              <button>추가</button>
+            </div>
+            <StateBlock state="empty" />
+          </div>
+        </div>
+      </div>
+      <aside className="today-rail card">
+        <div className="today-date">
+          <span>
+            5월 28일 <small>(수)</small>
+          </span>
+          <Badge>오늘</Badge>
+        </div>
+        {[
+          ["오늘 학습 중", "6명이 자습실에서 공부하고 있어요.", "시간표 보기"],
+          ["최근 신고", "검토가 필요한 문제가 2개 있어요.", "신고 보기"],
+          ["피드백 기다림", "돌아보기 24개가 기다리고 있어요.", "피드백 보기"],
+          ["일정", "5월 29일 · 수학 수행평가", "일정 보기"],
+        ].map((item, i) => (
+          <div className="today-item" key={item[0]}>
+            <span className={`schedule-dot d${i}`} />
+            <div>
+              <strong>{item[0]}</strong>
+              <p>{item[1]}</p>
+            </div>
+            <button>{item[2]}</button>
+          </div>
+        ))}
+      </aside>
+    </div>
+    <div className="card table-card">
+      <div className="table-title">
+        <div>
+          <h2>학생 학습 현황</h2>
+          <p>학생별 최근 기록을 확인할 수 있어요.</p>
+        </div>
+        <FilterSearch />
+      </div>
+      <StudentTable dataState={dataState} onStudent={() => setView("student")} />
+    </div>
+  </div>
+);
+
+const Distribution = ({
+  title,
+  average,
+  median,
+  bars,
+  labels,
+}: {
+  title: string;
+  average: string;
+  median: string;
+  bars: number[];
+  labels: string[];
+}) => (
+  <div className="card distribution">
+    <h3>{title}</h3>
+    <div className="metrics">
+      <div>
+        <small>평균</small>
+        <strong>{average}</strong>
+      </div>
+      <div>
+        <small>중앙값</small>
+        <strong>{median}</strong>
+      </div>
+    </div>
+    <div className="bar-chart">
+      {bars.map((h, i) => (
+        <div key={i}>
+          <span style={{ height: `${h}%` }} />
+          <small>{labels[i]}</small>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const RatioBar = () => (
+  <>
+    <div className="ratio-bar">
+      <span style={{ width: "42%" }} />
+      <span style={{ width: "28%" }} />
+      <span style={{ width: "18%" }} />
+      <span style={{ width: "12%" }} />
+    </div>
+    <div className="ratio-legend">
+      {[
+        ["개념 이해", "42%"],
+        ["풀이 확인", "28%"],
+        ["답 요청", "18%"],
+        ["기타", "12%"],
+      ].map((x, i) => (
+        <span key={x[0]} className={`r${i}`}>
+          <i />
+          {x[0]} <strong>{x[1]}</strong>
+        </span>
+      ))}
+    </div>
+  </>
+);
+
+const Analysis = () => (
+  <div className="page teacher-page">
+    <div className="page-heading">
+      <div>
+        <p className="eyebrow">반 분석</p>
+        <h1>공부 방식과 분포</h1>
+        <p>평균만 보지 않고 반 전체의 다양한 학습 모습을 살펴보세요.</p>
+      </div>
+      <div className="segmented period">
+        <button className="active">최근 7일</button>
+        <button>최근 4주</button>
+      </div>
+    </div>
+    <div className="privacy-note">
+      <Icon name="lock" />
+      <strong>기록 비공개 1명 제외</strong>
+      <span>공유에 동의하지 않은 학생의 내용은 분석에 포함되지 않아요.</span>
+    </div>
+    <div className="distribution-grid">
+      <Distribution
+        title="학생당 학습 시간"
+        average="2시간 14분"
+        median="1시간 58분"
+        bars={[25, 58, 88, 52, 20]}
+        labels={["0–1h", "1–2h", "2–3h", "3–4h", "4h+"]}
+      />
+      <Distribution
+        title="확인 테스트 정답률"
+        average="68%"
+        median="72%"
+        bars={[12, 30, 60, 90, 55]}
+        labels={["0–20", "21–40", "41–60", "61–80", "81–100"]}
+      />
+      <Distribution
+        title="AI 질문 수"
+        average="3.2개"
+        median="2개"
+        bars={[80, 62, 42, 24, 12]}
+        labels={["0", "1–2", "3–4", "5–6", "7+"]}
+      />
+    </div>
+    <div className="analysis-grid">
+      <div className="card">
+        <div className="card-heading">
+          <div>
+            <h2>반이 공부한 주제</h2>
+            <p>학습한 학생이 많은 순서예요.</p>
+          </div>
+          <Badge tone="gray">TOP 5</Badge>
+        </div>
+        <div className="topic-ranking">
+          {[
+            ["등차수열", "12명", "74%"],
+            ["영어 독해 · 중심 내용", "9명", "68%"],
+            ["세포 호흡", "7명", "71%"],
+            ["한국사 · 개항기", "6명", "65%"],
+            ["확률의 기본 성질", "5명", "62%"],
+          ].map((x, i) => (
+            <div key={x[0]}>
+              <span>{i + 1}</span>
+              <strong>{x[0]}</strong>
+              <small>
+                {x[1]} 공부 · 평균 정답률 {x[2]}
+              </small>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="card ratio-card">
+        <div className="card-heading">
+          <div>
+            <h2>AI에 어떻게 물었나</h2>
+            <p>질문의 방향을 대화의 참고로 활용하세요.</p>
+          </div>
+          <Badge tone="blue">자동 분류 · 참고용</Badge>
+        </div>
+        <RatioBar />
+        <div className="insight">
+          <Icon name="message" />
+          <p>
+            <strong>대화 제안</strong>답을 바로 요청한 질문이 지난주보다 늘었어요. 풀이 과정을 먼저
+            말해 보도록 안내해 보세요.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const StudentDetail = () => {
+  const [tab, setTab] = useState(0);
+  return (
+    <div className="page teacher-page">
+      <div className="student-profile-head">
+        <div className="avatar">09</div>
+        <div>
+          <p className="eyebrow">2학년 3반</p>
+          <h1>9번 김하늘</h1>
+          <p>
+            <Icon name="lock" size={14} /> 이 페이지를 열람한 기록이 남아요.
+          </p>
+        </div>
+        <Button variant="secondary">
+          <Icon name="message" /> 피드백 작성
+        </Button>
+      </div>
+      <div className="tabs wide">
+        {["요약", "학습 기록", "AI 질문"].map((x, i) => (
+          <button onClick={() => setTab(i)} className={tab === i ? "active" : ""} key={x}>
+            {x}
+            {i === 2 && <span>12</span>}
+          </button>
+        ))}
+      </div>
+      {tab === 0 && (
+        <>
+          <div className="teacher-stats four">
+            <StatCard label="학습 횟수" value="8번" note="반 평균 6번 ▲" icon="book" />
+            <StatCard
+              label="학습 시간"
+              value="7시간 20분"
+              note="반 평균 5시간 40분 ▲"
+              icon="clock"
+            />
+            <StatCard
+              label="확인 테스트"
+              value="72%"
+              note="반 평균 68% ▲"
+              icon="check"
+              tone="blue-tone"
+            />
+            <StatCard
+              label="AI 질문"
+              value="12개"
+              note="반 평균 9개 ▲"
+              icon="message"
+              tone="orange-tone"
+            />
+          </div>
+          <div className="analysis-grid">
+            <div className="card ratio-card">
+              <div className="card-heading">
+                <div>
+                  <h2>질문 유형</h2>
+                  <p>최근 4주</p>
+                </div>
+                <Badge tone="blue">자동 분류 · 참고용</Badge>
+              </div>
+              <RatioBar />
+            </div>
+            <div className="card topic-growth">
+              <div className="card-heading">
+                <div>
+                  <h2>주제별 성장</h2>
+                  <p>대화를 시작할 단서를 확인해 보세요.</p>
+                </div>
+              </div>
+              <div>
+                <Badge tone="orange">함께 확인할 신호</Badge>
+                <h3>수학 · 등차수열</h3>
+                <p>스스로는 이해했다고 했지만 최근 테스트에서 같은 유형을 두 번 틀렸어요.</p>
+                <strong>
+                  <Icon name="message" /> 오개념이 있는지 이야기해 보세요.
+                </strong>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      {tab === 1 && (
+        <div className="card split-record">
+          <div className="session-list">
+            <h2>학습 목록</h2>
+            {[
+              ["5.27", "등차수열의 합 공식 이해", "52분 · 질문 2회"],
+              ["5.25", "영어 핵심 문장 찾기", "45분 · 질문 1회"],
+              ["5.23", "세포 호흡 과정 정리", "65분 · 질문 3회"],
+            ].map((x, i) => (
+              <button className={i === 0 ? "active" : ""} key={x[0]}>
+                <small>{x[0]}</small>
+                <strong>{x[1]}</strong>
+                <span>{x[2]}</span>
+              </button>
+            ))}
+          </div>
+          <div className="session-detail">
+            <div className="feedback-compose">
+              <h3>피드백 남기기</h3>
+              <textarea placeholder="학생의 과정을 구체적으로 짚어 주세요." />
+              <Button>피드백 보내기</Button>
+            </div>
+            <h2>등차수열의 합 공식 이해하기</h2>
+            <div className="timeline">
+              <div className="timeline-item">
+                <span className="timeline-dot" />
+                <small>10:18 · 메모</small>
+                <p>첫째항과 공차를 알면 n번째 항을 구할 수 있다.</p>
+              </div>
+              <div className="timeline-item">
+                <span className="timeline-dot t1" />
+                <small>10:31 · 궁금한 점</small>
+                <p>왜 합 공식에는 n/2가 들어갈까?</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {tab === 2 && (
+        <div className="card question-list">
+          <div className="card-heading">
+            <div>
+              <h2>최근 4주 질문 원문</h2>
+              <p>학생이 실제로 남긴 질문이에요.</p>
+            </div>
+            <FilterSearch />
+          </div>
+          {[
+            ["개념 이해", "왜 합 공식에는 n/2가 들어가나요?", "등차수열 · 5월 27일"],
+            ["풀이 확인", "제가 짝을 지어서 푼 방식도 맞나요?", "등차수열 · 5월 27일"],
+            ["답 요청", "이 문제 답만 알려줄 수 있어?", "세포 호흡 · 5월 23일"],
+          ].map((x, i) => (
+            <div className="question-row" key={x[1]}>
+              <Badge tone={i === 2 ? "orange" : "blue"}>{x[0]} · 자동 분류</Badge>
+              <strong>{x[1]}</strong>
+              <small>{x[2]}</small>
+              <button>
+                <Icon name="more" />
+              </button>
+            </div>
+          ))}
+          <Button variant="secondary">질문 더 보기</Button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Reports = () => (
+  <div className="page teacher-page">
+    <div className="page-heading">
+      <div>
+        <p className="eyebrow">확인 테스트 관리</p>
+        <h1>신고된 문제</h1>
+        <p>학생이 불편함을 표시한 문항을 검토하고 채점 여부를 결정하세요.</p>
+      </div>
+      <Badge tone="orange">검토 필요 3건</Badge>
+    </div>
+    {[
+      [
+        "등차수열의 합",
+        "첫째항이 2, 공차가 3인 수열의 첫 5항의 합은?",
+        "정답 40 · 해설: 2+5+8+11+14",
+        "문제가 애매해요",
+        "3번 김도윤",
+      ],
+      [
+        "세포 호흡",
+        "해당과정이 일어나는 장소로 알맞은 것은?",
+        "정답 세포질 · 해설: 해당과정은 세포질에서 진행됩니다.",
+        "공부한 내용과 관계없어요",
+        "학생(기록 비공개)",
+      ],
+    ].map((x, i) => (
+      <article className="card report-card" key={x[0]}>
+        <div className="report-head">
+          <div>
+            <Badge tone="blue">{x[0]}</Badge>
+            <small>5월 {27 - i}일 신고</small>
+          </div>
+          <Badge tone="orange">채점 제외 중</Badge>
+        </div>
+        <h2>{x[1]}</h2>
+        <div className="answer-box">
+          <strong>{x[2].split(" · ")[0]}</strong>
+          <p>{x[2].split(" · ")[1]}</p>
+        </div>
+        <div className="report-meta">
+          <span>
+            <Icon name="alert" />
+            <small>신고 이유</small>
+            <strong>{x[3]}</strong>
+          </span>
+          <span>
+            <Icon name={i ? "lock" : "users"} />
+            <small>신고 학생</small>
+            <strong>{x[4]}</strong>
+          </span>
+          <span>
+            <Icon name="book" />
+            <small>이 학생의 신고</small>
+            <strong>{i + 1}건</strong>
+          </span>
+        </div>
+        <div className="report-actions">
+          <Button variant="secondary">문항 오류로 제외 유지</Button>
+          <Button>문제없음, 다시 채점</Button>
+        </div>
+      </article>
+    ))}
+  </div>
+);
+
+export default function App() {
+  const [role, setRole] = useState<Role>("student");
+  const [view, setView] = useState<View>("home");
+  const [dataState, setDataState] = useState<DataState>("ready");
+  const changeRole = (r: Role) => {
+    setRole(r);
+    setView(r === "student" ? "home" : "dashboard");
+  };
+  return (
+    <div className={`app-shell ${view === "login" ? "is-login" : ""}`}>
+      {view !== "login" && (
+        <>
+          <AppHeader role={role} setRole={changeRole} onLogout={() => setView("login")} />
+          <Sidebar role={role} view={view} setView={setView} setRole={changeRole} />
+        </>
+      )}
+      <main>
+        {view !== "login" && (
+          <div className="state-demo" title="목록 상태 미리보기">
+            <span>상태</span>
+            {(["ready", "loading", "empty", "error"] as DataState[]).map((x) => (
+              <button
+                className={dataState === x ? "active" : ""}
+                onClick={() => setDataState(x)}
+                key={x}
+              >
+                {x === "ready"
+                  ? "기본"
+                  : x === "loading"
+                    ? "로딩"
+                    : x === "empty"
+                      ? "비어 있음"
+                      : "오류"}
+              </button>
+            ))}
+          </div>
+        )}
+        {view === "login" && <Login onLogin={() => setView("home")} />}
+        {view === "home" && <StudentHome setView={setView} dataState={dataState} />}
+        {view === "study" && <Study />}
+        {view === "records" && <Records dataState={dataState} />}
+        {view === "consent" && <Consent />}
+        {view === "dashboard" && <Dashboard dataState={dataState} setView={setView} />}
+        {view === "analysis" && <Analysis />}
+        {view === "student" && <StudentDetail />}
+        {view === "reports" && <Reports />}
+      </main>
+      <div className="toast" role="status">
+        <Icon name="check" />
+        <span>
+          <strong>저장되었어요</strong>변경한 내용이 안전하게 저장되었습니다.
+        </span>
+        <button aria-label="알림 닫기">×</button>
+      </div>
+    </div>
+  );
+}
