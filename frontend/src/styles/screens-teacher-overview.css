@@ -223,3 +223,152 @@ button.stat-card:focus-visible {
     width: 100%;
   }
 }
+
+/* 대시보드 제목 옆 '학습 현황 내려받기' */
+.dash-download {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .teacher-page .page-heading:has(.dash-download) {
+    flex-wrap: wrap;
+  }
+}
+
+/* 대시보드 작은 칸 (바로가기·메모) */
+.dash-widgets {
+  margin-top: 18px;
+}
+.dash-widgets .card-heading {
+  align-items: center;
+  margin-bottom: 12px;
+}
+.dash-shortcut-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dash-shortcut-list :is(a, button) {
+  width: 100%;
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 20px 1fr 16px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-shortcut-list :is(a, button):hover {
+  background: var(--green-2);
+  border-color: #ecabc3;
+}
+.dash-shortcut-list :is(a, button) .icon:first-child {
+  color: var(--green);
+}
+.dash-memo-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+.dash-memo-form {
+  display: flex;
+  gap: 6px;
+}
+.dash-memo-form input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+}
+.dash-memo-form button {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 700;
+}
+.dash-memo-form button:disabled {
+  color: var(--muted);
+  opacity: 0.6;
+}
+.dash-memo-note,
+.dash-memo-empty {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.dash-memo-error {
+  margin-top: 8px;
+  color: var(--orange);
+  font-size: 12px;
+}
+.dash-memo-list {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.dash-memo-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 4px 8px 10px;
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 13px;
+}
+.dash-memo-list li span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.dash-memo-list li button {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+}
+.dash-memo-list li button:hover {
+  background: #fff;
+  color: var(--ink);
+}
+
+/* 오늘 칸: 다른 화면으로 가는 링크를 버튼과 같은 모양으로 */
+.today-item a.dash-today-link {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  padding: 0 7px;
+  font-size: 10px;
+  white-space: nowrap;
+}

@@ -12,6 +12,8 @@ import { SearchBox } from "../../components/SearchBox";
 import { matchStudent } from "../../lib/studentSearch";
 import { matchesFilter, type DashboardFilter } from "../../lib/dashboardFilter";
 import { dashboardRowWarning } from "../../lib/insights";
+import { buildStudentCsv, studentCsvFileName } from "../../lib/csv";
+import { MemoWidget, ShortcutWidget } from "./DashboardWidgets";
 
 // 날짜는 학교 기준(Asia/Seoul)으로 보여준다
 const seoulMonthDay = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric" });
@@ -26,7 +28,20 @@ const FILTER_LABEL: Record<DashboardFilter, string> = {
 };
 
 type BannerItem = { filter: DashboardFilter; tag: string; title: string; desc: string };
-type TodayItem = { label: string; text: string; action: string; filter: DashboardFilter; count: number };
+// filter: 표를 그 조건으로 거른다 / to: 다른 화면으로 간다
+type TodayItem = { label: string; text: string; action: string; count: number; filter?: DashboardFilter; to?: string };
+
+/** 지금 보이는(거른·검색한) 학생 표를 CSV 파일로 내려받는다 */
+function downloadCsv(rows: Parameters<typeof buildStudentCsv>[0]) {
+  const url = URL.createObjectURL(new Blob([buildStudentCsv(rows)], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = studentCsvFileName(new Date());
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 
 export function ClassDashboard() {
   const me = useMe();
@@ -36,6 +51,12 @@ export function ClassDashboard() {
     queryFn: () => api.getDashboard(classId),
     enabled: !!classId,
     refetchInterval: 5000, // 실서비스: Realtime 구독
+  });
+  // 오늘 칸의 '최근 신고' (신고된 문제 화면과 같은 캐시)
+  const reports = useQuery({
+    queryKey: ["reports", classId],
+    queryFn: () => api.listReportedQuestions(classId),
+    enabled: FEATURES.quiz && !!classId,
   });
   const [filter, setFilter] = useState<DashboardFilter>("all");
   const [page, setPage] = useState(1);
@@ -142,6 +163,15 @@ export function ClassDashboard() {
       count: attentionCount,
     },
   ];
+  const openReports = reports.data?.filter((r) => r.status === "OPEN").length ?? 0;
+  if (FEATURES.quiz && openReports > 0)
+    todayItems.splice(1, 0, {
+      label: "최근 신고",
+      text: `검토가 필요한 신고가 ${openReports}건 있어요.`,
+      action: "신고 보기",
+      to: "/teacher/reports",
+      count: openReports,
+    });
 
   const stat = (label: string, value: string, note: string, key: DashboardFilter, icon: string, tone = "") => (
     <button
@@ -169,6 +199,15 @@ export function ClassDashboard() {
           <h1>2학년 3반 자기주도학습</h1>
           <p>오늘 챙길 학생을 찾는 화면이에요. 공부 방식과 분포는 '반 분석'에서 봐요.</p>
         </div>
+        <Button
+          variant="secondary"
+          className="dash-download"
+          onClick={() => downloadCsv(shown)}
+          disabled={shown.length === 0}
+          title={filter === "all" && !query.trim() ? "반 전체 학생 표를 CSV 파일로 내려받아요" : "지금 거른 학생만 CSV 파일로 내려받아요"}
+        >
+          학습 현황 내려받기
+        </Button>
       </div>
 
       <section className="dashboard-banner dash-banner" aria-label="오늘 먼저 확인할 일">
@@ -236,6 +275,10 @@ export function ClassDashboard() {
               {stat("반 전체", `${rows.length}명`, "모든 학생 보기", "all", "users", "blue-tone")}
             </div>
           </section>
+          <div className="small-widget-grid dash-widgets">
+            <ShortcutWidget feedbackCount={feedbackCount} onFeedback={() => showFilter("feedback")} />
+            {me.data && <MemoWidget teacherId={me.data.id} />}
+          </div>
         </div>
 
         <aside className="today-rail card" aria-label="오늘">
@@ -246,17 +289,22 @@ export function ClassDashboard() {
             <Badge>오늘</Badge>
           </div>
           {todayItems.map((item, i) => (
-            <div className="today-item" key={item.filter}>
+            <div className="today-item" key={item.label}>
               <span className={`schedule-dot d${i}`} aria-hidden="true" />
               <div>
                 <strong>{item.label}</strong>
                 <p>{item.text}</p>
               </div>
-              {item.count > 0 && (
-                <button type="button" aria-label={`${item.label} ${item.action}`} onClick={() => showFilter(item.filter)}>
-                  {item.action}
-                </button>
-              )}
+              {item.count > 0 &&
+                (item.to ? (
+                  <Link to={item.to} className="dash-today-link" aria-label={`${item.label} ${item.action}`}>
+                    {item.action}
+                  </Link>
+                ) : (
+                  <button type="button" aria-label={`${item.label} ${item.action}`} onClick={() => item.filter && showFilter(item.filter)}>
+                    {item.action}
+                  </button>
+                ))}
             </div>
           ))}
         </aside>

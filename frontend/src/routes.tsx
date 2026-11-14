@@ -13,6 +13,7 @@ import { MyRecordsPage } from "./features/records/MyRecordsPage";
 import { ClassDashboard } from "./features/teacher/ClassDashboard";
 import { StudentDetailPage } from "./features/teacher/StudentDetailPage";
 import { ReportsPage } from "./features/teacher/ReportsPage";
+import { HelpPage } from "./features/help/HelpPage";
 
 export const router = createBrowserRouter([
   { path: "/kiosk", element: <KioskPage /> },
@@ -20,6 +21,8 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { path: "/", element: <LoginPage /> },
+      // 사용 방법 (선생님·학생 공용, 로그인 확인은 화면 안에서)
+      { path: "/help", element: <HelpPage /> },
       {
         path: "/student",
         element: <RequireRole role="student" />,

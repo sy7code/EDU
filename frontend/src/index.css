@@ -8,6 +8,7 @@
 @import "./styles/screens-teacher-detail.css";
 @import "./styles/screens-pace.css";
 @import "./styles/screens-paper.css";
+@import "./styles/screens-help.css";
 
 @theme {
   --color-brand-50: #fff0f5;

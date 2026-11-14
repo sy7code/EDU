@@ -5,7 +5,8 @@ import { Icon } from "./Icon";
 
 /**
  * 디자인: Figma 프로토타입 v2 — 데스크톱은 왼쪽 사이드바(로고·프로필·바로가기·메뉴 묶음), 상단 바는 숨김.
- * 모바일은 상단 바 + 아래 탭바. 프로토타입에만 있고 기능이 없는 것(반 바꾸기, 전체 메뉴 탭, 역할 미리보기, 도움말)은 넣지 않는다.
+ * 모바일은 상단 바 + 아래 탭바. 프로토타입에만 있고 기능이 없는 것(반 바꾸기, 전체 메뉴 탭, 역할 미리보기)은 넣지 않는다.
+ * 도움말: 데스크톱은 사이드바 아래 카드, 모바일은 상단 바 아이콘 → /help
  */
 export function AppLayout() {
   const { data: me } = useMe();
@@ -46,6 +47,9 @@ export function AppLayout() {
               <span>성장 페이스</span>
             </Link>
             <div className="top-actions">
+              <Link to="/help" className="icon-button" aria-label="사용 방법" title="사용 방법">
+                <Icon name="message" />
+              </Link>
               <span className="user-name">
                 {me.name} {me.role === "teacher" ? "선생님" : "학생"}
               </span>
@@ -100,6 +104,13 @@ export function AppLayout() {
                 ))}
               </nav>
             </div>
+            <Link to="/help" className="sidebar-note help-sidebar-link">
+              <Icon name="message" />
+              <div>
+                <strong>도움이 필요하신가요?</strong>
+                <p>사용 방법을 살펴보세요</p>
+              </div>
+            </Link>
           </aside>
         </>
       )}
