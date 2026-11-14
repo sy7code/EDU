@@ -7,7 +7,22 @@
 
 ---
 
-## v0.6 교과 교사 (추가, 2026-11-14 · 백엔드 미반영 — mock 전용, `FEATURES.subjectTeacher`)
+## v0.6 교과 교사 (추가, 2026-11-14 · 백엔드 v0.9 배포·실제 모드 연결됨, `FEATURES.subjectTeacher = true`)
+
+### 실제 백엔드 이름 (v0.9 배포, `frontend/src/api/supabaseApi.ts`)
+| 함수 | 실제 호출 |
+|---|---|
+| `listMyAssignments()` | `v_my_assignments` → `{ teacherId, classId, subject, term }` (현재 학기). 학생·배정 없는 교사는 **0행**(mock은 학생에게 403) |
+| `getSubjectSummary(classId, subject)` | `rpc('subject_week_summary', { p_class_id, p_subject })` → `SubjectWeekSummary` 그대로. 배정 없으면 404. 서버 `hardQuestions`는 신고·교사 제외(`excluded`) 문항을 뺀다 |
+| `listSubjectStudents(classId, subject)` | `rpc('subject_students', { p_class_id, p_subject })` → `[{ id, name, classId, number }]` |
+| `logStudentView(studentId, subject?)` | `rpc('log_student_view', { p_student_id, p_subject? })`. 담임은 `p_subject` 없이, 교과 교사는 필수(없으면 404). `v_audit_logs.subject` |
+| `listSessions({ studentId, subject })` | `v_sessions` + `subject`가 있으면 `.eq("subject", subject)` (서버 `sessions.subject` 컬럼) |
+| `startSession` | `POST /sessions` 본문에 `subject` (`goal.subject`가 국어·수학·영어·사회·과학이 아니면 `기타`). 세션 과목은 이후 바뀌지 않음 |
+| `getReviewInputs(studentId)` | 학생 본인: `v_sessions(id,subject,startedAt)`·`v_session_topics`·`v_quiz_attempts`·`v_reflections` |
+| 필드 | `LearningSession.subject` ← `v_sessions.subject`, `Feedback.authorSubject` ← `v_feedback.authorSubject`(서버가 `teacher_id`·`author_subject`를 덮어씀), `AuditLog.subject` ← `v_audit_logs.subject` |
+
+- 교과 교사에게 `v_sessions.summary`는 null(요약은 따로 저장). 프론트 교과 교사 화면은 `summary` 컬럼을 쓰지 않는다.
+- 데모용 교과 교사 계정은 아직 없음 → 실제 모드 화면 확인은 계정 생성 후.
 
 담임 = `role === "teacher" && classId !== ""`. 교과만 맡은 교사는 `classId: ""`. 교과 배정은 `teacher_assignments(teacher_id, class_id, subject, term)`. 현재 학기: 서울 날짜 3~8월 `YYYY-1`, 9~12월 `YYYY-2`, 1~2월 `(YYYY-1)-2`.
 

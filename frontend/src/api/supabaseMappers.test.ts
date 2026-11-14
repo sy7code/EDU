@@ -22,6 +22,10 @@ import {
   rowToAuditLog,
   toReportOutcome,
   normalizeReportedQuestion,
+  toSessionSubject,
+  rowSessionSubject,
+  rowToAssignment,
+  buildReviewInputs,
 } from "./supabaseMappers";
 
 describe("목표 ↔ 텍스트", () => {
@@ -300,7 +304,7 @@ describe("피드백 읽음·열람 기록 변환", () => {
   });
   it("v_audit_logs 행을 그대로 옮긴다", () => {
     expect(rowToAuditLog({ id: "a", actorId: "t", actorName: "김교사", action: "VIEW_STUDENT_DETAIL", studentId: "s", createdAt: "x" })).toEqual({
-      id: "a", actorId: "t", actorName: "김교사", action: "VIEW_STUDENT_DETAIL", studentId: "s", createdAt: "x",
+      id: "a", actorId: "t", actorName: "김교사", action: "VIEW_STUDENT_DETAIL", studentId: "s", createdAt: "x", subject: null,
     });
   });
 });
@@ -331,5 +335,65 @@ describe("realtimeStatus", () => {
     expect(realtimeStatus("CLOSED", false)).toBe("unavailable");
     expect(realtimeStatus("CLOSED", true)).toBeNull();
     expect(realtimeStatus("JOINING", false)).toBeNull();
+  });
+});
+
+describe("교과 교사 v0.9 변환", () => {
+  it("세션 과목: 서버 목록의 과목만 그대로, 나머지(자유 입력·빈 값)는 기타", () => {
+    expect(toSessionSubject("수학")).toBe("수학");
+    expect(toSessionSubject(" 과학 ")).toBe("과학");
+    expect(toSessionSubject("수학 숙제")).toBe("기타");
+    expect(toSessionSubject("")).toBe("기타");
+    expect(toSessionSubject("기타")).toBe("기타");
+  });
+
+  it("피드백 authorSubject: 교과 교사면 과목, 담임·없음이면 null", () => {
+    const base = { id: "f", sessionId: "s", teacherId: "t", content: "c", createdAt: "x", readAt: null };
+    expect(rowToFeedback({ ...base, authorSubject: "수학" }).authorSubject).toBe("수학");
+    expect(rowToFeedback({ ...base, authorSubject: null }).authorSubject).toBeNull();
+    expect(rowToFeedback(base).authorSubject).toBeNull();
+  });
+
+  it("열람 기록 subject: 교과 교사 열람이면 과목, 담임이면 null", () => {
+    const base = { id: "a", actorId: "t", actorName: "오수학", action: "VIEW_STUDENT_DETAIL", studentId: "s", createdAt: "x" };
+    expect(rowToAuditLog({ ...base, subject: "수학" }).subject).toBe("수학");
+    expect(rowToAuditLog({ ...base, subject: null }).subject).toBeNull();
+  });
+
+  it("세션 subject 컬럼: 있으면 그 값, 없으면 undefined", () => {
+    expect(rowSessionSubject({ subject: "영어" })).toBe("영어");
+    expect(rowSessionSubject({ subject: null })).toBeUndefined();
+    expect(rowSessionSubject({})).toBeUndefined();
+  });
+
+  it("v_my_assignments 행을 TeacherAssignment로", () => {
+    expect(rowToAssignment({ teacherId: "t3", classId: "c1", subject: "수학", term: "2026-2" })).toEqual({ teacherId: "t3", classId: "c1", subject: "수학", term: "2026-2" });
+  });
+
+  it("다시 볼 주제 입력: subject 컬럼을 쓰고(없으면 기타), 응시·주제·이해도를 옮긴다", () => {
+    const got = buildReviewInputs({
+      sessionRows: [
+        { id: "s1", subject: "수학", startedAt: "2026-11-10T00:00:00Z" },
+        { id: "s2", subject: null, startedAt: "2026-11-11T00:00:00Z" },
+      ],
+      topicRows: [{ sessionId: "s1", topicId: "tp1", name: "꼭짓점" }],
+      attemptRows: [{ id: "a1", sessionId: "s1", topicId: "tp1", correct: 2, total: 5, createdAt: "2026-11-10T01:00:00Z" }],
+      reflectionRows: [
+        { sessionId: "s1", understanding: 3, checks: [], remainingQuestions: [] },
+        { sessionId: "s2", understanding: null, changed: "", remainingQuestions: [] },
+      ],
+    });
+    expect(got).toEqual({
+      sessions: [
+        { id: "s1", subject: "수학", startedAt: "2026-11-10T00:00:00Z" },
+        { id: "s2", subject: "기타", startedAt: "2026-11-11T00:00:00Z" },
+      ],
+      sessionTopics: [{ sessionId: "s1", topicId: "tp1", name: "꼭짓점" }],
+      attempts: [{ sessionId: "s1", topicId: "tp1", correct: 2, total: 5, createdAt: "2026-11-10T01:00:00Z" }],
+      reflections: [
+        { sessionId: "s1", understanding: 3 },
+        { sessionId: "s2", understanding: null },
+      ],
+    });
   });
 });

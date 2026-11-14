@@ -146,6 +146,8 @@ export type LearningSession = {
   endAuth: AuthMethod | null;
   status: SessionStatus;
   durationMinutes: number | null;
+  /** 서버 sessions.subject (백엔드 v0.9, 국어·수학·영어·사회·과학·기타). 없으면 goal.subject로 대신 */
+  subject?: string;
 };
 
 export type LearningEntry = {

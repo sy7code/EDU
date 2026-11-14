@@ -253,7 +253,7 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
   const session = useQuery({ queryKey: ["session", sessionId], queryFn: () => api.getSession(sessionId), enabled: FEATURES.subjectTeacher });
   const topicName = quiz.data?.topic.name;
   const reviewLineOf = (a: QuizAttempt) =>
-    FEATURES.subjectTeacher && session.data && topicName ? sessionReviewLine(session.data.goal.subject, topicName, a.correct, a.total) : null;
+    FEATURES.subjectTeacher && session.data && topicName ? sessionReviewLine(session.data.subject ?? session.data.goal.subject, topicName, a.correct, a.total) : null;
 
   if (submit.data) return <QuizResult attempt={submit.data} onNext={finish} reviewLine={reviewLineOf(submit.data)} />;
   if (alreadyTaken) {

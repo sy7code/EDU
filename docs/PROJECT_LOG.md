@@ -443,3 +443,7 @@
 - 백엔드 요청서 v0.9: `teacher_assignments`, `current_term()`, `SUBJECT_SHARE`, RLS 확장, `subject_week_summary` RPC, 거부 테스트. 실제 `sessions.goal`이 텍스트라 `sessions.subject` 컬럼을 요청(권한을 텍스트 파싱에 맡기지 않음).
 - 확인 못 함: 실제 모드 전부(플래그로 꺼 둠), 백엔드 SQL 실행, 만 14세 미만 보호자 동의 필요 여부(법 해석), 교과 교사 화면 컴포넌트 테스트(렌더 테스트 환경 없음). 범위 밖 기존 문제: 학생 기록 375px '내 성장' 제목 줄바꿈.
 - 교훈: 권한 함수는 빈 값·목록 밖 값을 먼저 거부(fail-closed)하고, 동의 문구는 실제로 보이는 범위와 글자 단위로 맞춘다. 데모 시드에 "보여 줄 장면"의 데이터가 있는지 화면으로 확인해야 기능이 빈 화면으로 끝나지 않는다.
+
+## 2026-11-14 추가: 백엔드 v0.9 교과 교사 실제 연결 (브랜치 feat/v09-connect)
+- `v_my_assignments`, `subject_students`, `subject_week_summary`, `log_student_view(p_subject)`, `sessions.subject`(시작 시 전송·과목 필터), `authorSubject`·`audit subject` 매핑, 학생 `getReviewInputs`를 실제 모드에 연결하고 `FEATURES.subjectTeacher`를 켰다. mock 많이 틀린 문항이 교사 제외 문항을 빼는지 테스트 추가.
+- 확인 못 함: 실제 모드 화면(데모 교과 교사 계정 없음). 시작 화면은 과목을 고르지 않아 자유 입력이 과목명과 같을 때만 `sessions.subject`가 기타가 아니다.

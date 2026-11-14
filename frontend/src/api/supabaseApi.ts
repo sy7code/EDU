@@ -4,6 +4,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
   AiMessage,
+  SubjectWeekSummary,
   AuthEvent,
   Consent,
   LearningEntry,
@@ -16,7 +17,7 @@ import type {
   Student,
   User,
 } from "../types/domain";
-import { buildAnalyticsRaw, chunk, normalizeReportedQuestion, toReportOutcome, rowToAuditLog, rowToFeedback, consentRows, fetchAllPages, isShared, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, realtimeStatus, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
+import { buildAnalyticsRaw, chunk, normalizeReportedQuestion, toReportOutcome, rowToAuditLog, rowToFeedback, rowToAssignment, rowSessionSubject, toSessionSubject, buildReviewInputs, consentRows, fetchAllPages, isShared, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, realtimeStatus, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
 
 const POLICY_VERSION = "2026-11-v1";
 import { ApiError, type Api } from "./types";
@@ -46,7 +47,9 @@ function mapEntry(r: Row): LearningEntry {
 }
 
 function mapSession(r: Row): LearningSession {
+  const subject = rowSessionSubject(r);
   return {
+    ...(subject ? { subject } : {}),
     id: String(r.id),
     studentId: String(r.studentId),
     goal: textToGoal(String(r.goal ?? "")),
@@ -118,7 +121,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
   }
 
   /** 세션 ID로 100개씩 나눠 조회 (URL 길이). 돌아보기는 세션당 하나라 sessionId 정렬로 충분, 나머지는 id로 경계 고정 */
-  async function rowsBySessions(view: string, sessionIds: string[], opts: { columns?: string; eq?: Record<string, string> } = {}): Promise<Row[]> {
+  async function rowsBySessions(view: string, sessionIds: string[], opts: { columns?: string; eq?: Record<string, string>; tieBreak?: string } = {}): Promise<Row[]> {
     const out: Row[] = [];
     for (const part of chunk(sessionIds, 100)) {
       out.push(
@@ -127,7 +130,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
           const base = sb.from(view).select(opts.columns).in("sessionId", part);
           const filtered = Object.entries(opts.eq ?? {}).reduce((q, [k, v]) => q.eq(k, v), base);
           const q = filtered.order("sessionId");
-          return ok(await (view === "v_reflections" ? q : q.order("id")).range(a, b)) as unknown as Row[];
+          // tieBreak: id 컬럼이 없는 view(v_session_topics)는 topicId로 경계 고정
+          return ok(await (view === "v_reflections" ? q : q.order(opts.tieBreak ?? "id")).range(a, b)) as unknown as Row[];
         })),
       );
     }
@@ -206,7 +210,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     startSession: async ({ goal, authEventId }) => {
       const u = await requireMe();
-      return mapSession(await fn<Row>("POST", "/sessions", { studentId: u.id, goal: goalToText(goal), authEventId }));
+      return mapSession(await fn<Row>("POST", "/sessions", { studentId: u.id, goal: goalToText(goal), subject: toSessionSubject(goal.subject), authEventId }));
     },
     endSession: async (sessionId, authEventId) => mapSession(await fn<Row>("POST", `/sessions/${encodeURIComponent(sessionId)}/end`, { authEventId })),
     getSession: async (sessionId) => {
@@ -218,10 +222,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const u = await requireMe();
       const target = u.role === "student" ? u.id : studentId;
       if (!target) throw new ApiError("VALIDATION");
-      const rows = ok(await sb.from("v_sessions").select().eq("studentId", target).order("startedAt", { ascending: false })) as Row[];
-      const list = rows.map(mapSession);
-      // 교과 교사 권한은 백엔드에 아직 없음: 과목 필터만 화면 편의로 적용 (권한 경계 아님)
-      return subject ? list.filter((s) => s.goal.subject === subject) : list;
+      // 과목 필터는 서버 sessions.subject 컬럼으로 (백엔드 v0.9). 교과 교사 권한 경계는 서버 RLS
+      const base = sb.from("v_sessions").select().eq("studentId", target);
+      const rows = ok(await (subject ? base.eq("subject", subject) : base).order("startedAt", { ascending: false })) as Row[];
+      return rows.map(mapSession);
     },
 
     // ---------- 기록 ----------
@@ -307,6 +311,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const u = await requireMe();
       const id = crypto.randomUUID();
       const text = content.trim();
+      // teacher_id·author_subject는 서버가 덮어쓴다 (백엔드 v0.9). 과목 표시는 다시 불러온 v_feedback.authorSubject로
       ok(await sb.from("feedback").insert({ id, session_id: sessionId, teacher_id: u.id, content: text }));
       return { id, sessionId, teacherId: u.id, content: text, createdAt: new Date().toISOString(), readAt: null };
     },
@@ -314,27 +319,39 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       // 학생 본인 것만, read_at만 바뀜(서버 RLS). 이미 읽은 것은 다시 쓰지 않음
       ok(await sb.from("feedback").update({ read_at: new Date().toISOString() }).eq("id", feedbackId).is("read_at", null));
     },
-    // 교과 교사 subject 기록은 백엔드 미반영. 담임 열람만 기록된다
-    logStudentView: async (studentId) => {
-      ok(await sb.rpc("log_student_view", { p_student_id: studentId }));
+    // 담임: subject 없이. 교과 교사: p_subject 필수(없으면 서버 404), audit에 과목이 남는다 (백엔드 v0.9)
+    logStudentView: async (studentId, subject) => {
+      ok(await sb.rpc("log_student_view", subject ? { p_student_id: studentId, p_subject: subject } : { p_student_id: studentId }));
     },
     listAuditLogs: async () => {
       const rows = ok(await sb.from("v_audit_logs").select().order("createdAt", { ascending: false }).limit(10)) as Row[]; // 학생 화면 "최근 10개"
       return rows.map(rowToAuditLog);
     },
 
-    // ---------- 교과 교사 (백엔드 미반영) ----------
-    listMyAssignments: async () => {
-      throw new ApiError("UNKNOWN", "subject teacher not deployed");
+    // ---------- 교과 교사 (백엔드 v0.9) ----------
+    // 현재 학기 배정만. 학생·배정 없는 교사는 0행
+    listMyAssignments: async () => (ok(await sb.from("v_my_assignments").select()) as Row[]).map(rowToAssignment),
+    // 학생 본인만 (mock과 같은 계약). 읽기 방식은 getPaceInputs와 같다: 세션은 id로 페이지, 나머지는 세션 100개씩
+    getReviewInputs: async (studentId) => {
+      const u = await requireMe();
+      if (u.role !== "student" || u.id !== studentId) throw new ApiError("FORBIDDEN");
+      const sessionRows = await fetchAllPages(
+        async (a, b) => ok(await sb.from("v_sessions").select("id,subject,startedAt").eq("studentId", u.id).order("id").range(a, b)) as unknown as Row[],
+      );
+      const ids = sessionRows.map((r) => String(r.id));
+      const [topicRows, attemptRows, reflectionRows] = await Promise.all([
+        rowsBySessions("v_session_topics", ids, { columns: "sessionId,topicId,name", tieBreak: "topicId" }),
+        rowsBySessions("v_quiz_attempts", ids, { columns: "id,sessionId,topicId,correct,total,createdAt" }),
+        // changed: 예전 형식 돌아보기를 rowToReflection이 읽을 때 필요
+        rowsBySessions("v_reflections", ids, { columns: "sessionId,checks,understanding,remainingQuestions,note,changed" }),
+      ]);
+      return buildReviewInputs({ sessionRows, topicRows, attemptRows, reflectionRows });
     },
-    getReviewInputs: async () => {
-      throw new ApiError("UNKNOWN", "subject teacher not deployed");
-    },
-    getSubjectSummary: async () => {
-      throw new ApiError("UNKNOWN", "subject teacher not deployed");
-    },
-    listSubjectStudents: async () => {
-      throw new ApiError("UNKNOWN", "subject teacher not deployed");
+    // 배정 없으면 서버 404 NOT_FOUND. 응답은 SubjectWeekSummary 그대로
+    getSubjectSummary: async (classId, subject) => ok(await sb.rpc("subject_week_summary", { p_class_id: classId, p_subject: subject })) as SubjectWeekSummary,
+    listSubjectStudents: async (classId, subject) => {
+      const rows = (ok(await sb.rpc("subject_students", { p_class_id: classId, p_subject: subject })) as Row[] | null) ?? [];
+      return rows.map((r): Student => ({ id: String(r.id), name: String(r.name), classId: String(r.classId), number: (r.number as number) ?? 0 }));
     },
 
     // ---------- 교사 ----------
