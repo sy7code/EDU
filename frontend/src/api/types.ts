@@ -129,12 +129,16 @@ export interface Api {
   // 기록
   addEntry(input: { sessionId: string; kind: EntryKind; content: string; visibility: Visibility }): Promise<LearningEntry>;
   listEntries(sessionId: string): Promise<LearningEntry[]>;
+  /** 이 세션에 새 기록이 들어오면 onChange 호출 (실서비스: Realtime, mock: 아무것도 안 함). 돌려준 함수로 구독 해제 */
+  subscribeEntries(sessionId: string, onChange: () => void): () => void;
   /** 학생 본인: 내 모든 세션의 기록(비공개 포함)과 돌아보기 ('내 정리' 탭) */
   listMyNotes(): Promise<{ sessions: LearningSession[]; entries: LearningEntry[]; reflections: Reflection[] }>;
 
   // AI
   listAiMessages(sessionId: string): Promise<AiMessage[]>;
   askAi(sessionId: string, content: string): Promise<AiMessage>;
+  /** 종이 기록 사진(JPEG/PNG data URL, 2MB 이하) → 글자. 본인 ACTIVE 세션·AI 동의 필요. 사진은 저장하지 않음, 글자는 마스킹됨 */
+  ocrPaperPhoto(sessionId: string, imageDataUrl: string): Promise<{ text: string }>;
   summarizeSession(sessionId: string): Promise<SessionSummary>;
 
   // 성찰·피드백

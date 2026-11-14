@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTab, studentDetailTab, myRecordsTab } from "./tabs";
+import { parseTab, studentDetailTab, myRecordsTab, composerKind } from "./tabs";
 
 const TABS = ["summary", "records", "questions"] as const;
 
@@ -32,5 +32,15 @@ describe("내 기록 탭", () => {
     expect(myRecordsTab("notes")).toBe("notes");
     expect(myRecordsTab(null)).toBe("list");
     expect(myRecordsTab("x")).toBe("list");
+  });
+});
+
+describe("학습 중 기록 종류 (?kind)", () => {
+  it("휴대폰 QR의 PAPER는 종이에 기록 탭", () => {
+    expect(composerKind("PAPER")).toBe("PAPER");
+  });
+  it("없거나 모르는 값은 메모", () => {
+    expect(composerKind(null)).toBe("MEMO");
+    expect(composerKind("paper")).toBe("MEMO");
   });
 });

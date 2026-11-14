@@ -1,0 +1,74 @@
+/* 학습 중 '종이에 기록' 탭: 사진 글자 인식 + 휴대폰 QR. 클래스는 모두 paper- 접두사 */
+.paper-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 10px 0 4px;
+  min-width: 0;
+}
+.paper-ocr {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.paper-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.paper-wait {
+  margin: 0;
+  font-size: 13px;
+  color: var(--green-3);
+  font-weight: 600;
+}
+.paper-limit {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--orange-bg);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.paper-ocr .state-block {
+  width: 100%;
+}
+
+/* 휴대폰 이어 올리기 QR: 넓은 화면(PC)에서만. 휴대폰에서는 자기 화면을 찍을 수 없으니 숨김 */
+.paper-qr {
+  display: none;
+  gap: 12px;
+  align-items: center;
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+}
+.paper-qr img {
+  flex: none;
+  width: 112px;
+  height: 112px;
+  image-rendering: pixelated;
+}
+.paper-qr strong {
+  display: block;
+  font-size: 14px;
+}
+.paper-qr small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+@media (min-width: 640px) {
+  .paper-qr {
+    display: flex;
+  }
+}

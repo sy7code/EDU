@@ -232,6 +232,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const rows = ok(await sb.from("v_entries").select().eq("sessionId", sessionId).order("createdAt")) as Row[];
       return rows.map(mapEntry);
     },
+    subscribeEntries: (sessionId, onChange) => {
+      // RLS가 적용된 Realtime: 볼 수 있는 행의 INSERT만 온다. 내용은 쓰지 않고 다시 불러오는 신호로만 쓴다
+      const ch = sb
+        .channel(`entries:${sessionId}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "entries", filter: `session_id=eq.${sessionId}` }, () => onChange())
+        .subscribe();
+      return () => {
+        void sb.removeChannel(ch);
+      };
+    },
     listMyNotes: async () => {
       const u = await requireMe();
       if (u.role !== "student") throw new ApiError("FORBIDDEN");
@@ -249,6 +259,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return rows.map(mapAi);
     },
     askAi: async (sessionId, content) => mapAi(await fn<Row>("POST", `/sessions/${encodeURIComponent(sessionId)}/ai/messages`, { content })),
+    ocrPaperPhoto: async (sessionId, imageDataUrl) => {
+      const r = await fn<{ text?: unknown }>("POST", `/sessions/${encodeURIComponent(sessionId)}/ocr`, { image: imageDataUrl });
+      return { text: typeof r?.text === "string" ? r.text : "" };
+    },
     summarizeSession: async (sessionId) => {
       const r = await fn<{ activities?: unknown[]; remainingQuestions?: unknown[] }>("POST", `/sessions/${encodeURIComponent(sessionId)}/summary`);
       return { activities: toGrounded(r.activities ?? []), remainingQuestions: toGrounded(r.remainingQuestions ?? []) };

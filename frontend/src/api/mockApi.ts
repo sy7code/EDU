@@ -95,6 +95,9 @@ export function createMockApi(opts: MockOptions): Api {
       /* 저장 실패해도 화면은 동작 */
     }
   }
+  const MAX_OCR_IMAGE_BYTES = 2 * 1024 * 1024; // 서버 A 규칙: 디코딩 후 2MB 이하
+  // 사진 글자 인식 예시 결과 (사진은 어디에도 저장하지 않음)
+  const MOCK_OCR_TEXT = ["꼭짓점 공식 x = -b/2a", "완전제곱식으로 바꾸면 꼭짓점이 보인다", "y = (x-2)^2 + 1 → 꼭짓점 (2, 1)"].join("\n");
   function forcedFailure(): void {
     if (!storage) return;
     let code: string | null = null;
@@ -627,6 +630,8 @@ export function createMockApi(opts: MockOptions): Api {
         return [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       }),
 
+    subscribeEntries: () => () => {},
+
     listMyNotes: () =>
       run(() => {
         const u = me();
@@ -663,6 +668,25 @@ export function createMockApi(opts: MockOptions): Api {
         const aiMsg: AiMessage = { id: id("ai"), sessionId, role: "ai", content: mockAiReply(masked), createdAt: iso() };
         db.aiMessages.push(studentMsg, aiMsg);
         return aiMsg;
+      }),
+
+    ocrPaperPhoto: (sessionId, imageDataUrl) =>
+      run(() => {
+        // 서버 A 규칙: 본인 세션이 아니면 404 (교사·다른 학생 모두)
+        const u = me();
+        const found = db.sessions.find((x) => x.id === sessionId);
+        if (!found || u.role !== "student" || found.studentId !== u.id) throw new ApiError("NOT_FOUND");
+        const s = ownActiveSession(sessionId);
+        if (!hasConsent(s.studentId, "AI")) throw new ApiError("CONSENT_REQUIRED");
+        const m = /^data:image\/(jpeg|png);base64,([A-Za-z0-9+/=]+)$/.exec(imageDataUrl);
+        if (!m) throw new ApiError("VALIDATION");
+        const b64 = m[2];
+        const padding = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+        const decodedBytes = Math.floor((b64.length * 3) / 4) - padding;
+        if (decodedBytes > MAX_OCR_IMAGE_BYTES) throw new ApiError("VALIDATION");
+        rateLimit(s.studentId);
+        forcedFailure();
+        return { text: MOCK_OCR_TEXT };
       }),
 
     summarizeSession: (sessionId) =>

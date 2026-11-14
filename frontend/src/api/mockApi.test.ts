@@ -1175,3 +1175,76 @@ describe("Pace 지수 원자료", () => {
     expect(await api.getPaceInputs("s01")).toEqual({ shared: false, sessions: [], entries: [], reflections: [], attempts: [] });
   });
 });
+
+describe("종이 사진 글자 인식 (mock)", () => {
+  const JPEG = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+
+  it("본인 진행 중 학습이면 예시 글자를 돌려준다", async () => {
+    const s = await startAs("s01");
+    const r = await api.ocrPaperPhoto(s.id, JPEG);
+    expect(r.text).toContain("꼭짓점");
+  });
+
+  it("AI 동의가 없으면 CONSENT_REQUIRED", async () => {
+    const s = await startAs("s04");
+    await expectCode(api.ocrPaperPhoto(s.id, JPEG), "CONSENT_REQUIRED");
+  });
+
+  it("다른 사람의 학습이면 NOT_FOUND (서버 404와 같게)", async () => {
+    const s = await startAs("s01");
+    await api.login("t1");
+    await expectCode(api.ocrPaperPhoto(s.id, JPEG), "NOT_FOUND");
+  });
+
+  it("JPEG·PNG data URL이 아니면 VALIDATION", async () => {
+    const s = await startAs("s01");
+    await expectCode(api.ocrPaperPhoto(s.id, "data:image/gif;base64,R0lGOD=="), "VALIDATION");
+    await expectCode(api.ocrPaperPhoto(s.id, "https://example.com/a.jpg"), "VALIDATION");
+  });
+
+  it("디코딩 크기가 2MB를 넘으면 VALIDATION, 2MB까지는 통과", async () => {
+    const s = await startAs("s01");
+    const MB2 = 2 * 1024 * 1024;
+    // base64 4글자 = 3바이트
+    const atLimit = "data:image/png;base64," + "A".repeat((MB2 / 3) * 4 - ((MB2 / 3) * 4) % 4);
+    const over = "data:image/png;base64," + "A".repeat(Math.ceil((MB2 + 3) / 3) * 4);
+    expect((await api.ocrPaperPhoto(s.id, atLimit)).text).not.toBe("");
+    await expectCode(api.ocrPaperPhoto(s.id, over), "VALIDATION");
+  });
+
+  it("끝난 학습이면 SESSION_NOT_ACTIVE", async () => {
+    const s = await startAs("s01");
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    await expectCode(api.ocrPaperPhoto(s.id, JPEG), "SESSION_NOT_ACTIVE");
+  });
+
+  it("오류 강제 키로 AI 실패 화면을 볼 수 있다", async () => {
+    const m = new Map<string, string>();
+    const storage = {
+      get length() { return m.size; },
+      clear: () => m.clear(),
+      getItem: (k: string) => m.get(k) ?? null,
+      key: (i: number) => [...m.keys()][i] ?? null,
+      removeItem: (k: string) => void m.delete(k),
+      setItem: (k: string, v: string) => void m.set(k, String(v)),
+    } as Storage;
+    api = createMockApi({ seed: createSeed(clock), now: () => clock, latencyMs: 0, storage });
+    const s = await startAs("s01");
+    storage.setItem(MOCK_FAIL_KEY, "AI_BAD_OUTPUT");
+    await expectCode(api.ocrPaperPhoto(s.id, JPEG), "AI_BAD_OUTPUT");
+  });
+
+  it("AI 호출 제한(분당)에 같이 걸린다", async () => {
+    const s = await startAs("s01");
+    let limited = false;
+    for (let i = 0; i < 30 && !limited; i++) {
+      try {
+        await api.ocrPaperPhoto(s.id, JPEG);
+      } catch (e) {
+        limited = e instanceof ApiError && e.code === "RATE_LIMITED";
+      }
+    }
+    expect(limited).toBe(true);
+  });
+});

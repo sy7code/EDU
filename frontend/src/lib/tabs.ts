@@ -13,3 +13,8 @@ export function studentDetailTab(tab: string | null, session: string | null): "s
 export function myRecordsTab(tab: string | null): "list" | "notes" {
   return parseTab(tab, ["list", "notes"] as const, "list");
 }
+
+/** 학습 중 화면 기록 종류: ?kind=PAPER (휴대폰 QR) 등 알려진 값만, 그 밖은 메모 */
+export function composerKind(v: string | null): "MEMO" | "QUESTION" | "QUIZ" | "PAPER" {
+  return parseTab(v, ["MEMO", "QUESTION", "QUIZ", "PAPER"] as const, "MEMO");
+}

@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Navigate, useParams } from "react-router";
+import { Link, Navigate, useParams, useSearchParams } from "react-router";
+import QRCode from "qrcode";
 import { api, ApiError } from "../../api";
 import { useHasConsent } from "../../auth/session";
 import { Badge, Button, ButtonLink, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { Icon } from "../../components/Icon";
 import { goalLabel } from "../../lib/checklists";
+import { toJpegDataUrl } from "../../lib/image";
+import { composerKind } from "../../lib/tabs";
 import { elapsedLabel, formatTime } from "../../lib/time";
 import type { EntryKind, LearningEntry, Visibility } from "../../types/domain";
 
@@ -28,6 +31,25 @@ export function SessionPage() {
   const { id = "" } = useParams();
   const session = useQuery({ queryKey: ["session", id], queryFn: () => api.getSession(id) });
   const entries = useQuery({ queryKey: ["entries", id], queryFn: () => api.listEntries(id) });
+  const [params] = useSearchParams();
+  const initialKind = composerKind(params.get("kind"));
+  const qc = useQueryClient();
+  const active = session.data?.status === "ACTIVE";
+  // 휴대폰에서 올린 기록이 PC 화면에 바로 보이게 (실서비스: Realtime, mock: 아무것도 안 함)
+  useEffect(() => {
+    if (!active) return;
+    let unsub: unknown;
+    try {
+      unsub = api.subscribeEntries(id, () => void qc.invalidateQueries({ queryKey: ["entries", id] }));
+    } catch {
+      /* 구독 실패해도 화면은 동작 (새로고침하면 보임) */
+    }
+    // 설정 누락 시 api는 모든 메서드가 Promise를 돌려주는 Proxy라 함수일 때만 해제
+    if (unsub instanceof Promise) unsub.catch(() => {});
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
+  }, [id, active, qc]);
   const aiOk = useHasConsent("AI");
   const shareOk = useHasConsent("LEARNING_RECORD");
   const [teacherView, setTeacherView] = useState(false);
@@ -63,7 +85,7 @@ export function SessionPage() {
       {/* 데스크톱: 왼쪽 입력·기록, 오른쪽 AI / 좁은 화면: 입력 → AI → 기록 (기록이 쌓여도 AI를 찾으려고 끝까지 내리지 않게) */}
       <div className="study-layout">
         <div className="study-composer">
-          <EntryComposer sessionId={s.id} shareOk={shareOk} />
+          <EntryComposer sessionId={s.id} shareOk={shareOk} initialKind={initialKind} />
         </div>
 
         <section className="study-records" aria-label="오늘의 기록">
@@ -118,9 +140,9 @@ function EntryItem({ entry }: { entry: LearningEntry }) {
   );
 }
 
-function EntryComposer({ sessionId, shareOk }: { sessionId: string; shareOk: boolean }) {
+function EntryComposer({ sessionId, shareOk, initialKind }: { sessionId: string; shareOk: boolean; initialKind: EntryKind }) {
   const qc = useQueryClient();
-  const [kind, setKind] = useState<EntryKind>("MEMO");
+  const [kind, setKind] = useState<EntryKind>(initialKind);
   const [content, setContent] = useState("");
   const [visibility, setVisibility] = useState<Visibility>(shareOk ? "TEACHER" : "PRIVATE");
 
@@ -161,6 +183,13 @@ function EntryComposer({ sessionId, shareOk }: { sessionId: string; shareOk: boo
               : "알게 된 것, 해 본 것을 짧게 적어요"
         }
       />
+      {kind === "PAPER" && (
+        <PaperTools
+          sessionId={sessionId}
+          // 이미 쓴 내용은 지우지 않고 아래에 붙인다 (입력칸 최대 2000자)
+          onText={(t) => setContent((cur) => (cur.trim() ? [cur, t].join("\n") : t).slice(0, 2000))}
+        />
+      )}
       <div className="composer-foot">
         {shareOk ? (
           <div className="scope" role="radiogroup" aria-label="공개 범위">
@@ -190,6 +219,103 @@ function EntryComposer({ sessionId, shareOk }: { sessionId: string; shareOk: boo
         </div>
       )}
     </section>
+  );
+}
+
+/** 종이 기록 도구: 사진 글자 인식 + (넓은 화면) 휴대폰으로 이어 올리기 QR */
+function PaperTools({ sessionId, onText }: { sessionId: string; onText: (text: string) => void }) {
+  const aiOk = useHasConsent("AI");
+  return (
+    <div className="paper-tools">
+      {aiOk ? <PaperOcr sessionId={sessionId} onText={onText} /> : <p className="paper-note">AI 사용에 동의해야 사진 글자 인식을 쓸 수 있어요</p>}
+      <PaperPhoneQr sessionId={sessionId} />
+    </div>
+  );
+}
+
+function PaperOcr({ sessionId, onText }: { sessionId: string; onText: (text: string) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  // 사진은 줄여서 글자 인식에만 보내고, 화면·저장소 어디에도 남기지 않는다
+  const ocr = useMutation({
+    mutationFn: async (file: File) => {
+      let image: string;
+      try {
+        image = await toJpegDataUrl(file);
+      } catch {
+        throw new PhotoReadError();
+      }
+      return api.ocrPaperPhoto(sessionId, image);
+    },
+    onSuccess: (r) => {
+      onText(r.text);
+      ocr.reset(); // 넘겨받은 사진 파일 참조도 비운다
+    },
+  });
+
+  return (
+    <div className="paper-ocr">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = ""; // 같은 사진을 다시 골라도 동작하게, 입력에 파일을 남기지 않게
+          if (f) ocr.mutate(f);
+        }}
+      />
+      <Button variant="secondary" disabled={ocr.isPending} onClick={() => fileRef.current?.click()}>
+        사진으로 올리기
+      </Button>
+      {ocr.isPending ? (
+        <p className="paper-wait" role="status">
+          사진에서 글자를 읽는 중이에요 · 보통 5초쯤
+        </p>
+      ) : (
+        <small className="paper-note">찍은 글자를 입력칸에 채워 줘요. 고친 뒤 기록하세요. 사진은 저장하지 않아요.</small>
+      )}
+      {ocr.error &&
+        (ocr.error instanceof ApiError && ocr.error.code === "RATE_LIMITED" ? (
+          <div className="paper-limit" role="alert">
+            AI는 1분에 10번까지 쓸 수 있어요. 1분쯤 뒤에 다시 올려 주세요.
+          </div>
+        ) : ocr.error instanceof PhotoReadError ? (
+          <div className="paper-limit" role="alert">
+            사진을 열지 못했어요. 다른 사진으로 다시 해 보세요.
+          </div>
+        ) : (
+          <ErrorState error={ocr.error} />
+        ))}
+    </div>
+  );
+}
+
+class PhotoReadError extends Error {}
+
+function PaperPhoneQr({ sessionId }: { sessionId: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    // 학습 화면 주소만 담는다 (토큰·비밀번호 없음). 휴대폰은 같은 계정으로 따로 로그인
+    const url = `${window.location.origin}/student/session/${encodeURIComponent(sessionId)}?kind=PAPER`;
+    QRCode.toDataURL(url, { margin: 1, width: 168 })
+      .then((d) => alive && setSrc(d))
+      .catch(() => alive && setSrc(null));
+    return () => {
+      alive = false;
+    };
+  }, [sessionId]);
+  if (!src) return null;
+  return (
+    <div className="paper-qr">
+      <img src={src} width={112} height={112} alt="이 학습 화면으로 가는 QR" />
+      <div>
+        <strong>휴대폰으로 종이 기록 올리기</strong>
+        <small>휴대폰 카메라로 찍고 같은 계정으로 로그인하면 이 학습의 '종이에 기록'이 열려요.</small>
+      </div>
+    </div>
   );
 }
 
