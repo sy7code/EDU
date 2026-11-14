@@ -4,6 +4,7 @@ import { maskName, maskPii } from "../lib/privacy";
 import { minutesBetween } from "../lib/time";
 import { paceVisibleEntries } from "../lib/pace";
 import { activityLabel } from "../lib/checklists";
+import { quizSignal } from "../lib/topicSignal";
 import type {
   AiMessage,
   Assessment,
@@ -53,7 +54,6 @@ const CODE_PER_MINUTE = 20;
 const QUIZ_CONCEPT = 3; // 고정 난이도: 개념 확인 3
 const QUIZ_APPLY = 2; // + 적용 2 = 5문항
 const TOPICS_MAX = 3;
-const SIGNAL_MIN_TOTAL = 3; // 채점 문항이 이보다 적으면 차이 신호를 내지 않음
 const AUDIT_LIMIT = 10; // 학생 화면 "최근 10개"와 같게
 const MAX_ENTRY = 2000;
 const MAX_AI_INPUT = 1000;
@@ -393,13 +393,6 @@ export function createMockApi(opts: MockOptions): Api {
       .filter((a) => a.studentId === studentId && (!topicId || a.topicId === topicId) && a.total > 0)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return list[0] ?? null;
-  }
-  /** 차이 신호: 스스로 '설명할 수 있다(3)'인데 60% 미만 → OVERCONFIDENT, 그 외 40% 미만 → LOW_SCORE */
-  function quizSignal(rate: number | null, understanding: number | null, total = SIGNAL_MIN_TOTAL): TopicGrowth["signal"] {
-    if (rate === null || total < SIGNAL_MIN_TOTAL) return null; // 신고로 채점 문항이 너무 적으면 판단하지 않음
-    if (understanding === 3 && rate < 0.6) return "OVERCONFIDENT";
-    if (rate < 0.4) return "LOW_SCORE";
-    return null;
   }
   function lastQuizRate(studentId: string, topicId?: string): number | null {
     const a = lastAttempt(studentId, topicId);
