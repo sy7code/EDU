@@ -12,7 +12,6 @@ import { EndPage } from "./features/session/EndPage";
 import { MyRecordsPage } from "./features/records/MyRecordsPage";
 import { HomeroomOnly, TeacherHome } from "./features/teacher/TeacherHome";
 import { FEATURES } from "./api";
-import { SubjectsPage } from "./features/teacher/SubjectsPage";
 import { SubjectClassPage } from "./features/teacher/SubjectClassPage";
 import { SubjectStudentPage } from "./features/teacher/SubjectStudentPage";
 import { StudentDetailPage } from "./features/teacher/StudentDetailPage";
@@ -49,12 +48,12 @@ export const router = createBrowserRouter([
           { path: "students/:studentId", element: <HomeroomOnly><StudentDetailPage /></HomeroomOnly> },
           { path: "reports", element: <HomeroomOnly><ReportsPage /></HomeroomOnly> },
           { path: "analytics", element: <HomeroomOnly><AnalyticsPage /></HomeroomOnly> },
-          { path: "subjects", element: <SubjectsPage /> },
+          { path: "subjects", element: <Navigate to="/teacher" replace /> },
           // 백엔드에 교과 교사 기능이 없으면(실서비스) 하위 화면은 열지 않는다
-          { path: "subjects/:classId/:subject", element: FEATURES.subjectTeacher ? <SubjectClassPage /> : <Navigate to="/teacher/subjects" replace /> },
+          { path: "subjects/:classId/:subject", element: FEATURES.subjectTeacher ? <SubjectClassPage /> : <Navigate to="/teacher" replace /> },
           {
             path: "subjects/:classId/:subject/students/:studentId",
-            element: FEATURES.subjectTeacher ? <SubjectStudentPage /> : <Navigate to="/teacher/subjects" replace />,
+            element: FEATURES.subjectTeacher ? <SubjectStudentPage /> : <Navigate to="/teacher" replace />,
           },
         ],
       },

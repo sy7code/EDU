@@ -22,8 +22,8 @@ export function SubjectClassPage() {
   const s = summary.data;
   return (
     <div className="subj-page">
-      <Link to="/teacher/subjects" className="student-back">
-        ← 내 과목
+      <Link to="/teacher" className="student-back">
+        ← 대시보드
       </Link>
       <h1>{title}</h1>
 

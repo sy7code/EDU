@@ -237,3 +237,8 @@
   font-size: 12px;
   margin-top: 8px;
 }
+
+/* 대시보드 안 내 과목 섹션 */
+.subj-section {
+  margin-top: 24px;
+}

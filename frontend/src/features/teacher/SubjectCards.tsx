@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api, FEATURES } from "../../api";
 import { isRetryable } from "../../lib/retryable";
-import { Badge, EmptyState, ErrorState, Spinner } from "../../components/ui";
+import { Badge, ErrorState, Spinner } from "../../components/ui";
 import { classLabel } from "../../lib/classLabel";
 import type { SubjectWeekSummary, TeacherAssignment } from "../../types/domain";
 
@@ -16,20 +16,21 @@ function topReviewTopics(s: SubjectWeekSummary): string[] {
     .map((t) => t.name);
 }
 
-export function SubjectsPage() {
+/** 내 과목 섹션: 맡은 반·과목마다 이번 주 요약 카드. 배정이 없거나 기능이 꺼져 있으면 아무것도 그리지 않는다 */
+export function SubjectCards() {
   const asg = useQuery({ queryKey: ["my-assignments"], queryFn: () => api.listMyAssignments(), enabled: FEATURES.subjectTeacher });
+  if (!FEATURES.subjectTeacher) return null;
+  if (asg.isLoading) return <Spinner />;
+  if (asg.error) return <ErrorState error={asg.error} onRetry={isRetryable(asg.error) ? () => asg.refetch() : undefined} />;
+  if (!asg.data?.length) return null;
   return (
-    <div className="subj-page">
-      <h1>내 과목</h1>
+    <section className="subj-page subj-section" aria-labelledby="subj-section-title">
+      <h2 id="subj-section-title">내 과목</h2>
       <p className="subj-lead">이번 주 학습을 반·과목별로 모아 보여요. 학습 기록 공개와 교과 공개에 모두 동의한 학생의 학습만 집계돼요.</p>
-      {!FEATURES.subjectTeacher && <EmptyState title="아직 쓸 수 없는 기능이에요">교과 선생님 화면은 준비 중이에요.</EmptyState>}
-      {FEATURES.subjectTeacher && asg.isLoading && <Spinner />}
-      {asg.error && <ErrorState error={asg.error} onRetry={isRetryable(asg.error) ? () => asg.refetch() : undefined} />}
-      {asg.data?.length === 0 && <EmptyState title="맡은 과목이 없어요">이번 학기에 배정된 반·과목이 없어요.</EmptyState>}
       <div className="subj-card-grid">
-        {asg.data?.map((a) => <AssignmentCard key={`${a.classId}/${a.subject}`} a={a} />)}
+        {asg.data.map((a) => <AssignmentCard key={`${a.classId}/${a.subject}`} a={a} />)}
       </div>
-    </div>
+    </section>
   );
 }
 
