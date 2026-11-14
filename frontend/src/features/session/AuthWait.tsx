@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, FEATURES, USE_MOCK } from "../../api";
-import { useHasConsent, useMe } from "../../auth/session";
-import { Button, ErrorState, METHOD_LABEL } from "../../components/ui";
+import { Button, ErrorState } from "../../components/ui";
 import { Icon } from "../../components/Icon";
 import type { AuthEvent } from "../../types/domain";
 
@@ -13,8 +12,6 @@ const DEMO_DEVICE = "kiosk-study-room-1";
  * 실서비스: Realtime 구독 / 지금: 1.5초 폴링
  */
 export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; onAuth: (ev: AuthEvent) => void; note?: string }) {
-  const me = useMe();
-  const faceOk = useHasConsent("FACEPASS");
   const [qr, setQr] = useState<{ token: string; expiresAt: string } | null>(null);
   const clearQr = useCallback(() => setQr(null), []);
   const pending = useQuery({
@@ -31,11 +28,12 @@ export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; 
   const issueQr = useMutation({ mutationFn: () => api.issueQrToken(), onSuccess: setQr });
 
   const simulate = useMutation({
-    mutationFn: async (kind: "face" | "qr") => {
-      if (kind === "face") return api.simulateFaceAuth(DEMO_DEVICE, me.data!.id, true);
+    mutationFn: async (kind: "skip" | "qr") => {
+      // 실제 모드 개발용 건너뛰기 (백엔드 QR 배포 후 제거)
+      if (kind === "skip") return api.devSkipAuth();
       // 데모: 키오스크가 학생 화면의 QR을 스캔한 것처럼
       const t = qr ?? (await api.issueQrToken());
-      return api.submitCodeAuth(DEMO_DEVICE, "QR", t.token);
+      return api.submitCodeAuth(DEMO_DEVICE, t.token);
     },
     onSuccess: () => pending.refetch(),
   });
@@ -55,12 +53,11 @@ export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; 
       </h1>
       {note && <p className="study-auth-note">{note}</p>}
       <p>
-        {faceOk ? `${METHOD_LABEL.FACEPASS}, ` : ""}QR, 학생증 바코드로 인증하면 이 화면이 자동으로 넘어가요.
+        휴대폰 QR로 인증하면 이 화면이 자동으로 넘어가요.
       </p>
       <div className="waiting" role="status">
         <span className="spinner" aria-hidden /> 인증을 기다리고 있어요
       </div>
-      <p className="subtle">기기를 쓰기 어렵다면 선생님께 확인을 요청할 수 있어요.</p>
 
       {FEATURES.codeAuth && (
         <div className="study-qr">
@@ -76,12 +73,12 @@ export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; 
       )}
 
       {pending.error && <div className="study-err"><ErrorState error={pending.error} /></div>}
-      {/* 데모 인증: mock·실제 백엔드(/dev/facepass/simulate) 모두 지원 */}
+      {/* 데모 인증: mock은 QR 스캔 흉내, 실제 모드는 개발용 건너뛰기(/dev/facepass/simulate) */}
       <div className="demo-box">
         <span className="demo-note">데모 전용 버튼{USE_MOCK ? "" : " (실제 단말기 연동 전)"}</span>
-        {(faceOk || !FEATURES.codeAuth) && ( /* 대체 수단(QR)이 없는 실제 모드에선 막히지 않게 항상 표시 */
-          <Button variant="secondary" onClick={() => simulate.mutate("face")} disabled={simulate.isPending}>
-            단말기 얼굴 인증 흉내
+        {!USE_MOCK && ( /* 백엔드 QR 배포 전 실제 모드에서 막히지 않게 */
+          <Button variant="secondary" onClick={() => simulate.mutate("skip")} disabled={simulate.isPending}>
+            인증 건너뛰기 (개발용)
           </Button>
         )}
         {FEATURES.codeAuth && (

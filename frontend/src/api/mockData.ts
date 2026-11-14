@@ -27,9 +27,7 @@ export type Db = {
   users: User[];
   /** 교과 교사 배정 (학기별). 담임 여부는 users.classId로 */
   assignments: TeacherAssignment[];
-  facepassLinks: Record<string, string>; // merchantUserKey(시리얼) → studentId
   qrTokens: Record<string, { studentId: string; expiresAt: string; used: boolean }>; // 1회용 QR
-  barcodes: Record<string, string>;      // 학생증 바코드(추측 불가 값) → studentId
   consents: Record<string, Consent[]>;   // studentId → 동의 이력 (종류별 마지막 값이 현재)
   authEvents: AuthEvent[];
   sessions: LearningSession[];
@@ -158,18 +156,11 @@ export function createSeed(now: Date): Db {
   }
   users.push({ id: "s99", name: "남다른", role: "student", classId: "c2", number: 1, under14: false });
 
-  const facepassLinks: Record<string, string> = {};
-  const barcodes: Record<string, string> = {};
   const consents: Record<string, Consent[]> = {};
-  const codeRng = rng(97531);
   for (const u of users.filter((u) => u.role === "student")) {
-    facepassLinks[`serial-${u.id}`] = u.id;
-    // 학생 ID에서 유추할 수 없는 12자리 학생증 번호
-    barcodes[String(Math.floor(codeRng() * 9e11) + 1e11)] = u.id;
     const g = !!u.under14;
     consents[u.id] = [
-      // s03: 얼굴 인증 거부 (QR 사용) / s04: AI 거부 / s30: 만 14세 미만, 보호자 동의
-      consent("FACEPASS", u.id !== "s03", nowIso, g),
+      // s04: AI 거부 / s30: 만 14세 미만, 보호자 동의
       consent("AI", u.id !== "s04", nowIso, g),
       consent("LEARNING_RECORD", true, nowIso, g),
       // 교과 선생님 공유: 일부 학생만 (이나래 s02 등은 없음)
@@ -212,8 +203,8 @@ export function createSeed(now: Date): Db {
         goal: { subject, activities: [["concept", "problem", "review", "summary"][Math.floor(r() * 4)]] },
         startedAt: iso(start),
         endedAt: iso(end),
-        startAuth: u.id === "s03" ? "QR" : "FACEPASS",
-        endAuth: u.id === "s03" ? "QR" : "FACEPASS",
+        startAuth: "QR",
+        endAuth: "QR",
         status: "ENDED",
         durationMinutes: minutes,
       });
@@ -279,7 +270,7 @@ export function createSeed(now: Date): Db {
     // 기록 시각도 종료 시각을 넘지 않게
     const atMin = (m: number) => iso(new Date(Math.min(start.getTime() + m * 60000, end.getTime())));
     const sid = nextId("sess");
-    sessions.push({ id: sid, studentId: w.studentId, goal: { subject: w.subject, activities: ["concept"] }, startedAt: iso(start), endedAt: iso(end), startAuth: "FACEPASS", endAuth: "FACEPASS", status: "ENDED", durationMinutes: Math.round((end.getTime() - start.getTime()) / 60000) });
+    sessions.push({ id: sid, studentId: w.studentId, goal: { subject: w.subject, activities: ["concept"] }, startedAt: iso(start), endedAt: iso(end), startAuth: "QR", endAuth: "QR", status: "ENDED", durationMinutes: Math.round((end.getTime() - start.getTime()) / 60000) });
     entries.push(
       { id: nextId("entry"), sessionId: sid, kind: "MEMO", content: w.memo, visibility: "TEACHER", createdAt: atMin(5) },
       { id: nextId("entry"), sessionId: sid, kind: "QUESTION", content: w.question, visibility: "TEACHER", createdAt: atMin(10) },
@@ -382,7 +373,7 @@ export function createSeed(now: Date): Db {
     const start = new Date(Math.min(now.getTime(), weekStartMs + 60_000 + span * frac * 0.9));
     const end = new Date(Math.min(start.getTime() + Math.min(30 * 60000, span * 0.05), now.getTime()));
     const sid = nextId("sess");
-    sessions.push({ id: sid, studentId: v.studentId, goal: { subject: "수학", activities: ["problem"] }, startedAt: iso(start), endedAt: iso(end), startAuth: "FACEPASS", endAuth: "FACEPASS", status: "ENDED", durationMinutes: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)) });
+    sessions.push({ id: sid, studentId: v.studentId, goal: { subject: "수학", activities: ["problem"] }, startedAt: iso(start), endedAt: iso(end), startAuth: "QR", endAuth: "QR", status: "ENDED", durationMinutes: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)) });
     const evId = nextId("entry");
     entries.push({ id: evId, sessionId: sid, kind: "MEMO", content: "꼭짓점 구하는 방법 정리", visibility: "TEACHER", createdAt: iso(end) });
     reflections.push({ sessionId: sid, checks: ["goal_done"], understanding: 2, remainingQuestions: [], updatedAt: iso(end) });
@@ -398,9 +389,7 @@ export function createSeed(now: Date): Db {
   return {
     users,
     assignments,
-    facepassLinks,
     qrTokens: {},
-    barcodes,
     consents,
     authEvents: [],
     sessions,

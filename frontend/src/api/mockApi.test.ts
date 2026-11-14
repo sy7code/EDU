@@ -21,14 +21,20 @@ async function expectCode(p: Promise<unknown>, code: string) {
   await expect(p).rejects.toSatisfy((e: unknown) => e instanceof ApiError && e.code === code);
 }
 
+/** 학생 휴대폰에서 QR 발급 → 단말기 제출. 로그인 사용자는 원래대로 되돌린다 */
+async function authByQr(studentId: string) {
+  const prev = await api.me();
+  if (prev?.id !== studentId) await api.login(studentId);
+  const { token } = await api.issueQrToken();
+  const ev = await api.submitCodeAuth(DEVICE, token);
+  if (!prev) await api.logout();
+  else if (prev.id !== studentId) await api.login(prev.id);
+  return ev;
+}
+
 async function startAs(studentId: string) {
   await api.login(studentId);
-  const ev = await api.submitFaceAuth(DEVICE, {
-    merchantUserKey: `serial-${studentId}`,
-    authenticated: true,
-    result: "Authenticated",
-    message: "",
-  });
+  const ev = await authByQr(studentId);
   return api.startSession({ goal: GOAL, authEventId: ev.id });
 }
 
@@ -46,87 +52,75 @@ beforeEach(() => {
   });
 });
 
-describe("페이스패스 인증", () => {
-  it("시리얼을 학생으로 매핑하고 이름은 마스킹해서 돌려준다", async () => {
-    const ev = await api.submitFaceAuth(DEVICE, {
-      merchantUserKey: "serial-s01",
-      authenticated: true,
-      result: "Authenticated",
-      message: "",
-    });
+describe("QR 인증", () => {
+  it("QR 토큰을 학생으로 매핑하고 이름은 마스킹해서 돌려준다", async () => {
+    const ev = await authByQr("s01");
     expect(ev.studentId).toBe("s01");
+    expect(ev.method).toBe("QR");
     expect(ev.success).toBe(true);
     expect(ev.maskedName).toMatch(/\*/);
   });
 
-  it("등록되지 않은 시리얼은 실패로 기록한다", async () => {
-    const ev = await api.submitFaceAuth(DEVICE, {
-      merchantUserKey: "serial-unknown",
-      authenticated: true,
-      result: "Authenticated",
-      message: "",
-    });
+  it("QR로 인증하면 학습을 시작할 수 있다", async () => {
+    const s = await startAs("s02");
+    expect(s.status).toBe("ACTIVE");
+    expect(s.startAuth).toBe("QR");
+  });
+
+  it("바코드 형식 토큰은 거부한다", async () => {
+    // 12자리 학생증 번호 형식. QR 토큰이 아니면 학생으로 매핑하지 않는다
+    const ev = await api.submitCodeAuth(DEVICE, "123456789012");
     expect(ev.success).toBe(false);
     expect(ev.studentId).toBeNull();
   });
 
-  it("페이스패스 동의가 없는 학생의 얼굴 인증은 실패로 기록한다", async () => {
-    const ev = await api.submitFaceAuth(DEVICE, {
-      merchantUserKey: "serial-s03",
-      authenticated: true,
-      result: "Authenticated",
-      message: "",
-    });
-    expect(ev.success).toBe(false);
+  it("mock에서는 개발용 인증 건너뛰기를 쓸 수 없다", async () => {
+    await api.login("s01");
+    await expectCode(api.devSkipAuth(), "FORBIDDEN");
   });
 });
 
 describe("세션 시작 규칙", () => {
   it("같은 인증 이벤트로 두 번 시작할 수 없다", async () => {
     await api.login("s01");
-    const ev = await api.submitFaceAuth(DEVICE, {
-      merchantUserKey: "serial-s01",
-      authenticated: true,
-      result: "Authenticated",
-      message: "",
-    });
+    const ev = await authByQr("s01");
     const s = await api.startSession({ goal: GOAL, authEventId: ev.id });
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    await api.endSession(s.id, (await authByQr("s01")).id);
     await expectCode(api.startSession({ goal: GOAL, authEventId: ev.id }), "AUTH_EVENT_INVALID");
   });
 
   it("2분이 지난 인증 이벤트는 쓸 수 없다", async () => {
     await api.login("s01");
-    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const ev = await authByQr("s01");
     advance(121_000);
     await expectCode(api.startSession({ goal: GOAL, authEventId: ev.id }), "AUTH_EVENT_INVALID");
   });
 
   it("다른 학생의 인증 이벤트로 시작할 수 없다", async () => {
     await api.login("s01");
-    const ev = await api.simulateFaceAuth(DEVICE, "s02", true);
+    const ev = await authByQr("s02");
     await expectCode(api.startSession({ goal: GOAL, authEventId: ev.id }), "AUTH_STUDENT_MISMATCH");
   });
 
   it("진행 중인 세션이 있으면 새로 시작할 수 없다", async () => {
     await startAs("s01");
-    const ev2 = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const ev2 = await authByQr("s01");
     await expectCode(api.startSession({ goal: GOAL, authEventId: ev2.id }), "SESSION_ALREADY_ACTIVE");
   });
 
   it("종료 시 학습 시간을 인증 시각으로 계산한다", async () => {
     const s = await startAs("s01");
     advance(45 * 60_000);
-    const ended = await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    const ended = await api.endSession(s.id, (await authByQr("s01")).id);
     expect(ended.status).toBe("ENDED");
     expect(ended.durationMinutes).toBe(45);
   });
 
-  it("QR 학생은 얼굴 동의 없이도 시작할 수 있다", async () => {
+  it("얼굴 동의가 없던 학생도 QR로 시작할 수 있다", async () => {
     await api.login("s03");
     const { token } = await api.issueQrToken();
-    const ev = await api.submitCodeAuth(DEVICE, "QR", token);
+    const ev = await api.submitCodeAuth(DEVICE, token);
     expect(ev.success).toBe(true);
     const s = await api.startSession({ goal: GOAL, authEventId: ev.id });
     expect(s.startAuth).toBe("QR");
@@ -134,33 +128,33 @@ describe("세션 시작 규칙", () => {
 
   it("시작하면 같은 학생의 남은 인증 이벤트는 모두 무효가 된다", async () => {
     await api.login("s01");
-    await api.simulateFaceAuth(DEVICE, "s01", true);
+    await authByQr("s01");
     advance(10_000);
-    const latest = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const latest = await authByQr("s01");
     await api.startSession({ goal: GOAL, authEventId: latest.id });
     expect(await api.getPendingAuthEvent()).toBeNull();
   });
 
   it("세션 시작 전에 만든 인증으로는 종료할 수 없다", async () => {
     await api.login("s01");
-    const early = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const early = await authByQr("s01");
     advance(10_000);
-    const s = await api.startSession({ goal: GOAL, authEventId: (await api.simulateFaceAuth(DEVICE, "s01", true)).id });
+    const s = await api.startSession({ goal: GOAL, authEventId: (await authByQr("s01")).id });
     await expectCode(api.endSession(s.id, early.id), "AUTH_EVENT_INVALID");
   });
 });
 
-describe("QR·바코드 토큰", () => {
+describe("QR 토큰", () => {
   it("학생 ID로 만든 예측 가능한 QR 값은 통하지 않는다", async () => {
-    const ev = await api.submitCodeAuth(DEVICE, "QR", "qr-s03");
+    const ev = await api.submitCodeAuth(DEVICE, "qr-s03");
     expect(ev.success).toBe(false);
   });
 
   it("QR 토큰은 한 번만 쓸 수 있다", async () => {
     await api.login("s03");
     const { token } = await api.issueQrToken();
-    await api.submitCodeAuth(DEVICE, "QR", token);
-    const second = await api.submitCodeAuth(DEVICE, "QR", token);
+    await api.submitCodeAuth(DEVICE, token);
+    const second = await api.submitCodeAuth(DEVICE, token);
     expect(second.success).toBe(false);
   });
 
@@ -168,7 +162,7 @@ describe("QR·바코드 토큰", () => {
     await api.login("s03");
     const { token } = await api.issueQrToken();
     advance(61_000);
-    const ev = await api.submitCodeAuth(DEVICE, "QR", token);
+    const ev = await api.submitCodeAuth(DEVICE, token);
     expect(ev.success).toBe(false);
   });
 });
@@ -192,7 +186,6 @@ describe("권한", () => {
   it("기록 공유에 동의하지 않은 학생의 기록은 교사 공개로 요청해도 비공개로 저장된다", async () => {
     const s = await startAs("s01");
     await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
       { kind: "AI", granted: true, byGuardian: false },
       { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
     ]);
@@ -204,7 +197,7 @@ describe("권한", () => {
     const s = await startAs("s01");
     await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "나만 볼 메모", visibility: "PRIVATE" });
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    await api.endSession(s.id, (await authByQr("s01")).id);
     await api.saveReflection({ sessionId: s.id, checks: [], understanding: 2, remainingQuestions: ["남은 것"] });
     const mine = await api.listMyNotes();
     expect(mine.sessions.every((x) => x.studentId === "s01")).toBe(true);
@@ -229,10 +222,9 @@ describe("권한", () => {
   it("기록 공유에 동의하지 않은 학생의 성찰은 교사에게 보이지 않는다", async () => {
     const s = await startAs("s01");
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    await api.endSession(s.id, (await authByQr("s01")).id);
     await api.saveReflection({ sessionId: s.id, checks: [], understanding: 2, remainingQuestions: ["고민 상담"], note: "비밀" });
     await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
       { kind: "AI", granted: true, byGuardian: false },
       { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
     ]);
@@ -244,7 +236,6 @@ describe("권한", () => {
     const s = await startAs("s01");
     await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "예전 공개", visibility: "TEACHER" });
     await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
       { kind: "AI", granted: true, byGuardian: false },
       { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
     ]);
@@ -271,9 +262,9 @@ describe("권한", () => {
     await expectCode(api.addFeedback(s.id, "셀프 칭찬"), "FORBIDDEN");
   });
 
-  it("교사 수기 인증은 교사만 할 수 있다", async () => {
-    await api.login("s01");
-    await expectCode(api.submitManualAuth("s01"), "FORBIDDEN");
+  it("교사는 QR 토큰을 발급할 수 없다", async () => {
+    await api.login("t1");
+    await expectCode(api.issueQrToken(), "FORBIDDEN");
   });
 });
 
@@ -326,7 +317,7 @@ describe("교차채점", () => {
   it("근거가 없는 기준은 AI가 점수를 비워 둔다", async () => {
     const s = await startAs("s01");
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    await api.endSession(s.id, (await authByQr("s01")).id);
     await api.login("t1");
     const a = await api.requestAiAssessment(s.id);
     const questioning = a.ai?.find((c) => c.criterionId === "questioning");
@@ -337,7 +328,7 @@ describe("교차채점", () => {
     const s = await startAs("s01");
     await api.addEntry({ sessionId: s.id, kind: "QUESTION", content: "질문", visibility: "TEACHER" });
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    await api.endSession(s.id, (await authByQr("s01")).id);
     await api.login("t1");
     await api.requestAiAssessment(s.id);
     await api.login("s01");
@@ -354,7 +345,7 @@ describe("교차채점", () => {
 describe("주제 추출", () => {
   async function sessionWith(studentId: string, entries: Array<{ content: string; visibility?: "TEACHER" | "PRIVATE" }>, end = true) {
     await api.login(studentId);
-    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const ev = await authByQr(studentId);
     const s = await api.startSession({ goal: { subject: "공부", activities: ["concept"] }, authEventId: ev.id });
     const ids: string[] = [];
     for (const e of entries) {
@@ -362,7 +353,7 @@ describe("주제 추출", () => {
     }
     if (end) {
       advance(60_000);
-      await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+      await api.endSession(s.id, (await authByQr(studentId)).id);
     }
     return { s, ids };
   }
@@ -421,11 +412,11 @@ describe("주제 테스트", () => {
   /** 기록 하나로 끝낸 세션 → 주제 추출 → 첫 주제 */
   async function topicSession(studentId: string, content: string) {
     await api.login(studentId);
-    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const ev = await authByQr(studentId);
     const s = await api.startSession({ goal: { subject: "공부", activities: ["concept"] }, authEventId: ev.id });
     await api.addEntry({ sessionId: s.id, kind: "MEMO", content, visibility: "TEACHER" });
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    await api.endSession(s.id, (await authByQr(studentId)).id);
     const [topic] = await api.extractTopics(s.id);
     advance(60_000);
     return { s, topic };
@@ -550,7 +541,6 @@ describe("주제 테스트", () => {
     await api.getQuiz(s.id, topic.topicId);
     await api.submitQuiz(s.id, {});
     await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
       { kind: "AI", granted: true, byGuardian: false },
       { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
     ]);
@@ -562,14 +552,14 @@ describe("주제 테스트", () => {
 describe("자유 입력 목표", () => {
   it("활동 체크 없이 '오늘 할 것'만으로 시작할 수 있다", async () => {
     await api.login("s01");
-    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const ev = await authByQr("s01");
     const s = await api.startSession({ goal: { subject: "이차함수 꼭짓점 복습", activities: [] }, authEventId: ev.id });
     expect(s.goal.subject).toBe("이차함수 꼭짓점 복습");
   });
 
   it("'오늘 할 것'이 비어 있으면 시작할 수 없다", async () => {
     await api.login("s01");
-    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const ev = await authByQr("s01");
     await expectCode(api.startSession({ goal: { subject: "   ", activities: [] }, authEventId: ev.id }), "VALIDATION");
   });
 });
@@ -577,11 +567,11 @@ describe("자유 입력 목표", () => {
 describe("주제별 성장·신고 문제", () => {
   async function topicRun(studentId: string, content: string, opts: { correct?: boolean; reportFirst?: boolean; understanding?: 1 | 2 | 3 } = {}) {
     await api.login(studentId);
-    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const ev = await authByQr(studentId);
     const s = await api.startSession({ goal: { subject: "공부", activities: [] }, authEventId: ev.id });
     await api.addEntry({ sessionId: s.id, kind: "MEMO", content, visibility: "TEACHER" });
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    await api.endSession(s.id, (await authByQr(studentId)).id);
     const [topic] = await api.extractTopics(s.id);
     const quiz = await api.getQuiz(s.id, topic.topicId);
     if (opts.reportFirst) await api.reportQuestion(s.id, quiz.questions[0].id, "WRONG_ANSWER");
@@ -615,7 +605,6 @@ describe("주제별 성장·신고 문제", () => {
   it("공유 미동의 학생은 교사에게 주제 없이 전체 횟수·시간만", async () => {
     await topicRun("s01", "꼭짓점", { correct: true });
     await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
       { kind: "AI", granted: true, byGuardian: false },
       { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
     ]);
@@ -672,11 +661,11 @@ describe("주제별 성장·신고 문제", () => {
 describe("최종 리뷰 수정 (주제별 성장)", () => {
   async function run(studentId: string, content: string, opts: { answers?: "correct" | "wrong"; report?: number; understanding?: 1 | 2 | 3 } = {}) {
     await api.login(studentId);
-    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const ev = await authByQr(studentId);
     const s = await api.startSession({ goal: { subject: "공부", activities: [] }, authEventId: ev.id });
     await api.addEntry({ sessionId: s.id, kind: "MEMO", content, visibility: "TEACHER" });
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    await api.endSession(s.id, (await authByQr(studentId)).id);
     const [topic] = await api.extractTopics(s.id);
     const quiz = await api.getQuiz(s.id, topic.topicId);
     for (const q of quiz.questions.slice(0, opts.report ?? 0)) await api.reportQuestion(s.id, q.id, "WRONG_ANSWER");
@@ -696,11 +685,11 @@ describe("최종 리뷰 수정 (주제별 성장)", () => {
 
   it("AI 동의가 없으면 기록을 AI로 보내는 주제 추출을 하지 않는다", async () => {
     await api.login("s04"); // 시드: AI 거부
-    const ev = await api.simulateFaceAuth(DEVICE, "s04", true);
+    const ev = await authByQr("s04");
     const s = await api.startSession({ goal: { subject: "공부", activities: [] }, authEventId: ev.id });
     await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "꼭짓점", visibility: "TEACHER" });
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s04", true)).id);
+    await api.endSession(s.id, (await authByQr("s04")).id);
     await expectCode(api.extractTopics(s.id), "CONSENT_REQUIRED");
   });
 
@@ -727,7 +716,6 @@ describe("최종 리뷰 수정 (주제별 성장)", () => {
     await run("s01", "꼭짓점", { report: 1 });
     await api.login("s01");
     await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
       { kind: "AI", granted: true, byGuardian: false },
       { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
     ]);
@@ -741,11 +729,11 @@ describe("최종 리뷰 수정 (주제별 성장)", () => {
 describe("미룬 항목 수정", () => {
   async function topicQuiz(studentId: string, content: string) {
     await api.login(studentId);
-    const ev = await api.simulateFaceAuth(DEVICE, studentId, true);
+    const ev = await authByQr(studentId);
     const s = await api.startSession({ goal: { subject: "공부", activities: [] }, authEventId: ev.id });
     await api.addEntry({ sessionId: s.id, kind: "MEMO", content, visibility: "TEACHER" });
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    await api.endSession(s.id, (await authByQr(studentId)).id);
     const [topic] = await api.extractTopics(s.id);
     const quiz = await api.getQuiz(s.id, topic.topicId);
     advance(60_000);
@@ -912,7 +900,7 @@ describe("미룬 항목 수정", () => {
   async function endWithReflection(studentId: string) {
     const s = await startAs(studentId);
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    await api.endSession(s.id, (await authByQr(studentId)).id);
     await api.saveReflection({ sessionId: s.id, checks: [], understanding: 2, remainingQuestions: [] });
     return s;
   }
@@ -924,19 +912,18 @@ describe("미룬 항목 수정", () => {
     expect(await flag()).toBe(false);
     const s = await startAs("s07");
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s07", true)).id);
+    await api.endSession(s.id, (await authByQr("s07")).id);
     await api.saveReflection({ sessionId: s.id, checks: [], understanding: 2, remainingQuestions: [] });
     await api.login("t1");
     expect(await flag()).toBe(true);
     await api.addFeedback(s.id, "잘했어요");
     expect(await flag()).toBe(false);
     await api.login("s07");
-    const s2 = await api.startSession({ goal: GOAL, authEventId: (await api.simulateFaceAuth(DEVICE, "s07", true)).id });
+    const s2 = await api.startSession({ goal: GOAL, authEventId: (await authByQr("s07")).id });
     advance(60_000);
-    await api.endSession(s2.id, (await api.simulateFaceAuth(DEVICE, "s07", true)).id);
+    await api.endSession(s2.id, (await authByQr("s07")).id);
     await api.saveReflection({ sessionId: s2.id, checks: [], understanding: 3, remainingQuestions: [] });
     await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
       { kind: "AI", granted: true, byGuardian: false },
       { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
     ]);
@@ -959,7 +946,6 @@ describe("미룬 항목 수정", () => {
     await api.login("s07");
     await api.submitQuiz(s.id, {});
     await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
       { kind: "AI", granted: true, byGuardian: false },
       { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
     ]);
@@ -969,7 +955,7 @@ describe("미룬 항목 수정", () => {
 
   it("진행 중인 세션은 교사가 평가를 확정할 수 없다", async () => {
     await api.login("s01");
-    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const ev = await authByQr("s01");
     const s = await api.startSession({ goal: GOAL, authEventId: ev.id });
     await api.login("t1");
     await expectCode(api.finalizeAssessment(s.id, []), "SESSION_NOT_ACTIVE");
@@ -999,7 +985,6 @@ describe("반 분석 원자료", () => {
   it("반 분석: 기록 공유 미동의 학생은 shared=false, 질문·응시·주제가 빠진다", async () => {
     await api.login("s05");
     await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
       { kind: "AI", granted: true, byGuardian: false },
       { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
     ]);
@@ -1098,11 +1083,11 @@ describe("mock 오류 강제 (화면 확인용)", () => {
     const storage = memoryStorage();
     api = createMockApi({ seed: createSeed(clock), now: () => clock, latencyMs: 0, storage });
     await api.login("s01");
-    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const ev = await authByQr("s01");
     const s = await api.startSession({ goal: { subject: "공부", activities: [] }, authEventId: ev.id });
     await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "꼭짓점", visibility: "TEACHER" });
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    await api.endSession(s.id, (await authByQr("s01")).id);
     const [topic] = await api.extractTopics(s.id);
     storage.setItem(MOCK_SLOW_KEY, "5");
     expect((await api.getQuiz(s.id, topic.topicId)).questions).toHaveLength(5);
@@ -1124,7 +1109,7 @@ describe("Pace 지수 원자료", () => {
     await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "공개 메모 열 글자 이상이에요", visibility: "TEACHER" });
     await api.addEntry({ sessionId: s.id, kind: "QUESTION", content: "나만 볼 질문 열 글자 이상이에요", visibility: "PRIVATE" });
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    await api.endSession(s.id, (await authByQr(studentId)).id);
     await api.saveReflection({ sessionId: s.id, checks: ["goal_done"], understanding: 2, remainingQuestions: [] });
     return s;
   }
@@ -1168,7 +1153,6 @@ describe("Pace 지수 원자료", () => {
   it("기록 공유 미동의 학생을 교사가 보면 shared=false, 배열은 빈 값", async () => {
     await endedWith("s01");
     await api.saveConsents([
-      { kind: "FACEPASS", granted: true, byGuardian: false },
       { kind: "AI", granted: true, byGuardian: false },
       { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
     ]);
@@ -1221,7 +1205,7 @@ describe("종이 사진 글자 인식 (mock)", () => {
   it("끝난 학습이면 SESSION_NOT_ACTIVE", async () => {
     const s = await startAs("s01");
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    await api.endSession(s.id, (await authByQr("s01")).id);
     await expectCode(api.ocrPaperPhoto(s.id, JPEG), "SESSION_NOT_ACTIVE");
   });
 
@@ -1259,7 +1243,6 @@ describe("교과 교사", () => {
   function setConsents(studentId: string, c: { learningRecord: boolean; subjectShare: boolean }) {
     return api.login(studentId).then(() =>
       api.saveConsents([
-        { kind: "FACEPASS", granted: true, byGuardian: false },
         { kind: "AI", granted: true, byGuardian: false },
         { kind: "LEARNING_RECORD", granted: c.learningRecord, byGuardian: false },
         { kind: "SUBJECT_SHARE", granted: c.subjectShare, byGuardian: false },
@@ -1310,7 +1293,7 @@ describe("교과 교사", () => {
     // 이나래(s02): 교과 공유 동의 없음, 이번 주 수학 학습 1개
     const s = await startAs("s02");
     advance(60_000);
-    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s02", true)).id);
+    await api.endSession(s.id, (await authByQr("s02")).id);
     await api.login("t3");
     const students = await api.listSubjectStudents("c1", "수학");
     expect(students.some((x) => x.id === "s01")).toBe(true);
@@ -1450,7 +1433,7 @@ describe("교과 교사", () => {
       const seed = createSeed(now);
       if (extra) {
         const start = new Date("2027-08-31T15:00:00+09:00");
-        seed.sessions.push({ id: "old-term-math", studentId: "s01", goal: { subject: "수학", activities: ["concept"] }, startedAt: start.toISOString(), endedAt: new Date(start.getTime() + 30 * 60000).toISOString(), startAuth: "FACEPASS", endAuth: "FACEPASS", status: "ENDED", durationMinutes: 30 });
+        seed.sessions.push({ id: "old-term-math", studentId: "s01", goal: { subject: "수학", activities: ["concept"] }, startedAt: start.toISOString(), endedAt: new Date(start.getTime() + 30 * 60000).toISOString(), startAuth: "QR", endAuth: "QR", status: "ENDED", durationMinutes: 30 });
       }
       const a = createMockApi({ seed, now: () => now, latencyMs: 0, storage: null });
       await a.login("t3");

@@ -12,8 +12,8 @@ function session(date: string, minutes: number, hour = 15): LearningSession {
     goal: { subject: "수학", activities: [] },
     startedAt: new Date(startedAt).toISOString(),
     endedAt: end,
-    startAuth: "FACEPASS",
-    endAuth: "FACEPASS",
+    startAuth: "QR",
+    endAuth: "QR",
     status: "ENDED",
     durationMinutes: minutes,
   };

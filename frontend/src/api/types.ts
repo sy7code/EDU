@@ -21,7 +21,6 @@ import type {
   ConsentKind,
   Dashboard,
   EntryKind,
-  FacePassRaw,
   Feedback,
   LearningEntry,
   LearningSession,
@@ -113,17 +112,14 @@ export interface Api {
   listStudents(classId: string): Promise<Student[]>;
 
   // 인증 (키오스크 → 서버)
-  submitFaceAuth(deviceId: string, raw: FacePassRaw): Promise<AuthEvent>;
   /** 학생 기기에 띄울 QR 토큰 발급 (랜덤, 1회용, 60초) */
   issueQrToken(): Promise<{ token: string; expiresAt: string }>;
-  /** QR·학생증 바코드. QR은 1회용·60초, 바코드는 학생증 고정값(기록에 '바코드'로 표시) */
-  submitCodeAuth(deviceId: string, method: "QR" | "BARCODE", token: string): Promise<AuthEvent>;
-  /** 교사가 수기로 출석·학습 시작을 확인 (기기·얼굴 인증을 원하지 않는 학생) */
-  submitManualAuth(studentId: string): Promise<AuthEvent>;
+  /** 교실 단말기(/kiosk)가 읽은 QR 토큰 제출. 유일한 인증 수단 (1회용·60초) */
+  submitCodeAuth(deviceId: string, token: string): Promise<AuthEvent>;
   /** 학생 화면: 최근 2분 내 미사용 본인 인증 이벤트 */
   getPendingAuthEvent(): Promise<AuthEvent | null>;
-  /** 개발·데모 전용. 운영에서는 서버가 404 */
-  simulateFaceAuth(deviceId: string, studentId: string, success: boolean): Promise<AuthEvent>;
+  /** 실제 모드 개발 전용 '인증 건너뛰기' (백엔드 QR 배포 후 제거). mock은 FORBIDDEN, 운영 서버는 404 */
+  devSkipAuth(): Promise<AuthEvent>;
 
   // 세션
   getActiveSession(): Promise<LearningSession | null>;

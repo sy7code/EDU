@@ -1,6 +1,6 @@
 // 실제 백엔드(Supabase) 어댑터. 백엔드 전달 문서(FRONTEND_NOTES.md, api-spec v0.1 기준)를 따른다.
 // 읽기: v_* view (camelCase) / 쓰기: 원본 테이블 (snake_case) / 로직: Edge Function /functions/v1/api
-// 백엔드에 없는 기능(동의, QR·바코드·교사 확인, 교차채점, 단원 테스트)은 화면에서 숨기고 여기선 지원 안 함.
+// 백엔드에 없는 기능(동의, QR 인증, 교차채점, 단원 테스트)은 화면에서 숨기고 여기선 지원 안 함.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
   AiMessage,
@@ -52,7 +52,7 @@ function mapSession(r: Row): LearningSession {
     goal: textToGoal(String(r.goal ?? "")),
     startedAt: String(r.startedAt),
     endedAt: (r.endedAt as string | null) ?? null,
-    startAuth: (r.startAuth as LearningSession["startAuth"]) ?? "FACEPASS",
+    startAuth: (r.startAuth as LearningSession["startAuth"]) ?? "QR",
     endAuth: (r.endAuth as LearningSession["endAuth"]) ?? null,
     status: r.status === "ENDED" ? "ENDED" : "ACTIVE",
     durationMinutes: (r.durationMinutes as number | null) ?? null,
@@ -65,7 +65,7 @@ function mapAuthEvent(r: Row): AuthEvent {
     studentId: (r.studentId as string | null) ?? null,
     maskedName: (r.studentName as string | null) ?? null,
     deviceId: String(r.deviceId ?? ""),
-    method: (r.method as AuthEvent["method"]) ?? "FACEPASS",
+    method: (r.method as AuthEvent["method"]) ?? "QR",
     success: r.success !== false,
     verifiedAt: String(r.verifiedAt ?? new Date().toISOString()),
     consumed: !!r.consumedAt,
@@ -182,10 +182,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     // ---------- 인증 ----------
-    submitFaceAuth: async () => notSupported(), // 실제 단말기는 /facepass/result + 기기 토큰 (2일차)
-    issueQrToken: async () => notSupported(),
+    issueQrToken: async () => notSupported(), // 백엔드 QR 배포 전 (docs/backend 요청서 v1.0-qr)
     submitCodeAuth: async () => notSupported(),
-    submitManualAuth: async () => notSupported(),
     getPendingAuthEvent: async () => {
       // 수정본: 인증이 없으면 200 + null (예전 404도 호환)
       try {
@@ -196,7 +194,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
         throw e;
       }
     },
-    simulateFaceAuth: async () => mapAuthEvent(await fn<Row>("POST", "/dev/facepass/simulate", {})),
+    // 개발용 '인증 건너뛰기'. 백엔드 QR이 배포되면 이 함수와 화면 버튼을 지운다 (서버 엔드포인트 이름은 옛 것을 그대로 씀)
+    devSkipAuth: async () => mapAuthEvent(await fn<Row>("POST", "/dev/facepass/simulate", {})),
 
     // ---------- 세션 ----------
     getActiveSession: async () => {

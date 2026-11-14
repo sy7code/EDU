@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api, FEATURES } from "../../api";
 import { useMe } from "../../auth/session";
@@ -67,24 +67,6 @@ export function ClassDashboard() {
   const [bannerIdx, setBannerIdx] = useState(0);
   const tableRef = useRef<HTMLDivElement>(null);
   const tableTitleRef = useRef<HTMLHeadingElement>(null);
-  const [manualMsg, setManualMsg] = useState<string | null>(null);
-  const [confirmedId, setConfirmedId] = useState<string | null>(null);
-  const manual = useMutation({
-    mutationFn: (studentId: string) => api.submitManualAuth(studentId),
-    onSuccess: (ev) => {
-      setConfirmedId(ev.studentId);
-      setManualMsg(`${ev.maskedName} 학생의 학습 시작·종료를 선생님이 확인했어요. 학생 기기에서 2분 안에 이어서 진행하면 돼요.`);
-    },
-  });
-  // 안내는 화면 아래 고정 알림으로 띄우고 6초 뒤 닫는다 (스크롤 위치와 상관없이 보이게)
-  useEffect(() => {
-    if (!manualMsg) return;
-    const t = setTimeout(() => {
-      setManualMsg(null);
-      setConfirmedId(null);
-    }, 6000);
-    return () => clearTimeout(t);
-  }, [manualMsg]);
 
   if (dash.error) return <ErrorState error={dash.error} onRetry={() => dash.refetch()} />;
   // 쿼리가 꺼진 순간(반 정보가 잠깐 비는 로그인·로그아웃 전환)에는 isLoading이 false라 data로 판단한다
@@ -315,15 +297,6 @@ export function ClassDashboard() {
         </aside>
       </div>
 
-      {(manualMsg || manual.error) && (
-        <div
-          className="fixed inset-x-4 bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] z-50 mx-auto max-w-lg rounded-xl bg-ink p-4 text-sm text-white shadow-lg"
-          role={manual.error ? "alert" : "status"}
-        >
-          {manual.error ? <ErrorState error={manual.error} /> : manualMsg}
-        </div>
-      )}
-
       <div className="card table-card dash-table-card" ref={tableRef}>
         <div className="table-title">
           <div>
@@ -353,7 +326,6 @@ export function ClassDashboard() {
               {FEATURES.dashboardQuizRate && <th>최근 테스트</th>}
               <th>최근</th>
               <th>상태</th>
-              {FEATURES.manualAuth && <th />}
             </tr>
           </thead>
           <tbody>
@@ -388,20 +360,6 @@ export function ClassDashboard() {
                     ) : null;
                   })()}
                 </td>
-                {FEATURES.manualAuth && <td className="cell-right">
-                  {confirmedId === r.studentId ? (
-                    <span className="cell-sub"><strong>✓ 확인함</strong></span>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      title="얼굴 인증·QR을 쓰지 않는 학생이 학습을 시작하거나 마칠 때, 선생님이 대신 확인해요"
-                      onClick={() => manual.mutate(r.studentId)}
-                      disabled={manual.isPending}
-                    >
-                      선생님이 확인
-                    </Button>
-                  )}
-                </td>}
               </tr>
             ))}
           </tbody>
@@ -414,10 +372,6 @@ export function ClassDashboard() {
         )}
         <Pager page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
       </div>
-      <p className={`table-note ${FEATURES.manualAuth ? "" : "hidden"}`}>
-        '선생님이 확인'은 얼굴 인증이나 QR을 쓰지 않는(또는 못 쓰는) 학생이 학습을 시작·종료할 때, 단말기 대신 선생님이 눈으로
-        확인해 주는 기능이에요. 누르면 그 학생 기기의 인증 대기 화면이 바로 넘어가요. 누가 언제 확인했는지 기록이 남아요.
-      </p>
     </div>
   );
 }

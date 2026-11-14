@@ -9,8 +9,8 @@ function session(id: string, studentId: string, minutes: number | null): Learnin
     goal: { subject: "수학", activities: [] },
     startedAt: "2026-11-10T10:00:00Z",
     endedAt: minutes === null ? null : "2026-11-10T11:00:00Z",
-    startAuth: "FACEPASS",
-    endAuth: minutes === null ? null : "FACEPASS",
+    startAuth: "QR",
+    endAuth: minutes === null ? null : "QR",
     status: minutes === null ? "ACTIVE" : "ENDED",
     durationMinutes: minutes,
   };

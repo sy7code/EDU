@@ -146,6 +146,15 @@ describe("수정본 백엔드 형식 (2026-11-14)", () => {
     expect(c.find((x) => x.kind === "AI")?.granted).toBe(false);
     expect(c.length).toBe(2);
   });
+
+  it("옛 FACEPASS 동의 행은 무시한다", () => {
+    const c = latestConsents([
+      { kind: "FACEPASS", granted: true, policyVersion: "v", createdAt: "2026-11-14T00:00:00Z" },
+      { kind: "AI", granted: true, policyVersion: "v", createdAt: "2026-11-14T00:00:00Z" },
+      { kind: "UNKNOWN_KIND", granted: true, policyVersion: "v", createdAt: "2026-11-14T00:00:00Z" },
+    ]);
+    expect(c.map((x) => x.kind)).toEqual(["AI"]);
+  });
 });
 
 describe("미룬 항목 수정 (변환)", () => {
@@ -218,7 +227,7 @@ describe("v0.5.1 백엔드 반영", () => {
 });
 
 describe("반 분석 원자료 변환", () => {
-  const sess = (id: string, studentId: string) => ({ id, studentId, goal: { subject: "수학", activities: [] }, startedAt: "2026-11-10T10:00:00Z", endedAt: null, startAuth: "FACEPASS" as const, endAuth: null, status: "ACTIVE" as const, durationMinutes: null });
+  const sess = (id: string, studentId: string) => ({ id, studentId, goal: { subject: "수학", activities: [] }, startedAt: "2026-11-10T10:00:00Z", endedAt: null, startAuth: "QR" as const, endAuth: null, status: "ACTIVE" as const, durationMinutes: null });
   const input = {
     classId: "c", from: "f", to: "t",
     students: [
@@ -265,7 +274,7 @@ describe("반 분석 최종 리뷰 수정", () => {
     const r = buildAnalyticsRaw({
       classId: "c", from: "f", to: "t",
       students: [{ studentId: "a", name: "학생01", number: 1, shared: true }],
-      sessions: [{ id: "sa", studentId: "a", goal: { subject: "수학", activities: [] }, startedAt: "x", endedAt: null, startAuth: "FACEPASS", endAuth: null, status: "ACTIVE", durationMinutes: null }],
+      sessions: [{ id: "sa", studentId: "a", goal: { subject: "수학", activities: [] }, startedAt: "x", endedAt: null, startAuth: "QR", endAuth: null, status: "ACTIVE", durationMinutes: null }],
       aiRows: [
         { id: "m1", sessionId: "sa", role: "user", content: "왜?", questionType: "ANSWER", createdAt: "x" },
         { id: "m2", sessionId: "sa", role: "user", content: "왜?", questionType: "WEIRD", createdAt: "x" },

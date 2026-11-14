@@ -50,7 +50,7 @@ export type MockOptions = {
 export const MOCK_FAIL_KEY = "growth-pace-mock-fail-next";
 /** mock 전용: 이 키에 밀리초를 넣으면 다음 테스트 출제(getQuiz) 한 번이 그만큼 늦게 끝남 (대기 문구 확인용, 최대 30초) */
 export const MOCK_SLOW_KEY = "growth-pace-mock-slow-next";
-export const STORAGE_KEY = "growth-pace-mock-db-v8"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
+export const STORAGE_KEY = "growth-pace-mock-db-v9"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
 export const SESSION_USER_KEY = "growth-pace-mock-user";
 const AUTH_EVENT_TTL_MS = 120_000;
 const QR_TTL_MS = 60_000;
@@ -514,17 +514,6 @@ export function createMockApi(opts: MockOptions): Api {
           .map((x) => ({ id: x.id, name: x.name, classId: x.classId, number: x.number ?? 0 }));
       }),
 
-    submitFaceAuth: (deviceId, raw) =>
-      run(() => {
-        const studentId = raw.merchantUserKey ? db.facepassLinks[raw.merchantUserKey] ?? null : null;
-        const ok =
-          raw.authenticated &&
-          raw.result === "Authenticated" &&
-          !!studentId &&
-          hasConsent(studentId, "FACEPASS");
-        return recordAuth(deviceId, studentId, "FACEPASS", ok);
-      }),
-
     issueQrToken: () =>
       run(() => {
         const u = me();
@@ -535,31 +524,17 @@ export function createMockApi(opts: MockOptions): Api {
         return { token, expiresAt };
       }),
 
-    submitCodeAuth: (deviceId, method, token) =>
+    submitCodeAuth: (deviceId, token) =>
       run(() => {
         limitCodeAttempts(deviceId);
-        const key = token.trim();
+        const q = db.qrTokens[token.trim()];
         let studentId: string | null = null;
-        if (method === "QR") {
-          const q = db.qrTokens[key];
-          // 1회용 + 60초
-          if (q && !q.used && now().getTime() <= new Date(q.expiresAt).getTime()) {
-            q.used = true;
-            studentId = q.studentId;
-          }
-        } else {
-          // 학생증 바코드: 고정값이라 재사용 가능 → 기록에 '바코드'로 남아 교사가 구분
-          studentId = db.barcodes[key] ?? null;
+        // QR만 받는다: 1회용 + 60초. 학생증 바코드 같은 고정값은 등록돼 있지 않아 실패로 기록된다
+        if (q && !q.used && now().getTime() <= new Date(q.expiresAt).getTime()) {
+          q.used = true;
+          studentId = q.studentId;
         }
-        return recordAuth(deviceId, studentId, method, !!studentId);
-      }),
-
-    submitManualAuth: (studentId) =>
-      run(() => {
-        const t = teacher();
-        if (!homeroomOf(t, studentId)) throw new ApiError("NOT_FOUND");
-        audit("MANUAL_AUTH", studentId);
-        return recordAuth(`teacher:${t.id}`, studentId, "MANUAL", true);
+        return recordAuth(deviceId, studentId, "QR", !!studentId);
       }),
 
     getPendingAuthEvent: () =>
@@ -576,10 +551,10 @@ export function createMockApi(opts: MockOptions): Api {
         return list[list.length - 1] ?? null;
       }),
 
-    simulateFaceAuth: (deviceId, studentId, success) =>
+    devSkipAuth: () =>
       run(() => {
-        // 개발·데모 전용. 실제 서버에선 ALLOW_DEV_SIMULATE일 때만 존재
-        return recordAuth(deviceId, studentId, "FACEPASS", success && hasConsent(studentId, "FACEPASS"));
+        // 실제 모드 개발 전용. mock은 QR 흉내(학생 휴대폰 → /kiosk)를 쓴다
+        throw new ApiError("FORBIDDEN");
       }),
 
     getActiveSession: () =>

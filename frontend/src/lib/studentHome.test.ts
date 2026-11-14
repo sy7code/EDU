@@ -10,7 +10,7 @@ const sess = (id: string, daysAgo: number, minutes: number | null): LearningSess
   goal: { subject: "수학", activities: [] },
   startedAt: new Date(NOW.getTime() - daysAgo * DAY).toISOString(),
   endedAt: null,
-  startAuth: "FACEPASS",
+  startAuth: "QR",
   endAuth: null,
   status: minutes === null ? "ACTIVE" : "ENDED",
   durationMinutes: minutes,

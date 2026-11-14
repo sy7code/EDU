@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { consentPayload, type ConsentValues } from "./consentSave";
 
-const v = (o: Partial<ConsentValues>): ConsentValues => ({ FACEPASS: null, AI: null, LEARNING_RECORD: null, SUBJECT_SHARE: null, ...o });
+const v = (o: Partial<ConsentValues>): ConsentValues => ({ AI: null, LEARNING_RECORD: null, SUBJECT_SHARE: null, ...o });
 
 describe("consentPayload", () => {
   it("학습 기록을 거절하면 교과 공개도 거절로 저장한다", () => {

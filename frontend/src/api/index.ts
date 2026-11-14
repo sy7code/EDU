@@ -9,8 +9,7 @@ export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 /** 실제 백엔드에 아직 없는 기능은 화면에서 숨긴다 (mock 데모에서는 모두 보임) */
 export const FEATURES = {
   consent: true, // 동의 설정 화면 (백엔드 consents 반영됨, 2026-11-14)
-  codeAuth: USE_MOCK, // QR·학생증 바코드, 키오스크
-  manualAuth: USE_MOCK, // 선생님이 확인
+  codeAuth: USE_MOCK, // QR 인증·키오스크 (백엔드 QR 미반영 — 실제 모드는 개발용 건너뛰기만)
   assessment: USE_MOCK, // AI·교사 교차채점
   quiz: true, // 주제별 성장·확인 테스트·신고 (백엔드 v0.5 반영됨, 2026-11-14)
   dashboardQuizRate: true, // 대시보드 '최근 테스트' 열 (백엔드 v0.5.1 lastQuizRate 반영됨, 2026-11-14)

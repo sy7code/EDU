@@ -8,7 +8,7 @@ const session = (id: string, startedAt: string, subject = "수학"): LearningSes
   goal: { subject, activities: ["concept"] },
   startedAt,
   endedAt: null,
-  startAuth: "FACEPASS",
+  startAuth: "QR",
   endAuth: null,
   status: "ENDED",
   durationMinutes: 30,

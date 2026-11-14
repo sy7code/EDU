@@ -17,15 +17,6 @@ const ITEMS: Array<{
   ifNo: string;
 }> = [
   {
-    kind: "FACEPASS",
-    title: "얼굴 인증(토스 페이스패스)으로 학습 시작·종료 확인",
-    body: "얼굴 정보는 토스가 암호화해 보관하고, 성장 페이스는 얼굴 사진이나 특징값을 받지 않아요. 인증 결과(누가, 언제, 어느 단말기)만 받아요.",
-    ifNo:
-      FEATURES.codeAuth || FEATURES.manualAuth
-        ? "동의하지 않아도 QR·학생증 바코드·선생님 확인으로 똑같이 쓸 수 있어요."
-        : "동의하지 않아도 학습 시작·종료 인증은 할 수 있어요(지금은 데모 인증, QR·학생증 바코드는 준비 중).",
-  },
-  {
     kind: "AI",
     title: "AI 학습 도우미 사용",
     body: "질문 내용은 이름·연락처를 가린 뒤 AI 서비스로 보내요. AI는 개념은 바로 설명하고, 문제의 최종 답은 스스로 찾도록 힌트를 줘요. 해외 서버로 전송될 수 있어요.",
@@ -48,7 +39,6 @@ const ITEMS: Array<{
 const SUBJECT_NEEDS_RECORD = "먼저 '선생님에게 학습 기록 공개'에 동의해야 해요";
 
 const ICON: Record<ConsentKind, string> = {
-  FACEPASS: "users",
   AI: "spark",
   LEARNING_RECORD: "book",
   SUBJECT_SHARE: "book",
@@ -62,7 +52,6 @@ export function ConsentPage() {
   // RequireRole이 동의 화면으로 보낼 때 넘긴 원래 주소 (휴대폰 QR → 로그인 → 동의 → 그 학습 화면)
   const from = (useLocation().state as { from?: unknown } | null)?.from;
   const [values, setValues] = useState<Record<ConsentKind, boolean | null>>({
-    FACEPASS: null,
     AI: null,
     LEARNING_RECORD: null,
     SUBJECT_SHARE: null,
@@ -72,7 +61,6 @@ export function ConsentPage() {
   useEffect(() => {
     if (!consents.data?.length) return;
     const next = {
-      FACEPASS: null,
       AI: null,
       LEARNING_RECORD: null,
       SUBJECT_SHARE: null,

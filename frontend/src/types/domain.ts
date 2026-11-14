@@ -1,9 +1,9 @@
 // 프론트 ↔ 백엔드 계약. docs/api-spec.md 와 같은 구조를 유지한다.
 
 export type Role = "student" | "teacher";
-/** FACEPASS: 얼굴 인증 / QR·BARCODE: 학생증 등 대체 수단 / MANUAL: 교사 수기 확인 */
+/** 새 인증은 QR만 만든다. FACEPASS(얼굴)·BARCODE(학생증)·MANUAL(교사 확인)은 과거 기록 표시용으로만 남긴다 */
 export type AuthMethod = "FACEPASS" | "QR" | "BARCODE" | "MANUAL";
-export type ConsentKind = "FACEPASS" | "AI" | "LEARNING_RECORD" | "SUBJECT_SHARE";
+export type ConsentKind = "AI" | "LEARNING_RECORD" | "SUBJECT_SHARE";
 
 export type TeacherAssignment = { teacherId: string; classId: string; subject: string; term: string };
 /** PAPER: 종이에 수기로 기록함 (쓰기 부담이 큰 학생용, 내용 입력은 선택) */
@@ -254,24 +254,6 @@ export type Dashboard = {
   from: string;
   to: string;
   students: DashboardRow[];
-};
-
-// 토스플레이스 FacePass SDK 결과 (docs.tossplace.com/reference/plugin-sdk/front/face-pass)
-// 얼굴 정보는 오지 않고, 등록된 사용자 키(시리얼)만 넘어온다.
-export type FacePassResultCode =
-  | "Authenticated"
-  | "FaceFailed"
-  | "Blocked"
-  | "Denied"
-  | "Disconnected"
-  | "Canceled"
-  | "Timeout";
-
-export type FacePassRaw = {
-  merchantUserKey?: string;
-  authenticated: boolean;
-  result: FacePassResultCode;
-  message: string;
 };
 
 // ---------- 교사 반 분석 (원자료, 집계는 lib/analytics.ts) ----------

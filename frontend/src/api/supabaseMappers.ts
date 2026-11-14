@@ -175,12 +175,15 @@ export function rowToReflection(row: Record<string, unknown>): Reflection {
   return changedToReflection(sessionId, String(row.changed ?? ""), remaining, updatedAt);
 }
 
-/** consents 이력 → 종류별 최신 값 */
+const CONSENT_KINDS: ConsentKind[] = ["AI", "LEARNING_RECORD", "SUBJECT_SHARE"];
+
+/** consents 이력 → 종류별 최신 값. 모르는 종류(옛 FACEPASS 동의 등)는 버린다 */
 export function latestConsents(rows: Array<Record<string, unknown>>): Consent[] {
   const latest = new Map<string, Consent>();
   const sorted = [...rows].sort((a, b) => String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? "")));
   for (const r of sorted) {
-    const kind = String(r.kind) as Consent["kind"];
+    const kind = CONSENT_KINDS.find((k) => k === r.kind);
+    if (!kind) continue;
     latest.set(kind, {
       kind,
       granted: r.granted === true,
