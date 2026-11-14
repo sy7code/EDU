@@ -11,7 +11,7 @@
 
 담임 = `role === "teacher" && classId !== ""`. 교과만 맡은 교사는 `classId: ""`. 교과 배정은 `teacher_assignments(teacher_id, class_id, subject, term)`. 현재 학기: 서울 날짜 3~8월 `YYYY-1`, 9~12월 `YYYY-2`, 1~2월 `(YYYY-1)-2`.
 
-**교과 교사 열람 조건 (모두 만족):** 현재 학기 배정(교사, 학생 반, 세션 `goal.subject`) AND 학생 `LEARNING_RECORD` 동의 AND `SUBJECT_SHARE` 동의. 과목 `"기타"`·과목 목록 밖·빈 값은 항상 불가. 기록은 `visibility = TEACHER`만. 담임 조건과 따로 판단한다(담임 겸 교과 교사: 자기 반은 담임 범위, 다른 반은 배정 과목만).
+**교과 교사 열람 조건 (모두 만족):** 현재 학기 배정(교사, 학생 반, 세션 `goal.subject`) AND 세션 `startedAt`이 **현재 학기**(`currentTerm(startedAt) === currentTerm(now)`, 지난 학기 학습은 안 보임) AND 학생 `LEARNING_RECORD` 동의 AND `SUBJECT_SHARE` 동의. 과목 `"기타"`·과목 목록 밖·빈 값은 항상 불가. 기록은 `visibility = TEACHER`만. 담임 조건과 따로 판단한다(담임 겸 교과 교사: 자기 반은 담임 범위, 다른 반은 배정 과목만).
 
 ### 새 동의 종류
 - `SUBJECT_SHARE` — 교과 선생님 공유. `LEARNING_RECORD`를 끄면 이 값과 관계없이 교과 교사에게 안 보임.
@@ -34,6 +34,10 @@
 ### 필드
 - `Feedback.authorSubject?: string | null` — 교과 교사 피드백의 과목. 담임·학생 모두 받음.
 - `AuditLog.subject?: string | null` — 교과 교사 열람이면 과목, 담임이면 `null`.
+
+### mock 참고
+- 시드의 배정 `term`은 **시드를 만든 시각**의 `currentTerm`으로 고정되어 브라우저 저장소(`STORAGE_KEY`)에 남는다. 학기가 바뀌면 배정이 사라진 것처럼 보이므로 "데모 데이터 초기화"나 저장 키 버전 올림으로 다시 만든다.
+- 학생 단위 열람(`logStudentView`)은 세션이 없어 지금 시각(현재 학기)으로 판단한다. `getSubjectSummary`도 현재 학기에 시작한 세션만 집계한다.
 
 ---
 

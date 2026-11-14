@@ -274,14 +274,16 @@ export function createSeed(now: Date): Db {
   ];
   for (const w of weekRuns) {
     // 월요일 새벽에 시드를 만들어도 이번 주 안에 들어가게 주 시작 뒤로 맞춘다
-    const start = new Date(Math.max(weekStartMs + 60_000, now.getTime() - w.hoursAgo * 3600_000));
-    const end = new Date(start.getTime() + 30 * 60000);
+    const start = new Date(Math.min(now.getTime(), Math.max(weekStartMs + 60_000, now.getTime() - w.hoursAgo * 3600_000)));
+    const end = new Date(Math.min(start.getTime() + 30 * 60000, now.getTime())); // 종료가 지금보다 늦지 않게
+    // 기록 시각도 종료 시각을 넘지 않게
+    const atMin = (m: number) => iso(new Date(Math.min(start.getTime() + m * 60000, end.getTime())));
     const sid = nextId("sess");
-    sessions.push({ id: sid, studentId: w.studentId, goal: { subject: w.subject, activities: ["concept"] }, startedAt: iso(start), endedAt: iso(end), startAuth: "FACEPASS", endAuth: "FACEPASS", status: "ENDED", durationMinutes: 30 });
+    sessions.push({ id: sid, studentId: w.studentId, goal: { subject: w.subject, activities: ["concept"] }, startedAt: iso(start), endedAt: iso(end), startAuth: "FACEPASS", endAuth: "FACEPASS", status: "ENDED", durationMinutes: Math.round((end.getTime() - start.getTime()) / 60000) });
     entries.push(
-      { id: nextId("entry"), sessionId: sid, kind: "MEMO", content: w.memo, visibility: "TEACHER", createdAt: iso(new Date(start.getTime() + 5 * 60000)) },
-      { id: nextId("entry"), sessionId: sid, kind: "QUESTION", content: w.question, visibility: "TEACHER", createdAt: iso(new Date(start.getTime() + 10 * 60000)) },
-      { id: nextId("entry"), sessionId: sid, kind: "MEMO", content: "나만 보는 메모", visibility: "PRIVATE", createdAt: iso(new Date(start.getTime() + 15 * 60000)) },
+      { id: nextId("entry"), sessionId: sid, kind: "MEMO", content: w.memo, visibility: "TEACHER", createdAt: atMin(5) },
+      { id: nextId("entry"), sessionId: sid, kind: "QUESTION", content: w.question, visibility: "TEACHER", createdAt: atMin(10) },
+      { id: nextId("entry"), sessionId: sid, kind: "MEMO", content: "나만 보는 메모", visibility: "PRIVATE", createdAt: atMin(15) },
     );
     reflections.push({ sessionId: sid, checks: ["goal_done"], understanding: 2, remainingQuestions: [], updatedAt: iso(end) });
   }

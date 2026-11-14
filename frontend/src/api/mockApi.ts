@@ -7,7 +7,7 @@ import { activityLabel } from "../lib/checklists";
 import { quizSignal } from "../lib/topicSignal";
 import { activeAssignments, canSubjectTeacherSee, isHomeroomTeacher, subjectShareActive } from "../lib/subjectAccess";
 import { SUBJECTS } from "../lib/checklists";
-import { seoulWeekStart } from "../lib/schoolCalendar";
+import { currentTerm, seoulWeekStart } from "../lib/schoolCalendar";
 import { subjectWeekSummary } from "../lib/subjectSummary";
 import type {
   AiMessage,
@@ -204,7 +204,7 @@ export function createMockApi(opts: MockOptions): Api {
     return { learningRecord: hasConsent(studentId, "LEARNING_RECORD"), subjectShare: hasConsent(studentId, "SUBJECT_SHARE") };
   }
   /** 교과 교사 열람: 현재 학기 배정(학생 반·과목) + 두 동의. 담임 경로와 따로 본다 */
-  function subjectSees(u: User, studentId: string, subject: string): boolean {
+  function subjectSees(u: User, studentId: string, subject: string, startedAt: string): boolean {
     const st = userById(studentId);
     if (u.role !== "teacher" || !st || st.role !== "student") return false;
     return canSubjectTeacherSee({
@@ -212,6 +212,7 @@ export function createMockApi(opts: MockOptions): Api {
       teacherId: u.id,
       studentClassId: st.classId,
       sessionSubject: subject,
+      sessionStartedAt: startedAt,
       consents: subjectConsents(studentId),
       now: now(),
     });
@@ -234,7 +235,7 @@ export function createMockApi(opts: MockOptions): Api {
     if (!s) throw new ApiError("NOT_FOUND");
     if (u.role === "student" && s.studentId === u.id) return s;
     if (u.role === "teacher" && homeroomOf(u, s.studentId)) return s;
-    if (u.role === "teacher" && subjectSees(u, s.studentId, s.goal.subject)) return s;
+    if (u.role === "teacher" && subjectSees(u, s.studentId, s.goal.subject, s.startedAt)) return s;
     throw new ApiError("NOT_FOUND");
   }
   /** 담임만 하는 일(채점 등): 교과 교사 경로로는 열지 않는다 */
@@ -649,7 +650,7 @@ export function createMockApi(opts: MockOptions): Api {
         if (u.role === "student" || homeroomOf(u, target)) return sorted(mine);
         // 교과 교사: 과목 필수. 권한 밖(배정·동의 없음, 다른 과목)은 빈 배열
         if (!subject) throw new ApiError("NOT_FOUND");
-        return sorted(mine.filter((s) => subjectSees(u, target, s.goal.subject)));
+        return sorted(mine.filter((s) => subjectSees(u, target, s.goal.subject, s.startedAt)));
       }),
 
     addEntry: ({ sessionId, kind, content, visibility }) =>
@@ -804,7 +805,8 @@ export function createMockApi(opts: MockOptions): Api {
           return;
         }
         // 교과 교사: 과목 필수, 현재 학기 배정 + 두 동의가 있어야 열람(기록) 가능
-        if (!subject || !subjectSees(t, studentId, subject)) throw new ApiError("NOT_FOUND");
+        // 학생 단위 열람이라 세션 시각 대신 지금(현재 학기)으로 판단
+        if (!subject || !subjectSees(t, studentId, subject, iso())) throw new ApiError("NOT_FOUND");
         audit("VIEW_STUDENT_DETAIL", studentId, subject);
       }),
     listAuditLogs: () =>
@@ -846,7 +848,9 @@ export function createMockApi(opts: MockOptions): Api {
         // 동의 학생·그 과목 세션만 골라서 넘긴다 (subjectWeekSummary는 걸러진 입력을 가정)
         const students = subjectStudentsOf(classId);
         const allowed = new Set(students.map((x) => x.id));
-        const sessions = db.sessions.filter((x) => allowed.has(x.studentId) && x.goal.subject === subject);
+        // 현재 학기에 시작한 학습만 (학기 경계 주: 8/31 학습은 2학기 집계에서 빠짐)
+        const term = currentTerm(now());
+        const sessions = db.sessions.filter((x) => allowed.has(x.studentId) && x.goal.subject === subject && currentTerm(new Date(x.startedAt)) === term);
         const ids = new Set(sessions.map((x) => x.id));
         const attempts = db.quizAttempts.filter((a) => ids.has(a.sessionId));
         return subjectWeekSummary(classId, subject, seoulWeekStart(now()), {

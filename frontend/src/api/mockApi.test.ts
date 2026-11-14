@@ -1428,4 +1428,11 @@ describe("교과 교사", () => {
       await expectCode(api.getReviewInputs("s01"), "FORBIDDEN");
     }
   });
+
+  it("월요일 새벽에 만든 시드도 종료·기록 시각이 지금을 넘지 않는다", () => {
+    const monday = new Date("2026-11-16T00:10:00+09:00");
+    const seed = createSeed(monday);
+    expect(seed.sessions.every((s) => !s.endedAt || s.endedAt <= monday.toISOString())).toBe(true);
+    expect(seed.entries.every((e) => e.createdAt <= monday.toISOString())).toBe(true);
+  });
 });

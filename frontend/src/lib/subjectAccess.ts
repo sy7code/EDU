@@ -18,18 +18,23 @@ export function subjectShareActive(c: { learningRecord: boolean; subjectShare: b
   return c.learningRecord && c.subjectShare;
 }
 
-/** 교과 교사 열람 가능: 현재 학기 배정(반·과목 일치) AND 두 동의. "기타"는 항상 false */
+/** 교과 교사 열람 가능: 현재 학기 배정(반·과목 일치) AND 현재 학기에 시작한 학습 AND 두 동의. "기타"는 항상 false */
 export function canSubjectTeacherSee(i: {
   assignments: TeacherAssignment[];
   teacherId: string;
   studentClassId: string;
   sessionSubject: string;
+  /** 학습 시작 시각(ISO). 현재 학기에 시작한 학습만 */
+  sessionStartedAt: string;
   consents: { learningRecord: boolean; subjectShare: boolean };
   now: Date;
 }): boolean {
   if (i.teacherId === "" || i.studentClassId === "" || i.sessionSubject === "") return false;
   if (i.sessionSubject === "기타" || !(SUBJECTS as readonly string[]).includes(i.sessionSubject)) return false;
   if (!subjectShareActive(i.consents)) return false;
+  // 현재 학기에 시작한 학습만 (지난 학기 배정·학습은 넘겨주지 않음)
+  const started = new Date(i.sessionStartedAt);
+  if (i.sessionStartedAt === "" || Number.isNaN(started.getTime()) || currentTerm(started) !== currentTerm(i.now)) return false;
   return activeAssignments(i.assignments, i.teacherId, i.now).some(
     (a) => a.classId === i.studentClassId && a.subject === i.sessionSubject,
   );

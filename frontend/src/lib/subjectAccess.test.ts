@@ -5,7 +5,7 @@ import { activeAssignments, canSubjectTeacherSee, isHomeroomTeacher, subjectShar
 const now = new Date("2026-11-14T12:00+09:00");
 const asg: TeacherAssignment = { teacherId: "t3", classId: "c1", subject: "수학", term: "2026-2" };
 const both = { learningRecord: true, subjectShare: true };
-const base = { assignments: [asg], teacherId: "t3", studentClassId: "c1", sessionSubject: "수학", consents: both, now };
+const base = { assignments: [asg], teacherId: "t3", studentClassId: "c1", sessionSubject: "수학", sessionStartedAt: "2026-11-13T10:00:00Z", consents: both, now };
 
 describe("isHomeroomTeacher", () => {
   const teacher = (classId: string): User => ({ id: "t", name: "t", role: "teacher", classId });
@@ -52,6 +52,12 @@ describe("canSubjectTeacherSee", () => {
     expect(canSubjectTeacherSee({ ...base, consents: { learningRecord: false, subjectShare: true } })).toBe(false));
   it("배정 term 2026-1 → false", () =>
     expect(canSubjectTeacherSee({ ...base, assignments: [{ ...asg, term: "2026-1" }] })).toBe(false));
+  it("지난 학기에 시작한 학습은 거부", () => {
+    // 2026-08-31 23:30 서울 = 1학기, 2026-09-01 00:00 서울 = 2학기
+    expect(canSubjectTeacherSee({ ...base, sessionStartedAt: "2026-08-31T14:30:00Z" })).toBe(false);
+    expect(canSubjectTeacherSee({ ...base, sessionStartedAt: "2026-08-31T15:00:00Z" })).toBe(true);
+    expect(canSubjectTeacherSee({ ...base, sessionStartedAt: "" })).toBe(false);
+  });
   it("배정 없음 → false", () => expect(canSubjectTeacherSee({ ...base, assignments: [] })).toBe(false));
   it("다른 교사 배정 → false", () =>
     expect(canSubjectTeacherSee({ ...base, assignments: [{ ...asg, teacherId: "t4" }] })).toBe(false));
