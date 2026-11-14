@@ -1,7 +1,8 @@
 import type { TeacherAssignment, User } from "../types/domain";
+import { SUBJECTS } from "./checklists";
 import { currentTerm } from "./schoolCalendar";
 
-/** 담임 = 교사이면서 classId가 비어 있지 않고 학생 반과 같음. 교과만 맡은 교사는 classId "" */
+/** 이 학생(반)의 담임인가. 담임 = 교사이면서 classId가 비어 있지 않고 학생 반과 같음. 교과만 맡은 교사는 classId "" */
 export function isHomeroomTeacher(t: User, studentClassId: string): boolean {
   return t.role === "teacher" && t.classId !== "" && t.classId === studentClassId;
 }
@@ -26,7 +27,8 @@ export function canSubjectTeacherSee(i: {
   consents: { learningRecord: boolean; subjectShare: boolean };
   now: Date;
 }): boolean {
-  if (i.sessionSubject === "기타") return false;
+  if (i.teacherId === "" || i.studentClassId === "" || i.sessionSubject === "") return false;
+  if (i.sessionSubject === "기타" || !(SUBJECTS as readonly string[]).includes(i.sessionSubject)) return false;
   if (!subjectShareActive(i.consents)) return false;
   return activeAssignments(i.assignments, i.teacherId, i.now).some(
     (a) => a.classId === i.studentClassId && a.subject === i.sessionSubject,

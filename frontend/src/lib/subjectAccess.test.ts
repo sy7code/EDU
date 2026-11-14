@@ -55,4 +55,14 @@ describe("canSubjectTeacherSee", () => {
   it("배정 없음 → false", () => expect(canSubjectTeacherSee({ ...base, assignments: [] })).toBe(false));
   it("다른 교사 배정 → false", () =>
     expect(canSubjectTeacherSee({ ...base, assignments: [{ ...asg, teacherId: "t4" }] })).toBe(false));
+  it("빈 문자열 반·교사·과목은 항상 거부", () => {
+    const e = { teacherId: "", classId: "", subject: "", term: "2026-2" };
+    expect(canSubjectTeacherSee({ ...base, assignments: [e], teacherId: "", studentClassId: "", sessionSubject: "" })).toBe(false);
+    expect(canSubjectTeacherSee({ ...base, assignments: [{ ...asg, classId: "" }], studentClassId: "" })).toBe(false);
+    expect(canSubjectTeacherSee({ ...base, assignments: [{ ...asg, teacherId: "" }], teacherId: "" })).toBe(false);
+  });
+  it("과목 목록 밖(음악, 끝 공백 수학)은 거부", () => {
+    expect(canSubjectTeacherSee({ ...base, assignments: [{ ...asg, subject: "음악" }], sessionSubject: "음악" })).toBe(false);
+    expect(canSubjectTeacherSee({ ...base, assignments: [{ ...asg, subject: "수학 " }], sessionSubject: "수학 " })).toBe(false);
+  });
 });
