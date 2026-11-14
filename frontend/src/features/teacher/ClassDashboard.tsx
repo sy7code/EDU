@@ -14,7 +14,6 @@ import { matchesFilter, type DashboardFilter } from "../../lib/dashboardFilter";
 import { dashboardRowWarning } from "../../lib/insights";
 import { buildStudentCsv, studentCsvFileName } from "../../lib/csv";
 import { MemoWidget, ShortcutWidget } from "./DashboardWidgets";
-import { SubjectCards } from "./SubjectCards";
 
 // 날짜는 학교 기준(Asia/Seoul)으로 보여준다
 const seoulMonthDay = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric" });
@@ -373,8 +372,6 @@ export function ClassDashboard() {
         )}
         <Pager page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
       </div>
-
-      <SubjectCards />
     </div>
   );
 }
