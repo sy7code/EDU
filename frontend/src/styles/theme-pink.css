@@ -1,0 +1,169 @@
+/*
+ * 분홍 테마 (<html data-skin="pink">). 켜는 법: 빌드 값 VITE_THEME=pink 또는 주소 ?skin=pink
+ * 학교 행정 플랫폼에서 흔한 모양(흰 카드, 분홍 강조색, 연분홍 배너, 둥근 버튼)을 참고한 시각 스타일만 바꾼다.
+ * 다른 서비스의 로고·이름·상표는 쓰지 않는다. 기능·마크업은 기본 테마와 같다.
+ * 토큰은 design.css의 :root, Tailwind 색은 index.css의 @theme 값을 덮는다.
+ */
+
+:root[data-skin="pink"] {
+  /* 강조색: 흰 바탕 글자 대비 4.5:1 이상이 되게 진한 분홍 */
+  --green: #d1006c;
+  --green-2: #fff0f6;
+  --green-3: #a30055;
+  --ink: #1d1e24;
+  --muted: #6c6f7a;
+  --line: #ebebf0;
+  --bg: #f6f7f9;
+  --orange: #b04a12;
+  --orange-bg: #fff3ea;
+  --blue: #2565a8;
+  --blue-bg: #eef4fc;
+  --radius: 18px;
+  --shadow: 0 1px 2px rgba(20, 20, 40, 0.04), 0 6px 20px rgba(20, 20, 40, 0.05);
+
+  --color-brand-50: #fff0f6;
+  --color-brand-100: #ffd9ea;
+  --color-brand-500: #d1006c;
+  --color-brand-600: #d1006c;
+  --color-brand-700: #a30055;
+  --color-ink: #1d1e24;
+  --font-sans: "Pretendard", "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+
+:root[data-skin="pink"] body {
+  font-family: "Pretendard", "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+
+/* 상단 바·사이드바: 흰 바탕, 선 대신 아주 옅은 경계 */
+:root[data-skin="pink"] .topbar {
+  border-bottom-color: #f0f0f4;
+}
+:root[data-skin="pink"] .brandmark {
+  border-radius: 12px;
+}
+:root[data-skin="pink"] .sidebar {
+  border-right-color: #f0f0f4;
+}
+/* 메뉴: 활성 항목은 분홍 글자 + 옅은 분홍 바탕, 나머지는 진한 회색 글자 */
+:root[data-skin="pink"] .sidebar nav :is(button, a) {
+  color: #3b3d46;
+  border-radius: 12px;
+  font-weight: 600;
+}
+:root[data-skin="pink"] .sidebar nav :is(button, a).active {
+  background: var(--green-2);
+  color: var(--green);
+}
+:root[data-skin="pink"] .sidebar-note {
+  background: #fafafc;
+}
+
+/* 카드: 테두리 없이 그림자만, 더 둥글게 */
+:root[data-skin="pink"] .card {
+  border-color: transparent;
+}
+
+/* 버튼: 주 버튼은 분홍 채움, 보조 버튼은 분홍 테두리·글자 */
+:root[data-skin="pink"] .button {
+  border-radius: 12px;
+}
+:root[data-skin="pink"] .button.secondary {
+  color: var(--green);
+  border-color: var(--green);
+}
+:root[data-skin="pink"] .button.secondary:hover {
+  background: var(--green-2);
+}
+
+/* 배지·칩: 둥근 알약 모양 */
+:root[data-skin="pink"] .badge {
+  border-radius: 999px;
+}
+:root[data-skin="pink"] .badge.gray {
+  background: #f1f1f5;
+}
+:root[data-skin="pink"] .role-switch,
+:root[data-skin="pink"] .segmented {
+  background: #f1f1f5;
+}
+:root[data-skin="pink"] .chips button {
+  color: #4b4e58;
+}
+
+/* 학습 시작 카드: 초록 그라데이션 → 연분홍 배너 + 분홍 글자 */
+:root[data-skin="pink"] .start-card {
+  background: var(--green-2);
+  color: var(--ink);
+  box-shadow: none;
+  border: 1px solid #ffd9ea;
+}
+:root[data-skin="pink"] .start-card strong {
+  color: var(--green);
+}
+:root[data-skin="pink"] .start-icon {
+  background: #fff;
+  color: var(--green);
+}
+:root[data-skin="pink"] .start-card :is(small, em) {
+  color: var(--muted);
+}
+
+/* 초록빛이 박혀 있던 옅은 바탕들 → 중립 회색 */
+:root[data-skin="pink"] :is(.composer textarea, .reflection textarea, .feedback-compose textarea, .feedback-compose, th) {
+  background: #f8f8fa;
+}
+:root[data-skin="pink"] :is(.record-row:hover, .record-row.selected, .clickable:hover) {
+  background: #fdf5f9;
+}
+:root[data-skin="pink"] :is(.large-input, .login-card > input) {
+  border-color: #dcdce3;
+}
+:root[data-skin="pink"] .chat.assistant {
+  background: #f4f4f7;
+}
+:root[data-skin="pink"] .privacy-note {
+  background: #f4f4f7;
+  color: #4b4e58;
+}
+:root[data-skin="pink"] .timeline {
+  border-left-color: #e3e3ea;
+}
+:root[data-skin="pink"] .timeline-dot {
+  border-color: #ffe3ef;
+}
+
+/* 비율 막대(질문 유형): 분홍 계열 두 단계 */
+:root[data-skin="pink"] :is(.ratio-bar span:nth-child(1), .ratio-legend i) {
+  background: #d1006c;
+}
+:root[data-skin="pink"] :is(.ratio-bar span:nth-child(2), .ratio-legend .r1 i) {
+  background: #f47bb1;
+}
+
+/* 나머지 초록 계열 고정색 (색상값으로 전수 검색해 찾은 것) */
+:root[data-skin="pink"] .study-progress button:not(:last-child):after {
+  background: #e3e3ea;
+}
+:root[data-skin="pink"] :is(.study-progress button > span, .radio, .checklist button span, .choice-chip.box .choice-mark) {
+  border-color: #c9c9d3;
+}
+:root[data-skin="pink"] :is(.checklist button.checked, .choice-chip.box.checked) {
+  border-color: #f5a9cb;
+}
+:root[data-skin="pink"] .auth-pulse {
+  background: #ffe3ef;
+  box-shadow: 0 0 0 12px var(--green-2);
+}
+:root[data-skin="pink"] .spinner {
+  border-color: #f7c6dc;
+  border-top-color: var(--green);
+}
+:root[data-skin="pink"] .bar-chart span {
+  background: #f39cc3;
+}
+:root[data-skin="pink"] :is(.qr-box, .reflection-input) {
+  border-color: #dcdce3;
+}
+:root[data-skin="pink"] .result-row.excluded .result-mark {
+  background: #f1f1f5;
+}

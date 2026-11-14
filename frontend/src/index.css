@@ -6,6 +6,7 @@
 @import "./styles/screens-student-pages.css";
 @import "./styles/screens-teacher-overview.css";
 @import "./styles/screens-teacher-detail.css";
+@import "./styles/theme-pink.css";
 
 @theme {
   --color-brand-50: #e7f3ed;
