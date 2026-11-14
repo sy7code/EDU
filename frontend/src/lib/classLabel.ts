@@ -1,7 +1,15 @@
-// 반 이름을 담은 곳이 mock 시드에 없어서 화면용 이름을 한 곳에 둔다 (실서비스에 반 정보가 생기면 여기만 바꾼다)
+// mock 시드에는 반 이름이 없어서 화면용 이름을 둔다. 실제 모드는 서버 classes 이름을 rememberClassNames로 등록해 먼저 쓴다
 const NAMES: Record<string, string> = { c1: "2학년 3반", c2: "2학년 4반" };
+const serverNames = new Map<string, string>();
 
-/** 반 표시 이름. 모르는 반은 id를 그대로 붙인다 */
+/** 서버에서 읽은 반 이름 등록 (실제 모드 배정 조회 때). 빈 이름은 무시 */
+export function rememberClassNames(names: Record<string, string>): void {
+  for (const [id, name] of Object.entries(names)) {
+    if (name.trim()) serverNames.set(id, name.trim());
+  }
+}
+
+/** 반 표시 이름: 서버 이름 → mock 이름 → id 그대로 */
 export function classLabel(classId: string): string {
-  return NAMES[classId] ?? `${classId}반`;
+  return serverNames.get(classId) ?? NAMES[classId] ?? `${classId}반`;
 }

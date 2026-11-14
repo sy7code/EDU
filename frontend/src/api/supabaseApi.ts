@@ -1,6 +1,7 @@
 // 실제 백엔드(Supabase) 어댑터. 백엔드 전달 문서(FRONTEND_NOTES.md, api-spec v0.1 기준)를 따른다.
 // 읽기: v_* view (camelCase) / 쓰기: 원본 테이블 (snake_case) / 로직: Edge Function /functions/v1/api
 // 백엔드에 없는 기능(동의, QR 인증, 교차채점, 단원 테스트)은 화면에서 숨기고 여기선 지원 안 함.
+import { rememberClassNames } from "../lib/classLabel";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
   AiMessage,
@@ -330,7 +331,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
 
     // ---------- 교과 교사 (백엔드 v0.9) ----------
     // 현재 학기 배정만. 학생·배정 없는 교사는 0행
-    listMyAssignments: async () => (ok(await sb.from("v_my_assignments").select()) as Row[]).map(rowToAssignment),
+    listMyAssignments: async () => {
+      const list = (ok(await sb.from("v_my_assignments").select()) as Row[]).map(rowToAssignment);
+      // 배정 반 이름(v0.9: 교과 교사도 배정 반 classes 이름을 읽을 수 있음). 실패해도 배정 목록은 그대로 쓴다
+      const ids = [...new Set(list.map((a) => a.classId))];
+      if (ids.length > 0) {
+        const { data } = await sb.from("classes").select("id,name").in("id", ids);
+        if (Array.isArray(data)) rememberClassNames(Object.fromEntries(data.map((c: Row) => [String(c.id), String(c.name ?? "")])));
+      }
+      return list;
+    },
     // 학생 본인만 (mock과 같은 계약). 읽기 방식은 getPaceInputs와 같다: 세션은 id로 페이지, 나머지는 세션 100개씩
     getReviewInputs: async (studentId) => {
       const u = await requireMe();
