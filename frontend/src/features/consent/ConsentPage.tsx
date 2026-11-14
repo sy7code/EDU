@@ -134,7 +134,7 @@ export function ConsentPage() {
                 <p>{i.body}</p>
                 <small>{i.ifNo}</small>
                 {locked && (
-                  <small className="subj-consent-lock">
+                  <small className="subj-consent-lock" id="subj-consent-lock">
                     {SUBJECT_NEEDS_RECORD}
                   </small>
                 )}
@@ -144,6 +144,7 @@ export function ConsentPage() {
                 role="radiogroup"
                 aria-label={i.title}
                 aria-disabled={locked || undefined}
+                aria-describedby={locked ? "subj-consent-lock" : undefined}
               >
                 {[true, false].map((v) => (
                   <button
@@ -247,8 +248,7 @@ function ViewLog() {
             </span>
             <p>
               {l.actorName ? `${l.actorName} 선생님` : "선생님"}
-              {l.subject ? `(${l.subject})` : ""}이{" "}
-              {l.subject ? "열람" : "내 기록을 봤어요"}
+              {l.subject ? `(${l.subject})` : ""}이 내 기록을 봤어요
             </p>
             <small className="access-time">{formatDateTime(l.createdAt)}</small>
           </div>
