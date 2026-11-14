@@ -7,6 +7,23 @@
 
 ---
 
+## v1.0 QR 단일 인증 (추가, 2026-11-14 · 이 절이 v0.2~v0.6·아래 본문의 FacePass·바코드·수기 인증보다 우선)
+
+인증은 **QR만** 남긴다. 상세 요청: `docs/backend/2026-11-14-backend-request-v1.0-qr.md`.
+
+| 프론트 함수 (`api/types.ts`) | 서버 | 설명 |
+|---|---|---|
+| `issueQrToken()` | `POST /auth/qr-tokens` | 학생만. `{ token, expiresAt }`, 60초·1회용 |
+| `submitCodeAuth(deviceId, token)` | `POST /auth/qr-scan` (`X-Device-Token`) | 교실 단말기. 단말기당 분당 20회, 오류 `401/404/409/429` |
+| `devSkipAuth()` | `POST /dev/facepass/simulate` | **실제 모드 전용 임시**. mock은 `FORBIDDEN`. QR 배포 후 삭제 |
+
+- 삭제된 함수: `submitFaceAuth`, `simulateFaceAuth`, `submitManualAuth`. 바코드 토큰은 받지 않는다(없는 토큰 → 실패).
+- 동의 종류는 `AI`, `LEARNING_RECORD`, `SUBJECT_SHARE`. `FACEPASS`는 화면·타입에서 뺐고 서버의 옛 행은 매퍼가 무시한다.
+- `AuthMethod`(`FACEPASS | QR | BARCODE | MANUAL`)는 **과거 기록 표시용으로 남긴다**. 새 인증은 `QR`만 만든다.
+- 세션 시작·종료, `GET /auth-events/latest`(2분·1회용)는 그대로.
+
+---
+
 ## v0.6 교과 교사 (추가, 2026-11-14 · 백엔드 미반영 — mock 전용, `FEATURES.subjectTeacher`)
 
 담임 = `role === "teacher" && classId !== ""`. 교과만 맡은 교사는 `classId: ""`. 교과 배정은 `teacher_assignments(teacher_id, class_id, subject, term)`. 현재 학기: 서울 날짜 3~8월 `YYYY-1`, 9~12월 `YYYY-2`, 1~2월 `(YYYY-1)-2`.

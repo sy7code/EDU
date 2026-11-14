@@ -443,3 +443,10 @@
 - 백엔드 요청서 v0.9: `teacher_assignments`, `current_term()`, `SUBJECT_SHARE`, RLS 확장, `subject_week_summary` RPC, 거부 테스트. 실제 `sessions.goal`이 텍스트라 `sessions.subject` 컬럼을 요청(권한을 텍스트 파싱에 맡기지 않음).
 - 확인 못 함: 실제 모드 전부(플래그로 꺼 둠), 백엔드 SQL 실행, 만 14세 미만 보호자 동의 필요 여부(법 해석), 교과 교사 화면 컴포넌트 테스트(렌더 테스트 환경 없음). 범위 밖 기존 문제: 학생 기록 375px '내 성장' 제목 줄바꿈.
 - 교훈: 권한 함수는 빈 값·목록 밖 값을 먼저 거부(fail-closed)하고, 동의 문구는 실제로 보이는 범위와 글자 단위로 맞춘다. 데모 시드에 "보여 줄 장면"의 데이터가 있는지 화면으로 확인해야 기능이 빈 화면으로 끝나지 않는다.
+
+## 2026-11-14 추가: QR 단일 인증 전환 (브랜치 feat/qr-only)
+- 변경: 인증에서 FacePass(얼굴)·학생증 바코드·교사 수기 확인을 빼고 QR만 남김. 학생 휴대폰에 실제 QR 이미지(`qrcode`), 키오스크는 스캐너/입력칸(자동 포커스·Enter, 실패 시 입력 유지). `FACEPASS` 동의·반 대시보드 '선생님이 확인' 열 삭제, 과거 기록용 `AuthMethod` 라벨은 유지, mock 저장 키 v9. 실제 모드는 QR 배포 전까지 개발용 건너뛰기.
+- 백엔드 요청서 v1.0-qr: `POST /auth/qr-tokens`, `POST /auth/qr-scan`, QR 배포 후 `/facepass/result`·`/dev/facepass/simulate` 제거.
+- 검증: vitest 373 통과, `tsc -b --noEmit` 통과, `vite build` 통과. controller 브라우저 확인: QR 이미지 표시 → `/kiosk` 입력 Enter → 학습 시작, 이미 쓴 토큰은 거부되고 입력칸 글자가 남음.
+- 확인 못 함: 실제 모드 QR(백엔드 미배포), 스캐너 하드웨어, 스크린 리더 낭독(aria-live).
+- 남긴 위험: 휴대폰 없는 학생은 시작 불가(사용자 수용), 스캐너 전제.
