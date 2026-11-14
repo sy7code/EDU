@@ -156,3 +156,12 @@ ul.timeline { list-style: none; margin-top: 0; margin-bottom: 0; }
   color: var(--ink);
   font-size: 13px;
 }
+
+/* AI 호출 제한 안내 (다시 시도 버튼 대신) */
+.ai-limit {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--orange-bg);
+  font-size: 13px;
+}

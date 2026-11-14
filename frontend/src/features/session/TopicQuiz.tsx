@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../../api";
 import { useHasConsent } from "../../auth/session";
 import { Badge, Button, ErrorState, Spinner } from "../../components/ui";
 import { Icon } from "../../components/Icon";
+import { quizWaitText } from "../../lib/waitStages";
 import type { QuizAttempt, QuizReportOutcome, QuizReportReason, SessionTopic, StudentQuizQuestion } from "../../types/domain";
 
 export const QUIZ_NOTICE = "테스트는 공부 확인용이에요. 성적에 들어가지 않아요.";
@@ -122,6 +123,17 @@ export function TopicStep({ sessionId, onDone }: { sessionId: string; onDone: ()
 }
 
 /** 오류 화면 + 돌아보기로 넘어가는 탈출구 */
+/** 첫 출제는 문항 생성 때문에 10초 넘게 걸릴 수 있어 단계 문구를 1초마다 바꿔 보여 준다 */
+function QuizLoading() {
+  const [started] = useState(() => Date.now());
+  const [now, setNow] = useState(started);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return <Spinner label={quizWaitText(now - started)} />;
+}
+
 function SkippableError({ error, onRetry, onSkip, onBack }: { error: unknown; onRetry: () => void; onSkip: () => void; onBack?: () => void }) {
   return (
     <div className="quiz-error">
@@ -175,7 +187,7 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
     );
   }
   if (quiz.error) return <SkippableError error={quiz.error} onRetry={() => quiz.refetch()} onSkip={finish} onBack={onBack} />;
-  if (!quiz.data) return <Spinner label="AI가 문제를 준비하는 중이에요 (처음 나오는 주제는 시간이 조금 걸려요)" />;
+  if (!quiz.data) return <QuizLoading />;
   const { topic, questions } = quiz.data;
   // 신고 상태는 서버(출제 스냅샷)가 기억 → 새로고침해도 유지
   // 신고 결과: 이번 화면에서 받은 것 우선, 없으면 출제 스냅샷(새로고침 후)

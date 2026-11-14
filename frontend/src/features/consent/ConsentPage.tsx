@@ -21,7 +21,7 @@ const ITEMS: Array<{ kind: ConsentKind; title: string; body: string; ifNo: strin
   {
     kind: "AI",
     title: "AI 학습 도우미 사용",
-    body: "질문 내용은 이름·연락처를 가린 뒤 AI 서비스로 보내요. AI는 답을 대신 써 주지 않고, 스스로 생각하도록 질문과 힌트를 줘요. 해외 서버로 전송될 수 있어요.",
+    body: "질문 내용은 이름·연락처를 가린 뒤 AI 서비스로 보내요. AI는 개념은 바로 설명하고, 문제의 최종 답은 스스로 찾도록 힌트를 줘요. 해외 서버로 전송될 수 있어요.",
     ifNo: "동의하지 않으면 AI 창이 보이지 않고, 기록 기능은 그대로 쓸 수 있어요.",
   },
   {

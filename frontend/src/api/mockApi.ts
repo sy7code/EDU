@@ -40,6 +40,10 @@ export type MockOptions = {
   reviewQuestion?: (q: { prompt: string; choices: string[]; answerIndex: number; explanation: string }, reason: QuizReportReason) => QuizAiReview;
 };
 
+/** mock 전용: 이 키에 오류 코드(AI_TIMEOUT·AI_BAD_OUTPUT·RATE_LIMITED)를 넣으면 다음 AI 호출 한 번이 그 오류로 실패 (오류 화면 확인용) */
+export const MOCK_FAIL_KEY = "growth-pace-mock-fail-next";
+/** mock 전용: 이 키에 밀리초를 넣으면 다음 테스트 출제(getQuiz) 한 번이 그만큼 늦게 끝남 (대기 문구 확인용, 최대 30초) */
+export const MOCK_SLOW_KEY = "growth-pace-mock-slow-next";
 export const STORAGE_KEY = "growth-pace-mock-db-v6"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
 export const SESSION_USER_KEY = "growth-pace-mock-user";
 const AUTH_EVENT_TTL_MS = 120_000;
@@ -88,6 +92,34 @@ export function createMockApi(opts: MockOptions): Api {
       storage.setItem(STORAGE_KEY, JSON.stringify(db));
     } catch {
       /* 저장 실패해도 화면은 동작 */
+    }
+  }
+  function forcedFailure(): void {
+    if (!storage) return;
+    let code: string | null = null;
+    try {
+      code = storage.getItem(MOCK_FAIL_KEY);
+    } catch {
+      return;
+    }
+    if (code !== "AI_TIMEOUT" && code !== "AI_BAD_OUTPUT" && code !== "RATE_LIMITED") return;
+    try {
+      storage.removeItem(MOCK_FAIL_KEY);
+    } catch {
+      /* noop */
+    }
+    throw new ApiError(code);
+  }
+  function slowNext(): number {
+    if (!storage) return 0;
+    try {
+      const raw = storage.getItem(MOCK_SLOW_KEY);
+      if (raw === null) return 0;
+      storage.removeItem(MOCK_SLOW_KEY);
+      const ms = Number(raw);
+      return Number.isFinite(ms) ? Math.min(Math.max(ms, 0), 30_000) : 0;
+    } catch {
+      return 0;
     }
   }
   function readSessionUser(): string | null {
@@ -621,6 +653,7 @@ export function createMockApi(opts: MockOptions): Api {
         const text = content.trim();
         if (!text || text.length > MAX_AI_INPUT) throw new ApiError("VALIDATION");
         rateLimit(s.studentId);
+        forcedFailure();
         const masked = maskPii(text, knownNames());
         // 실제 서버: 이 값만 LLM으로 전송 (이름·ID 없음)
         opts.onAiPayload?.(masked);
@@ -784,6 +817,7 @@ export function createMockApi(opts: MockOptions): Api {
     // ---------- 주제 추출 (mock AI: 키워드 사전) ----------
     extractTopics: (sessionId) =>
       run(() => {
+        forcedFailure();
         const u = me();
         const s = visibleSession(sessionId);
         if (u.role !== "student" || s.studentId !== u.id) throw new ApiError("NOT_FOUND");
@@ -811,8 +845,10 @@ export function createMockApi(opts: MockOptions): Api {
       }),
 
     // ---------- 주제 테스트 ----------
-    getQuiz: (sessionId, topicId) =>
-      run(() => {
+    getQuiz: (sessionId, topicId) => {
+      const extra = slowNext();
+      return run(() => {
+        forcedFailure();
         const { topic, questions } = servedQuiz(sessionId, topicId);
         // 정답·해설은 내려주지 않는다 (채점은 서버)
         const safe: StudentQuizQuestion[] = questions.map((x) => ({
@@ -824,7 +860,8 @@ export function createMockApi(opts: MockOptions): Api {
           ...(x.reportOutcome ? { reportOutcome: { ...x.reportOutcome } } : {}),
         }));
         return { topic: { id: topic.id, name: topic.name }, questions: safe };
-      }),
+      }).then((r) => (extra > 0 ? new Promise<typeof r>((res) => setTimeout(() => res(r), extra)) : r));
+    },
 
     reportQuestion: (sessionId, questionId, reason) =>
       run(() => {

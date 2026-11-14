@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createMockApi } from "./mockApi";
+import { createMockApi, MOCK_FAIL_KEY, MOCK_SLOW_KEY } from "./mockApi";
 import { createSeed } from "./mockData";
 import { TOPIC_DICTIONARY } from "./mockTopicData";
 import { ApiError, type Api } from "./types";
@@ -1069,3 +1069,50 @@ describe("열람 기록 개수", () => {
   });
 });
 
+
+describe("mock 오류 강제 (화면 확인용)", () => {
+  function memoryStorage(): Storage {
+    const m = new Map<string, string>();
+    return {
+      get length() { return m.size; },
+      clear: () => m.clear(),
+      getItem: (k) => m.get(k) ?? null,
+      key: (i) => [...m.keys()][i] ?? null,
+      removeItem: (k) => void m.delete(k),
+      setItem: (k, v) => void m.set(k, String(v)),
+    };
+  }
+
+  it("키에 넣은 오류로 다음 AI 호출 한 번만 실패하고 키는 지워진다", async () => {
+    const storage = memoryStorage();
+    api = createMockApi({ seed: createSeed(clock), now: () => clock, latencyMs: 0, storage });
+    const s = await startAs("s01");
+    storage.setItem(MOCK_FAIL_KEY, "AI_TIMEOUT");
+    await expectCode(api.askAi(s.id, "꼭짓점이 뭐야?"), "AI_TIMEOUT");
+    expect(storage.getItem(MOCK_FAIL_KEY)).toBeNull();
+    expect((await api.askAi(s.id, "꼭짓점이 뭐야?")).role).toBe("ai");
+  });
+
+  it("늦추기 키는 다음 출제 한 번에만 쓰이고 지워진다", async () => {
+    const storage = memoryStorage();
+    api = createMockApi({ seed: createSeed(clock), now: () => clock, latencyMs: 0, storage });
+    await api.login("s01");
+    const ev = await api.simulateFaceAuth(DEVICE, "s01", true);
+    const s = await api.startSession({ goal: { subject: "공부", activities: [] }, authEventId: ev.id });
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "꼭짓점", visibility: "TEACHER" });
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, "s01", true)).id);
+    const [topic] = await api.extractTopics(s.id);
+    storage.setItem(MOCK_SLOW_KEY, "5");
+    expect((await api.getQuiz(s.id, topic.topicId)).questions).toHaveLength(5);
+    expect(storage.getItem(MOCK_SLOW_KEY)).toBeNull();
+  });
+
+  it("모르는 값은 무시한다", async () => {
+    const storage = memoryStorage();
+    api = createMockApi({ seed: createSeed(clock), now: () => clock, latencyMs: 0, storage });
+    const s = await startAs("s01");
+    storage.setItem(MOCK_FAIL_KEY, "FORBIDDEN");
+    expect((await api.askAi(s.id, "꼭짓점이 뭐야?")).role).toBe("ai");
+  });
+});

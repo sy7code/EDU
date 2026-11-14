@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useParams } from "react-router";
-import { api } from "../../api";
+import { api, ApiError } from "../../api";
 import { useHasConsent } from "../../auth/session";
 import { Badge, Button, ButtonLink, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { Icon } from "../../components/Icon";
@@ -236,7 +236,7 @@ function AiPanel({ sessionId }: { sessionId: string }) {
         </span>
         <div>
           <strong>AI 학습 도우미</strong>
-          <small>답을 대신 써 주지 않고, 스스로 생각하도록 질문해요</small>
+          <small>개념은 바로 설명하고, 문제의 최종 답은 스스로 찾도록 도와요</small>
         </div>
       </div>
       <div className="ai-notice">
@@ -258,7 +258,15 @@ function AiPanel({ sessionId }: { sessionId: string }) {
             <span /> 생각하는 중…
           </div>
         )}
-        {ask.error && <ErrorState error={ask.error} onRetry={() => ask.variables && ask.mutate(ask.variables)} />}
+        {ask.error &&
+          (ask.error instanceof ApiError && ask.error.code === "RATE_LIMITED" ? (
+            // 바로 다시 보내도 같은 제한에 걸리므로 다시 시도 버튼 대신 기다릴 시간을 안내
+            <div className="ai-limit" role="alert">
+              AI에게는 1분에 10번까지 물어볼 수 있어요. 1분쯤 뒤에 다시 보내 주세요. 쓴 질문은 입력칸에 남겨 뒀어요.
+            </div>
+          ) : (
+            <ErrorState error={ask.error} onRetry={() => ask.variables && ask.mutate(ask.variables)} />
+          ))}
       </div>
       <form
         className="chat-input"
