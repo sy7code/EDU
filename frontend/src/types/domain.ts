@@ -296,3 +296,22 @@ export type ReviewInputs = {
 };
 export type ReviewTopic = { topicId: string; name: string; signal: "LOW_SCORE" | "OVERCONFIDENT"; lastRate: number; lastAt: string };
 export type SubjectReview = { subject: string; topics: ReviewTopic[] };
+
+/** 학생 수 칸: 1~2명이면 개인이 드러나지 않게 "적음" */
+export type CountCell = number | "적음";
+export type SubjectWeekSummary = {
+  classId: string;
+  subject: string;
+  weekStart: string;
+  few: boolean;
+  sessionCount: number;
+  studentCount: CountCell;
+  topics: Array<{ topicId: string | null; name: string; studentCount: CountCell; reviewCount: CountCell; lastRate: number | null }>;
+  hardQuestions: Array<{ questionId: string; prompt: string; rate: number; answered: number }>;
+};
+/** 이미 동의·과목·반으로 걸러진 행만 들어온다고 가정 */
+export type SubjectSummaryInputs = ReviewInputs & {
+  students: Array<{ studentId: string }>;
+  sessionOwners: Array<{ sessionId: string; studentId: string }>;
+  items: Array<{ sessionId: string; questionId: string; prompt: string; correct: boolean; reported: boolean }>;
+};
