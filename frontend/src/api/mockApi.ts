@@ -862,11 +862,13 @@ export function createMockApi(opts: MockOptions): Api {
         // 권한은 AI(묶음) 전에 거른다: 기록·교과 공유·AI 동의 학생의 교사 공개 질문, 이번 주, 그 반·과목만
         const weekStart = seoulWeekStart(now());
         const allowed = new Set(subjectStudentsOf(classId).filter((x) => hasConsent(x.id, "AI")).map((x) => x.id));
-        const sessions = new Map(db.sessions.filter((x) => allowed.has(x.studentId) && x.goal.subject === subject).map((x) => [x.id, x]));
+        // 교과 교사 열람 규칙은 subjectSees 하나만 쓴다 (현재 학기 배정·학기 안에 시작한 학습·기록+교과 공유 동의)
+        const sessions = new Map(db.sessions.filter((x) => allowed.has(x.studentId) && x.goal.subject === subject && subjectSees(t, x.studentId, x.goal.subject, x.startedAt)).map((x) => [x.id, x]));
         const qs = db.entries.filter((e) => e.kind === "QUESTION" && e.visibility === "TEACHER" && sessions.has(e.sessionId) && isInSeoulWeek(e.createdAt, weekStart) && e.content.trim() !== "");
         const ownerOf: Record<string, string> = {};
         for (const e of qs) ownerOf[e.id] = sessions.get(e.sessionId)!.studentId;
         const base = { classId, subject, weekStart, generatedAt: iso() };
+        // 학생 3명 이상이 질문했으면 묶음이 모두 숨겨지거나 안 묶여도 status는 OK, themes는 빈 배열 (화면이 안내 문구를 보여 줌)
         let result: QuestionThemes;
         if (new Set(Object.values(ownerOf)).size < 3) {
           result = { ...base, status: "FEW", themes: [], hiddenCount: 0 };

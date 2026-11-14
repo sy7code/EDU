@@ -1509,6 +1509,26 @@ describe("과목 질문 핵심 요약 (mock)", () => {
     await expectCode(api.generateQuestionThemes("c1", "수학"), "FORBIDDEN");
   });
 
+  it("AI 동의를 거둔 학생의 질문은 빠진다 (기록·교과 공유 동의가 있어도)", async () => {
+    await api.login("s13");
+    await api.saveConsents([{ kind: "AI", granted: false, byGuardian: false }]);
+    await api.login("t3");
+    const r = await api.generateQuestionThemes("c1", "수학");
+    // 판별식 묶음은 s12·s14 두 명만 남아 숨겨진다
+    expect(r.themes.map((x) => x.studentCount)).toEqual([4]);
+    expect(r.hiddenCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("지난 학기에 시작한 학습의 질문은 이번 주 기록이어도 넣지 않는다", async () => {
+    const seed = createSeed(clock);
+    seed.sessions.push({ id: "old-term", studentId: "s05", goal: { subject: "수학", activities: ["concept"] }, startedAt: "2026-08-31T10:00:00+09:00", endedAt: "2026-08-31T10:30:00+09:00", startAuth: "QR", endAuth: "QR", status: "ENDED", durationMinutes: 30 });
+    seed.entries.push({ id: "old-term-q", sessionId: "old-term", kind: "QUESTION", content: "꼭짓점 구하는 순서 알려 줘", visibility: "TEACHER", createdAt: "2026-11-12T10:00:00+09:00" });
+    const a = createMockApi({ seed, now: () => clock, latencyMs: 0, storage: null });
+    await a.login("t3");
+    const r = await a.generateQuestionThemes("c1", "수학");
+    expect(r.themes.map((x) => x.studentCount)).toEqual([4, 3]);
+  });
+
   it("질문한 학생이 3명 미만인 반(c2)은 FEW, 묶음 없음", async () => {
     await api.login("t3");
     const r = await api.generateQuestionThemes("c2", "수학");
