@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, NavLink, Outlet, useNavigate } from "react-router";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useLogout, useMe } from "../auth/session";
 import { api, FEATURES, resetMockData, USE_MOCK } from "../api";
-import { teacherNavLinks } from "../lib/teacherNav";
+import { navItemActive, teacherNavLinks } from "../lib/teacherNav";
 import { Icon } from "./Icon";
 
 /**
@@ -14,6 +14,7 @@ export function AppLayout() {
   const { data: me } = useMe();
   const logout = useLogout();
   const nav = useNavigate();
+  const { pathname } = useLocation();
 
   const isTeacher = me?.role === "teacher";
   const homeroom = isTeacher && me.classId !== "";
@@ -107,7 +108,7 @@ export function AppLayout() {
               <p className="nav-label">{me.role === "student" ? "학습" : homeroom ? "학급 관리" : "교과 관리"}</p>
               <nav aria-label="주요 메뉴">
                 {links.map(([to, icon, label]) => (
-                  <NavLink key={to} to={to} end={!to.startsWith("/teacher/subjects/")} className={({ isActive }) => (isActive ? "active" : "")}>
+                  <NavLink key={to} to={to} className={() => (navItemActive(to, pathname) ? "active" : "")} aria-current={navItemActive(to, pathname) ? "page" : undefined}>
                     <Icon name={icon} />
                     <span>{label}</span>
                     <Icon name="chevron" size={15} />

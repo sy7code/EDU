@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { api, FEATURES } from "../../api";
 import { isRetryable } from "../../lib/retryable";
 import { Badge, ErrorState, Spinner } from "../../components/ui";
+import { subjectPath } from "./SubjectPage";
 import { classLabel } from "../../lib/classLabel";
 import type { SubjectWeekSummary, TeacherAssignment } from "../../types/domain";
 
@@ -37,7 +38,7 @@ export function SubjectCards() {
 function AssignmentCard({ a }: { a: TeacherAssignment }) {
   const q = useQuery({ queryKey: ["subject-summary", a.classId, a.subject], queryFn: () => api.getSubjectSummary(a.classId, a.subject), enabled: FEATURES.subjectTeacher });
   const title = `${classLabel(a.classId)} ${a.subject}`;
-  const to = `/teacher/subjects/${a.classId}/${encodeURIComponent(a.subject)}`;
+  const to = subjectPath(a.subject, a.classId);
   const s = q.data;
   const topics = s && !s.few ? topReviewTopics(s) : [];
   const headId = `subj-a-${a.classId}-${a.subject}`;

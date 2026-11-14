@@ -6,6 +6,7 @@ import { isRetryable } from "../../lib/retryable";
 import { Icon } from "../../components/Icon";
 import { Badge, Button, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { goalLabel, reflectionLabel, UNDERSTANDING_LABELS } from "../../lib/checklists";
+import { subjectPath } from "./SubjectPage";
 import { classLabel } from "../../lib/classLabel";
 import { formatDateTime, formatDuration, formatTime } from "../../lib/time";
 import type { LearningSession } from "../../types/domain";
@@ -36,7 +37,7 @@ export function SubjectStudentPage() {
     });
   }, [studentId, subject, students.data, notAllowed]);
 
-  const back = `/teacher/subjects/${classId}/${encodeURIComponent(subject)}`;
+  const back = subjectPath(subject, classId);
   return (
     <div className="subj-page">
       <Link to={back} className="student-back">

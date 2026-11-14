@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
+import { Link } from "react-router";
 import { api, FEATURES } from "../../api";
 import { isRetryable } from "../../lib/retryable";
 import { Badge, Button, Card, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { classLabel } from "../../lib/classLabel";
 import { themesHeaderLabel } from "../../lib/themesLabel";
 
-export function SubjectClassPage() {
-  const { classId = "", subject = "" } = useParams();
+/** 반 하나·과목 하나의 내용: 주제별 학습, 질문 핵심, 많이 틀린 문항, 기록을 공개한 학생 */
+export function SubjectClassView({ classId, subject }: { classId: string; subject: string }) {
   const title = `${classLabel(classId)} ${subject}`;
   const summary = useQuery({ queryKey: ["subject-summary", classId, subject], queryFn: () => api.getSubjectSummary(classId, subject), enabled: FEATURES.subjectTeacher });
   const students = useQuery({ queryKey: ["subject-students", classId, subject], queryFn: () => api.listSubjectStudents(classId, subject), enabled: FEATURES.subjectTeacher });
@@ -21,12 +21,7 @@ export function SubjectClassPage() {
   const t = generate.data ?? themes.data;
   const s = summary.data;
   return (
-    <div className="subj-page">
-      <Link to="/teacher" className="student-back">
-        ← 대시보드
-      </Link>
-      <h1>{title}</h1>
-
+    <div className="subj-view">
       <Card className="subj-card">
         <h2 className="subj-title">이번 주 주제별 학습</h2>
         {summary.isLoading && <Spinner />}
