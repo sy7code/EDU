@@ -74,6 +74,35 @@
 
 ---
 
+## v1.1 과목 질문 핵심 요약 (추가, 2026-11-14 · 백엔드 요청서 v1.1, 실제 모드 미배포: `FEATURES.questionThemes = USE_MOCK`)
+
+교과 교사가 반·과목 화면에서 이번 주 학생 질문을 AI가 묶은 핵심 3~5개로 본다. 담임 화면은 범위 밖. 요청서: `docs/backend/2026-11-14-backend-request-v1.1-question-themes.md`.
+
+### 함수 (`frontend/src/api/types.ts`)
+| 함수 | 호출(제안) | 규칙 |
+|---|---|---|
+| `getQuestionThemes(classId, subject)` | `rpc('question_themes', { p_class_id, p_subject })` | 저장된 이번 주(서울 월~일) 결과 `QuestionThemes`. 없으면 `status='EMPTY'`. AI를 부르지 않음. 배정 없으면 `404 NOT_FOUND` |
+| `generateQuestionThemes(classId, subject)` | `POST /classes/:classId/subjects/:subject/question-themes` | 입력을 거르고 AI로 묶어 저장·반환(덮어씀). `404`·`429 RATE_LIMITED`(분당 10회, 하루 횟수)·`502 AI_BAD_OUTPUT`·`504 AI_TIMEOUT`. 질문한 학생 3명 미만이면 AI 없이 `FEW` |
+
+### 타입 (`frontend/src/types/domain.ts`)
+```ts
+type QuestionTheme = { title: string; studentCount: number; topicName: string | null };
+type QuestionThemes = {
+  classId: string; subject: string; weekStart: string;
+  generatedAt: string | null;               // 저장 결과 없으면 null
+  status: "OK" | "FEW" | "EMPTY";           // FEW: 학생 3명 미만, EMPTY: 아직 안 만듦
+  themes: QuestionTheme[];                  // 최대 5개, 학생 수 내림차순
+  hiddenCount: number;                      // 학생 3명 미만이라 숨긴 묶음 수
+};
+```
+
+### 규칙
+- AI 입력은 서버가 AI 호출 전에 거른다: 교과 교사 열람 규칙(v0.6) + 학생 `AI` 동의 + `kind='QUESTION'` + `visibility='TEACHER'` + 이번 주. 마스킹한 글만, 이름·번호 없이 `{ id, text }`로 보낸다.
+- `studentCount`는 서버가 `questionIds`의 서로 다른 학생으로 센다(AI 숫자 안 믿음). 3명 미만 묶음은 버리고 `hiddenCount`로만 알린다. `title` 60자 이하, 최대 5개(`frontend/src/lib/questionThemes.ts` `finalizeThemes`).
+- mock은 질문 글의 낱말 규칙으로 묶는다(`mockThemeGroups`). 실제 AI 품질은 확인하지 못했다(백엔드 평가셋 대기).
+
+---
+
 ## v0.4 단원 테스트 + 교사 종합 보드 (추가)
 
 설계: `docs/01-mvp.md`. 문제는 **AI 초안 → 교사 승인**만 출제. 채점은 서버.
