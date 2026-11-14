@@ -66,11 +66,11 @@ export function AuthWait({ purpose, onAuth, note }: { purpose: "start" | "end"; 
 
       {FEATURES.codeAuth && (
         <div className="study-qr">
+          <p className="qr-help" role="status" aria-live="polite">{expired && !qr ? "QR이 만료됐어요." : ""}</p>
           {qr ? (
             <QrBox token={qr.token} expiresAt={qr.expiresAt} onExpired={onExpired} />
           ) : (
             <>
-              {expired && <p className="qr-help" role="status">QR이 만료됐어요.</p>}
               <Button variant="secondary" onClick={() => issueQr.mutate()} disabled={issueQr.isPending}>
                 {expired ? "다시 만들기" : "QR 만들기"}
               </Button>

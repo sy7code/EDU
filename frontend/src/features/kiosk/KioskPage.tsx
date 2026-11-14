@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { api, errorMessage } from "../../api";
+import { api, errorMessage, FEATURES } from "../../api";
 import { METHOD_LABEL } from "../../components/ui";
 import { Icon } from "../../components/Icon";
 import type { AuthEvent } from "../../types/domain";
@@ -16,6 +16,29 @@ type View =
   | { kind: "error"; message: string };
 
 export function KioskPage() {
+  // 실제 모드: 백엔드 QR 인증 배포 전. API를 부르지 않고 안내만 보인다
+  if (!FEATURES.codeAuth) {
+    return (
+      <div className="study-kiosk">
+        <header className="study-kiosk-head">
+          <span>성장 페이스 · 자습실 단말기</span>
+          <span>{DEVICE_ID}</span>
+        </header>
+        <main className="study-kiosk-main">
+          <p className="study-kiosk-sub" role="status">
+            실제 서비스에서는 아직 교실 단말기를 쓸 수 없어요. 학생 화면의 '인증 건너뛰기(개발용)'를 사용하세요.
+          </p>
+        </main>
+        <footer className="study-kiosk-foot">
+          <p className="study-kiosk-privacy"><Link to="/">처음 화면</Link></p>
+        </footer>
+      </div>
+    );
+  }
+  return <KioskScanner />;
+}
+
+function KioskScanner() {
   const [view, setView] = useState<View>({ kind: "idle" });
   const [code, setCode] = useState("");
   const codeInput = useRef<HTMLInputElement>(null);
@@ -30,7 +53,6 @@ export function KioskPage() {
     if (view.kind !== "done" && view.kind !== "error") return;
     const t = setTimeout(() => {
       setView({ kind: "idle" });
-      setCode("");
       codeInput.current?.focus();
     }, RESET_MS);
     return () => clearTimeout(t);
@@ -41,15 +63,18 @@ export function KioskPage() {
     const token = code.trim();
     if (!token) return;
     setView({ kind: "working" });
-    setCode("");
+    let ok = false;
     try {
       const ev = await api.submitCodeAuth(DEVICE_ID, token);
+      ok = ev.success;
       setView(ev.success ? { kind: "done", event: ev } : { kind: "error", message: "인식할 수 없는 코드예요. 선생님께 알려 주세요." });
     } catch (err) {
       setView({ kind: "error", message: errorMessage(err) });
-    } finally {
-      codeInput.current?.focus();
     }
+    // 성공할 때만 비운다. 실패하면 글자를 남기고 선택해 고치거나 다음 스캔이 덮어쓰게 한다
+    if (ok) setCode("");
+    codeInput.current?.focus();
+    if (!ok) codeInput.current?.select();
   }
 
   return (
@@ -97,7 +122,7 @@ export function KioskPage() {
         {view.kind === "error" && (
           <div role="alert" className="study-kiosk-error">
             <p className="study-kiosk-error-text">{view.message}</p>
-            <button type="button" onClick={() => { setView({ kind: "idle" }); codeInput.current?.focus(); }} className="study-kiosk-ghost">
+            <button type="button" onClick={() => { setView({ kind: "idle" }); codeInput.current?.focus(); codeInput.current?.select(); }} className="study-kiosk-ghost">
               처음으로
             </button>
           </div>
