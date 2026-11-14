@@ -1,14 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
-import { api } from "../../api";
+import { api, FEATURES } from "../../api";
+import { isRetryable } from "../../lib/retryable";
 import { Card, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { classLabel } from "../../lib/classLabel";
 
 export function SubjectClassPage() {
   const { classId = "", subject = "" } = useParams();
   const title = `${classLabel(classId)} ${subject}`;
-  const summary = useQuery({ queryKey: ["subject-summary", classId, subject], queryFn: () => api.getSubjectSummary(classId, subject) });
-  const students = useQuery({ queryKey: ["subject-students", classId, subject], queryFn: () => api.listSubjectStudents(classId, subject) });
+  const summary = useQuery({ queryKey: ["subject-summary", classId, subject], queryFn: () => api.getSubjectSummary(classId, subject), enabled: FEATURES.subjectTeacher });
+  const students = useQuery({ queryKey: ["subject-students", classId, subject], queryFn: () => api.listSubjectStudents(classId, subject), enabled: FEATURES.subjectTeacher });
   const s = summary.data;
   return (
     <div className="subj-page">
@@ -20,7 +21,7 @@ export function SubjectClassPage() {
       <Card className="subj-card">
         <h2 className="subj-title">이번 주 주제별 학습</h2>
         {summary.isLoading && <Spinner />}
-        {summary.error && <ErrorState error={summary.error} onRetry={() => summary.refetch()} />}
+        {summary.error && <ErrorState error={summary.error} onRetry={isRetryable(summary.error) ? () => summary.refetch() : undefined} />}
         {s?.few && <p className="subj-empty">이번 주 기록 적음</p>}
         {s && !s.few && (
           <>
@@ -84,7 +85,7 @@ export function SubjectClassPage() {
         <h2 className="subj-title">기록을 공개한 학생</h2>
         <p className="subj-empty">학생이 학습 기록과 교과 공개에 모두 동의한 경우만 보여요.</p>
         {students.isLoading && <Spinner />}
-        {students.error && <ErrorState error={students.error} onRetry={() => students.refetch()} />}
+        {students.error && <ErrorState error={students.error} onRetry={isRetryable(students.error) ? () => students.refetch() : undefined} />}
         {students.data?.length === 0 && <EmptyState title="열람할 수 있는 학생이 아직 없어요">학생이 동의하면 여기에 나타나요.</EmptyState>}
         {students.data && students.data.length > 0 && (
           <ul className="subj-students">

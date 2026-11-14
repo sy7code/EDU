@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
-import { api } from "../../api";
+import { api, FEATURES } from "../../api";
+import { isRetryable } from "../../lib/retryable";
 import { Icon } from "../../components/Icon";
 import { Badge, Button, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { goalLabel, reflectionLabel, UNDERSTANDING_LABELS } from "../../lib/checklists";
@@ -14,20 +15,22 @@ const KIND: Record<string, string> = { MEMO: "메모", QUESTION: "궁금한 점"
 export function SubjectStudentPage() {
   const { classId = "", subject = "", studentId = "" } = useParams();
   const sessions = useQuery({
-    queryKey: ["sessions", studentId, subject],
+    queryKey: ["subj", "sessions", studentId, subject],
     queryFn: () => api.listSessions({ studentId, subject }),
+    enabled: FEATURES.subjectTeacher,
   });
-  const students = useQuery({ queryKey: ["subject-students", classId, subject], queryFn: () => api.listSubjectStudents(classId, subject) });
+  const students = useQuery({ queryKey: ["subject-students", classId, subject], queryFn: () => api.listSubjectStudents(classId, subject), enabled: FEATURES.subjectTeacher });
   const student = students.data?.find((s) => s.id === studentId);
   const [openId, setOpenId] = useState<string | null>(null);
 
   // 열람 기록은 이 화면을 열 때 한 번만 (StrictMode 이중 실행에도 ref로 막는다). 실패하면 다음에 열 때 다시 시도
-  const logged = useRef(false);
+  const logged = useRef<string | null>(null);
   useEffect(() => {
-    if (logged.current) return;
-    logged.current = true;
+    const key = `${studentId}|${subject}`;
+    if (!FEATURES.subjectTeacher || logged.current === key) return;
+    logged.current = key;
     api.logStudentView(studentId, subject).catch(() => {
-      logged.current = false;
+      if (logged.current === key) logged.current = null;
     });
   }, [studentId, subject]);
 
@@ -44,8 +47,9 @@ export function SubjectStudentPage() {
       </p>
 
       {sessions.isLoading && <Spinner />}
-      {sessions.error && <ErrorState error={sessions.error} onRetry={() => sessions.refetch()} />}
+      {sessions.error && <ErrorState error={sessions.error} onRetry={isRetryable(sessions.error) ? () => sessions.refetch() : undefined} />}
       {sessions.data?.length === 0 && <EmptyState title={`열람할 ${subject} 학습 기록이 없어요`}>학생이 동의하지 않았거나 이번 학기 기록이 없어요.</EmptyState>}
+      {sessions.data && sessions.data.length > 0 && <h2 className="sr-only">{subject} 학습 목록</h2>}
       {sessions.data && sessions.data.length > 0 && (
         <ul className="subj-sessions" aria-label={`${subject} 학습 목록`}>
           {sessions.data.map((s) => (
@@ -74,16 +78,16 @@ export function SubjectStudentPage() {
 }
 
 function SessionBody({ session }: { session: LearningSession }) {
-  const entries = useQuery({ queryKey: ["entries", session.id], queryFn: () => api.listEntries(session.id) });
-  const refl = useQuery({ queryKey: ["reflection", session.id], queryFn: () => api.getReflection(session.id) });
-  const fb = useQuery({ queryKey: ["feedback", session.id], queryFn: () => api.listFeedback(session.id) });
+  const entries = useQuery({ queryKey: ["subj", "entries", session.id], queryFn: () => api.listEntries(session.id) });
+  const refl = useQuery({ queryKey: ["subj", "reflection", session.id], queryFn: () => api.getReflection(session.id) });
+  const fb = useQuery({ queryKey: ["subj", "feedback", session.id], queryFn: () => api.listFeedback(session.id) });
   const r = refl.data;
   return (
     <>
       <section aria-label="공개된 기록">
         <h3 className="subj-sub">공개된 기록</h3>
         {entries.isLoading && <Spinner />}
-        {entries.error && <ErrorState error={entries.error} onRetry={() => entries.refetch()} />}
+        {entries.error && <ErrorState error={entries.error} onRetry={isRetryable(entries.error) ? () => entries.refetch() : undefined} />}
         {entries.data?.length === 0 && <p className="subj-empty">공개된 기록이 없어요</p>}
         {entries.data && entries.data.length > 0 && (
           <ol className="subj-entries">
@@ -101,7 +105,7 @@ function SessionBody({ session }: { session: LearningSession }) {
       <section aria-label="돌아보기">
         <h3 className="subj-sub">돌아보기</h3>
         {refl.isLoading && <Spinner />}
-        {refl.error && <ErrorState error={refl.error} onRetry={() => refl.refetch()} />}
+        {refl.error && <ErrorState error={refl.error} onRetry={isRetryable(refl.error) ? () => refl.refetch() : undefined} />}
         {!refl.isLoading && !refl.error && !r && <p className="subj-empty">아직 돌아보기를 하지 않았어요</p>}
         {r && (
           <div>
@@ -134,7 +138,7 @@ function SessionBody({ session }: { session: LearningSession }) {
       <section aria-label="피드백">
         <h3 className="subj-sub">선생님 피드백</h3>
         {fb.isLoading && <Spinner />}
-        {fb.error && <ErrorState error={fb.error} onRetry={() => fb.refetch()} />}
+        {fb.error && <ErrorState error={fb.error} onRetry={isRetryable(fb.error) ? () => fb.refetch() : undefined} />}
         {fb.data?.length === 0 && <p className="subj-empty">아직 피드백이 없어요</p>}
         {fb.data?.map((f) => (
           <div key={f.id} className="feedback">
@@ -155,14 +159,15 @@ function FeedbackInput({ sessionId }: { sessionId: string }) {
   const add = useMutation({
     mutationFn: (content: string) => api.addFeedback(sessionId, content),
     onMutate: () => setText(""),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["feedback", sessionId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["subj", "feedback", sessionId] }),
     onError: (_e, sent) => setText((cur) => cur || sent),
   });
   const id = `subj-fb-${sessionId}`;
   return (
     <div className="feedback-compose">
-      <label htmlFor={id}>
-        <h3>피드백 남기기</h3>
+      <h3>피드백 남기기</h3>
+      <label htmlFor={id} className="sr-only">
+        피드백 내용
       </label>
       <textarea id={id} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} rows={3} placeholder="학생의 기록에 답해 주세요" />
       {add.error && <ErrorState error={add.error} />}

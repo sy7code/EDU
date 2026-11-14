@@ -362,6 +362,39 @@ export function createSeed(now: Date): Db {
     }
   }
 
+  // 교과 교사 집계 데모: 이번 주 3반 수학 '이차함수 꼭짓점' 테스트 (AI 질문 난수 뒤에 붙여 기존 시드 값은 그대로)
+  // s03·s05는 0문항, s01은 1문항(다시 볼 후보), s06은 4/5, s02(교과 공유 미동의)도 낮지만 집계에 들어가면 안 된다
+  const vertex = TOPIC_DICTIONARY.find((d) => d.key === "quadratic-vertex")!;
+  const vertexId = "topic-c1-" + vertex.key;
+  const vertexPool = topicQuestions.filter((x) => x.topicId === vertexId);
+  const vertexQs = [...vertexPool.filter((x) => x.level === "CONCEPT").slice(0, 3), ...vertexPool.filter((x) => x.level === "APPLY").slice(0, 2)];
+  const vertexRuns: Array<{ studentId: string; correctIdx: number[] }> = [
+    { studentId: "s03", correctIdx: [] },
+    { studentId: "s05", correctIdx: [] },
+    { studentId: "s02", correctIdx: [] },
+    { studentId: "s06", correctIdx: [0, 1, 2, 3] },
+    { studentId: "s01", correctIdx: [0] },
+  ];
+  vertexRuns.forEach((v, order) => {
+    // 월요일 새벽에 만들어도 [주 시작, 지금] 안에 들어가게 구간을 나눠 배치한다 (뒤쪽일수록 최근, s01이 마지막)
+    const span = Math.max(0, now.getTime() - (weekStartMs + 60_000));
+    const frac = (order + 1) / (vertexRuns.length + 1);
+    const start = new Date(Math.min(now.getTime(), weekStartMs + 60_000 + span * frac * 0.9));
+    const end = new Date(Math.min(start.getTime() + Math.min(30 * 60000, span * 0.05), now.getTime()));
+    const sid = nextId("sess");
+    sessions.push({ id: sid, studentId: v.studentId, goal: { subject: "수학", activities: ["problem"] }, startedAt: iso(start), endedAt: iso(end), startAuth: "FACEPASS", endAuth: "FACEPASS", status: "ENDED", durationMinutes: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)) });
+    const evId = nextId("entry");
+    entries.push({ id: evId, sessionId: sid, kind: "MEMO", content: "꼭짓점 구하는 방법 정리", visibility: "TEACHER", createdAt: iso(end) });
+    reflections.push({ sessionId: sid, checks: ["goal_done"], understanding: 2, remainingQuestions: [], updatedAt: iso(end) });
+    sessionTopics[sid] = [{ topicId: vertexId, name: vertex.name, subject: "수학", evidenceIds: [evId] }];
+    const items = vertexQs.map((x, i) => {
+      const ok = v.correctIdx.includes(i);
+      const chosen = ok ? x.answerIndex : (x.answerIndex + 1) % x.choices.length;
+      return { questionId: x.id, prompt: x.prompt, choices: [...x.choices], chosen, answerIndex: x.answerIndex, correct: ok, explanation: x.explanation, reported: false };
+    });
+    quizAttempts.push({ id: nextId("quiz"), sessionId: sid, topicId: vertexId, studentId: v.studentId, correct: items.filter((i) => i.correct).length, total: items.length, createdAt: iso(end), items });
+  });
+
   return {
     users,
     assignments,

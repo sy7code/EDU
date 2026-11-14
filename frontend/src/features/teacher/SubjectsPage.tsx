@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api, FEATURES } from "../../api";
+import { isRetryable } from "../../lib/retryable";
 import { Badge, EmptyState, ErrorState, Spinner } from "../../components/ui";
 import { classLabel } from "../../lib/classLabel";
 import type { SubjectWeekSummary, TeacherAssignment } from "../../types/domain";
@@ -23,7 +24,7 @@ export function SubjectsPage() {
       <p className="subj-lead">이번 주 학습을 반·과목별로 모아 보여요. 학생이 '교사 공개'와 교과 공개에 동의한 기록만 집계돼요.</p>
       {!FEATURES.subjectTeacher && <EmptyState title="아직 쓸 수 없는 기능이에요">교과 선생님 화면은 준비 중이에요.</EmptyState>}
       {FEATURES.subjectTeacher && asg.isLoading && <Spinner />}
-      {asg.error && <ErrorState error={asg.error} onRetry={() => asg.refetch()} />}
+      {asg.error && <ErrorState error={asg.error} onRetry={isRetryable(asg.error) ? () => asg.refetch() : undefined} />}
       {asg.data?.length === 0 && <EmptyState title="맡은 과목이 없어요">이번 학기에 배정된 반·과목이 없어요.</EmptyState>}
       <div className="subj-card-grid">
         {asg.data?.map((a) => <AssignmentCard key={`${a.classId}/${a.subject}`} a={a} />)}
@@ -33,7 +34,7 @@ export function SubjectsPage() {
 }
 
 function AssignmentCard({ a }: { a: TeacherAssignment }) {
-  const q = useQuery({ queryKey: ["subject-summary", a.classId, a.subject], queryFn: () => api.getSubjectSummary(a.classId, a.subject) });
+  const q = useQuery({ queryKey: ["subject-summary", a.classId, a.subject], queryFn: () => api.getSubjectSummary(a.classId, a.subject), enabled: FEATURES.subjectTeacher });
   const title = `${classLabel(a.classId)} ${a.subject}`;
   const to = `/teacher/subjects/${a.classId}/${encodeURIComponent(a.subject)}`;
   const s = q.data;
@@ -45,7 +46,7 @@ function AssignmentCard({ a }: { a: TeacherAssignment }) {
         <Link to={to}>{title}</Link>
       </h2>
       {q.isLoading && <Spinner />}
-      {q.error && <ErrorState error={q.error} onRetry={() => q.refetch()} />}
+      {q.error && <ErrorState error={q.error} onRetry={isRetryable(q.error) ? () => q.refetch() : undefined} />}
       {s?.few && <Badge tone="stone">이번 주 기록 적음</Badge>}
       {s && !s.few && (
         <>

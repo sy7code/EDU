@@ -4,6 +4,7 @@ import { createSeed } from "./mockData";
 import { TOPIC_DICTIONARY } from "./mockTopicData";
 import { ApiError, type Api } from "./types";
 import type { SessionGoal } from "../types/domain";
+import { reviewTopicsBySubject } from "../lib/reviewTopics";
 
 const DEVICE = "kiosk-test";
 const GOAL: SessionGoal = { subject: "수학", activities: ["concept"] };
@@ -1427,6 +1428,26 @@ describe("교과 교사", () => {
       await api.login(t);
       await expectCode(api.getReviewInputs("s01"), "FORBIDDEN");
     }
+  });
+
+  it("시드: 수학 교과 교사 3반 집계에 다시 볼 후보와 많이 틀린 문항이 있다", async () => {
+    await api.login("t3");
+    const sum = await api.getSubjectSummary("c1", "수학");
+    expect(sum.few).toBe(false);
+    const t = sum.topics.find((x) => x.name === "이차함수 꼭짓점");
+    expect(t).toBeTruthy();
+    // 교과 공유 미동의 s02는 세지 않는다: 낮은 응시는 s01·s03·s05 3명
+    expect(t!.reviewCount).toBe(3);
+    expect(sum.hardQuestions.length).toBeGreaterThan(0);
+    const students = await api.listSubjectStudents("c1", "수학");
+    expect(students.some((x) => x.id === "s02")).toBe(false);
+  });
+
+  it("시드: 김가온 다시 볼 주제에 수학 - 이차함수 꼭짓점", async () => {
+    await api.login("s01");
+    const groups = reviewTopicsBySubject(await api.getReviewInputs("s01"));
+    const math = groups.find((g) => g.subject === "수학");
+    expect(math?.topics.map((x) => x.name)).toContain("이차함수 꼭짓점");
   });
 
   it("월요일 새벽에 만든 시드도 종료·기록 시각이 지금을 넘지 않는다", () => {

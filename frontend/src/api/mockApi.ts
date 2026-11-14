@@ -50,7 +50,7 @@ export type MockOptions = {
 export const MOCK_FAIL_KEY = "growth-pace-mock-fail-next";
 /** mock 전용: 이 키에 밀리초를 넣으면 다음 테스트 출제(getQuiz) 한 번이 그만큼 늦게 끝남 (대기 문구 확인용, 최대 30초) */
 export const MOCK_SLOW_KEY = "growth-pace-mock-slow-next";
-export const STORAGE_KEY = "growth-pace-mock-db-v7"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
+export const STORAGE_KEY = "growth-pace-mock-db-v8"; // 가짜 데이터만 저장 (구조 바뀌면 버전 올림)
 export const SESSION_USER_KEY = "growth-pace-mock-user";
 const AUTH_EVENT_TTL_MS = 120_000;
 const QR_TTL_MS = 60_000;
