@@ -83,7 +83,8 @@ export function SessionPage() {
           <div>
             <small className="live-meta">{formatTime(s.startedAt)} 시작 · 오늘의 목표</small>
             <h2>{goalLabel(s.goal)}</h2>
-            {s.goal.note && <p className="live-note">{s.goal.note}</p>}
+            {/* goalLabel이 이미 메모(오늘 할 것)를 담으면 다시 쓰지 않는다 */}
+            {s.goal.note && !goalLabel(s.goal).includes(s.goal.note) && <p className="live-note">{s.goal.note}</p>}
           </div>
         </div>
         <div className="timer" role="timer" aria-label="경과 시간">
