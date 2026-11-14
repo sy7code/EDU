@@ -91,6 +91,10 @@
 /* AI 도우미: 위 학습 바(901px~ 기준 top 16px, 높이 약 90px) 아래에 붙고, 화면 높이 안에서 대화만 스크롤.
    900px 이하는 아래에서 position: static이라 top은 넓은 화면에서만 쓰인다 */
 .study-layout > .ai-card { top: 124px; display: flex; flex-direction: column; max-height: calc(100vh - 140px); }
+/* 넓은 화면: 왼쪽(입력 + 오늘의 기록) 높이만큼 늘어나고, 화면보다 길면 위 max-height에서 멈춘다 */
+@media (min-width: 901px) {
+  .study-layout > .ai-card { align-self: stretch; }
+}
 .study-layout > .ai-card .ai-messages { flex: 1 1 auto; min-height: 120px; max-height: none; }
 @media (max-width: 900px) {
   .study-layout { display: grid; grid-template-columns: 1fr; grid-template-areas: "composer" "ai" "records"; grid-template-rows: auto; gap: 16px; }
