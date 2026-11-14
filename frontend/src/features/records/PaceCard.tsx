@@ -4,10 +4,23 @@ import { api } from "../../api";
 import { ErrorState, Spinner } from "../../components/ui";
 import { PACE_MAX, PACE_PART_LABELS, paceFeedback, paceTrend, weekSeries, type PaceDay, type PaceParts } from "../../lib/pace";
 
-const NOTE = "Pace 지수는 내 평소 기록과 비교한 참고 점수예요. 성적에 들어가지 않아요. '나만 보기' 기록은 점수에 들어가지 않아요.";
+const NOTE = {
+  student: "Pace 지수는 내 평소 기록과 비교한 참고 점수예요. 성적에 들어가지 않아요. '나만 보기' 기록은 점수에 들어가지 않아요.",
+  teacher: "Pace 지수는 이 학생의 평소 기록과 비교한 참고 점수예요. 반 친구와 비교하지 않고 성적에 들어가지 않아요. 학생이 '나만 보기'로 남긴 기록은 점수에 들어가지 않아요.",
+};
 
 /** 학생 홈·교사 학생 상세가 함께 쓰는 Pace 지수 카드. shared=false면 내용을 불러오지 않는다 */
-export function PaceCard({ studentId, title, shared = true }: { studentId: string | undefined; title: string; shared?: boolean }) {
+export function PaceCard({
+  studentId,
+  title,
+  shared = true,
+  viewer = "student",
+}: {
+  studentId: string | undefined;
+  title: string;
+  shared?: boolean;
+  viewer?: "student" | "teacher";
+}) {
   const q = useQuery({
     queryKey: ["pace", studentId],
     queryFn: () => api.getPaceInputs(studentId!),
@@ -31,7 +44,7 @@ export function PaceCard({ studentId, title, shared = true }: { studentId: strin
       ) : q.data ? (
         <PaceBody series={weekSeries(q.data)} />
       ) : null}
-      <p className="pace-note">{NOTE}</p>
+      <p className="pace-note">{NOTE[viewer]}</p>
     </section>
   );
 }

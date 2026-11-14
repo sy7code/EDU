@@ -1156,13 +1156,12 @@ describe("Pace 지수 원자료", () => {
     expect(r.entries.some((e) => e.content.startsWith("나만 볼"))).toBe(false);
   });
 
-  it("'나만 보기' 종이 기록은 점수에 들어가므로 보내되 내용은 비운다", async () => {
+  it("'나만 보기' 종이 기록은 점수에 넣지 않고 교사에게 보내지도 않는다 (개수도 드러나지 않게)", async () => {
     const s = await startAs("s01");
     await api.addEntry({ sessionId: s.id, kind: "PAPER", content: "종이에 쓴 비밀 내용", visibility: "PRIVATE" });
     await api.login("t1");
     const paper = (await api.getPaceInputs("s01")).entries.filter((e) => e.sessionId === s.id && e.kind === "PAPER");
-    expect(paper).toHaveLength(1);
-    expect(paper[0].content).toBe("");
+    expect(paper).toHaveLength(0);
   });
 
   it("기록 공유 미동의 학생을 교사가 보면 shared=false, 배열은 빈 값", async () => {

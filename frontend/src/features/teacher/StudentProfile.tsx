@@ -54,7 +54,7 @@ export function ProfileSummary({ studentId }: { studentId: string }) {
           types: st.types,
         }}
       />
-      <PaceCard studentId={studentId} shared={st.shared} title="Pace 성장 그래프" />
+      <PaceCard studentId={studentId} shared={st.shared} title="Pace 성장 그래프" viewer="teacher" />
       <div className="teacher-stats four">
         <Compare icon="book" label="학습 횟수" value={st.sessionCount} avg={avg(summary.students.map((s) => s.sessionCount))} format={(v) => (v === null ? "-" : `${Math.round(v * 10) / 10}회`)} />
         <Compare icon="clock" label="학습 시간" value={st.minutes} avg={summary.minutes.mean} format={minutesText} />

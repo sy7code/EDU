@@ -54,11 +54,12 @@ function priorDays(days: Map<string, LearningSession[]>, date: string): Learning
     .map(([, list]) => list);
 }
 
-/** 의미 있는 기록: 10자 이상 공개 메모·궁금한 점, 또는 종이 기록. '나만 보기' 메모·질문은 세지 않음 */
+/** 의미 있는 기록: 교사 공개인 10자 이상 메모·궁금한 점, 또는 교사 공개 종이 기록. '나만 보기'는 종류와 관계없이 세지 않음 */
 export function isMeaningfulEntry(e: LearningEntry): boolean {
+  if (e.visibility !== "TEACHER") return false;
   if (e.kind === "PAPER") return true;
   if (e.kind !== "MEMO" && e.kind !== "QUESTION") return false;
-  return e.visibility === "TEACHER" && e.content.trim().length >= 10;
+  return e.content.trim().length >= 10;
 }
 
 function reflectionScore(r: Reflection): number {
@@ -66,11 +67,9 @@ function reflectionScore(r: Reflection): number {
   return 6 + (r.checks.length >= 2 ? 6 : 0) + (hasText ? 8 : 0);
 }
 
-/** 서버에서 내보낼 기록: '나만 보기' 메모·질문은 빼고, '나만 보기' 종이 기록은 내용을 비운다(개수만 점수에 쓰임) */
+/** 내보낼 기록: 교사 공개 기록만. '나만 보기'는 내용도 개수도 교사에게 드러나지 않게 아예 뺀다 (사용자 결정 안 A) */
 export function paceVisibleEntries(entries: LearningEntry[]): LearningEntry[] {
-  return entries
-    .filter((e) => e.kind === "PAPER" || e.visibility === "TEACHER")
-    .map((e) => (e.visibility === "PRIVATE" ? { ...e, content: "" } : { ...e }));
+  return entries.filter((e) => e.visibility === "TEACHER").map((e) => ({ ...e }));
 }
 
 export function computeDailyPace(inputs: PaceInputs, date: string, now: Date = new Date()): DailyPace | null {

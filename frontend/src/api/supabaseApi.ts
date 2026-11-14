@@ -325,7 +325,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       // RPC엔 전체 횟수·시간이 없어 세션 view로 계산 (교사는 동의와 무관하게 세션 시간은 봄)
       const rows = ok(await sb.from("v_sessions").select("durationMinutes").eq("studentId", studentId)) as Row[];
       const total = { sessions: rows.length, minutes: rows.reduce((n, r) => n + ((r.durationMinutes as number) ?? 0), 0) };
-      return { studentId, shared: raw?.shared !== false, topics: raw?.shared === false ? [] : (raw?.topics ?? []), total };
+      // 교사가 볼 때는 shared === true일 때만 공유로 본다 (값이 없거나 이상하면 비공개, fail-closed). 학생 본인은 자기 기록이라 그대로
+      const u = await requireMe();
+      const shared = u.role === "teacher" ? isShared(raw?.shared) : raw?.shared !== false;
+      return { studentId, shared, topics: shared ? (raw?.topics ?? []) : [], total };
     },
     // Pace 지수: 기존 view로 읽어 프론트에서 계산 (백엔드 변경 없음). 권한은 view RLS가 막는다
     getPaceInputs: async (studentId) => {
@@ -333,7 +336,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       if (u.role === "student" && u.id !== studentId) throw new ApiError("NOT_FOUND");
       if (u.role === "teacher") {
         const raw = ok(await sb.rpc("student_topic_growth", { p_student_id: studentId })) as { shared?: boolean } | null;
-        if (raw?.shared === false) return { shared: false, sessions: [], entries: [], reflections: [], attempts: [] };
+        // shared === true일 때만 공유로 본다 (값이 없거나 이상하면 비공개, fail-closed)
+        if (!isShared(raw?.shared)) return { shared: false, sessions: [], entries: [], reflections: [], attempts: [] };
       }
       const sessions = (await fetchAllPages(async (a, b) => ok(await sb.from("v_sessions").select().eq("studentId", studentId).order("id").range(a, b)) as Row[])).map(mapSession);
       const ids = sessions.map((x) => x.id);

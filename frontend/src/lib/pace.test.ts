@@ -45,14 +45,15 @@ describe("computeDailyPace 평소 학습 시간", () => {
 });
 
 describe("computeDailyPace 과정 기록", () => {
-  it("10자 이상 공개 메모·질문과 종이 기록만 센다 (평소 기준 2개): 나만 보기·짧은 글·퀴즈 제외", () => {
+  it("10자 이상 공개 메모·질문과 공개 종이 기록만 센다 (평소 기준 2개): 나만 보기(종이 포함)·짧은 글·퀴즈 제외", () => {
     const s = session("2026-11-14", 30);
     const one = [entry(s, "MEMO", LONG)];
     const counted = [
       entry(s, "QUESTION", LONG),
-      entry(s, "PAPER", "짧음", "PRIVATE"),
+      entry(s, "PAPER", "짧음"),
     ];
     const ignored = [
+      entry(s, "PAPER", "짧음", "PRIVATE"),
       entry(s, "MEMO", LONG, "PRIVATE"),
       entry(s, "QUESTION", LONG, "PRIVATE"),
       entry(s, "MEMO", "  짧은 메모      "),
