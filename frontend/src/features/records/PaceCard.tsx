@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api";
+import { useConsents } from "../../auth/session";
 import { ErrorState, Spinner } from "../../components/ui";
 import { PACE_MAX, PACE_PART_LABELS, paceFeedback, paceTrend, weekSeries, type PaceDay, type PaceParts } from "../../lib/pace";
 
@@ -25,7 +26,12 @@ export function PaceCard({
     queryKey: ["pace", studentId],
     queryFn: () => api.getPaceInputs(studentId!),
     enabled: !!studentId && shared,
+    staleTime: 60_000,
   });
+  const series = useMemo(() => (q.data?.shared ? weekSeries(q.data) : null), [q.data]);
+  // 학생 본인: 기록 공유에 동의하지 않았으면 모든 기록이 '나만 보기'라 과정 기록 점수가 0인 이유를 알려 준다
+  const consents = useConsents(viewer === "student");
+  const noShareConsent = viewer === "student" && !!consents.data && !consents.data.some((c) => c.kind === "LEARNING_RECORD" && c.granted);
   return (
     <section className="card pace-card" aria-label={title}>
       <div className="pace-head">
@@ -33,7 +39,7 @@ export function PaceCard({
           <h2>{title}</h2>
           <p>이번 주 월~금 Pace 지수 (하루 100점)</p>
         </div>
-        {shared && q.data?.shared && <TrendChip series={weekSeries(q.data)} />}
+        {shared && series && <TrendChip series={series} />}
       </div>
       {!shared || q.data?.shared === false ? (
         <p className="pace-empty">기록 공유에 동의하지 않아 Pace 지수는 보이지 않아요.</p>
@@ -41,9 +47,12 @@ export function PaceCard({
         <Spinner label="Pace 지수를 계산하는 중" />
       ) : q.error ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
-      ) : q.data ? (
-        <PaceBody series={weekSeries(q.data)} />
+      ) : series ? (
+        <PaceBody series={series} />
       ) : null}
+      {noShareConsent && (
+        <p className="pace-note">기록 공유에 동의하지 않아 기록이 모두 '나만 보기'로 저장돼요. 그래서 학습 과정 기록 점수가 0이에요.</p>
+      )}
       <p className="pace-note">{NOTE[viewer]}</p>
     </section>
   );

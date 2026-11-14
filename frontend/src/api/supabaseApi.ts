@@ -16,11 +16,11 @@ import type {
   Student,
   User,
 } from "../types/domain";
-import { buildAnalyticsRaw, chunk, normalizeReportedQuestion, toReportOutcome, rowToAuditLog, rowToFeedback, consentRows, fetchAllPages, isShared, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
+import { buildAnalyticsRaw, chunk, normalizeReportedQuestion, toReportOutcome, rowToAuditLog, rowToFeedback, consentRows, fetchAllPages, isShared, goalToText, latestConsents, pickQuizQuestions, mapDashboard, mapFnError, mapPgError, realtimeStatus, rowToReflection, rowToUser, textToGoal, toGrounded } from "./supabaseMappers";
 
 const POLICY_VERSION = "2026-11-v1";
 import { ApiError, type Api } from "./types";
-import { paceVisibleEntries } from "../lib/pace";
+import { paceSince, paceVisibleEntries } from "../lib/pace";
 
 type Row = Record<string, unknown>;
 
@@ -118,13 +118,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
   }
 
   /** 세션 ID로 100개씩 나눠 조회 (URL 길이). 돌아보기는 세션당 하나라 sessionId 정렬로 충분, 나머지는 id로 경계 고정 */
-  async function rowsBySessions(view: string, sessionIds: string[]): Promise<Row[]> {
+  async function rowsBySessions(view: string, sessionIds: string[], opts: { columns?: string; eq?: Record<string, string> } = {}): Promise<Row[]> {
     const out: Row[] = [];
     for (const part of chunk(sessionIds, 100)) {
       out.push(
         ...(await fetchAllPages(async (a, b) => {
-          const q = sb.from(view).select().in("sessionId", part).order("sessionId");
-          return ok(await (view === "v_reflections" ? q : q.order("id")).range(a, b)) as Row[];
+          // eq: 서버에서 거르는 조건 (예: Pace는 교사 공개 기록만). columns: 필요한 컬럼만
+          const base = sb.from(view).select(opts.columns).in("sessionId", part);
+          const filtered = Object.entries(opts.eq ?? {}).reduce((q, [k, v]) => q.eq(k, v), base);
+          const q = filtered.order("sessionId");
+          return ok(await (view === "v_reflections" ? q : q.order("id")).range(a, b)) as unknown as Row[];
         })),
       );
     }
@@ -232,13 +235,21 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const rows = ok(await sb.from("v_entries").select().eq("sessionId", sessionId).order("createdAt")) as Row[];
       return rows.map(mapEntry);
     },
-    subscribeEntries: (sessionId, onChange) => {
+    subscribeEntries: (sessionId, onChange, onStatus) => {
       // RLS가 적용된 Realtime: 볼 수 있는 행의 INSERT만 온다. 내용은 쓰지 않고 다시 불러오는 신호로만 쓴다
+      let subscribed = false;
+      let removed = false;
       const ch = sb
         .channel(`entries:${sessionId}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "entries", filter: `session_id=eq.${sessionId}` }, () => onChange())
-        .subscribe();
+        .subscribe((status) => {
+          if (removed) return; // 우리가 해제해서 닫힌 건 알리지 않음
+          const s = realtimeStatus(status, subscribed);
+          if (status === "SUBSCRIBED") subscribed = true;
+          if (s) onStatus?.(s);
+        });
       return () => {
+        removed = true;
         void sb.removeChannel(ch);
       };
     },
@@ -353,12 +364,18 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
         // shared === true일 때만 공유로 본다 (값이 없거나 이상하면 비공개, fail-closed)
         if (!isShared(raw?.shared)) return { shared: false, sessions: [], entries: [], reflections: [], attempts: [] };
       }
-      const sessions = (await fetchAllPages(async (a, b) => ok(await sb.from("v_sessions").select().eq("studentId", studentId).order("id").range(a, b)) as Row[])).map(mapSession);
+      // 이번 주 월요일의 평소(이전 28일)까지만 읽는다
+      const since = paceSince(new Date());
+      const sessions = (
+        await fetchAllPages(async (a, b) => ok(await sb.from("v_sessions").select().eq("studentId", studentId).gte("startedAt", since).order("id").range(a, b)) as Row[])
+      ).map(mapSession);
       const ids = sessions.map((x) => x.id);
+      // '나만 보기'는 점수에 안 들어가므로 서버에서부터 받지 않는다 (학생·교사 모두). 아래 paceVisibleEntries는 한 번 더 거르는 안전망
       const [entryRows, reflRows, attemptRows] = await Promise.all([
-        rowsBySessions("v_entries", ids),
-        rowsBySessions("v_reflections", ids),
-        rowsBySessions("v_quiz_attempts", ids),
+        rowsBySessions("v_entries", ids, { eq: { visibility: "TEACHER" } }),
+        // changed: 예전 형식 돌아보기를 rowToReflection이 읽을 때 필요
+        rowsBySessions("v_reflections", ids, { columns: "sessionId,checks,understanding,remainingQuestions,note,changed" }),
+        rowsBySessions("v_quiz_attempts", ids, { columns: "id,sessionId,correct,total,createdAt" }),
       ]);
       return {
         shared: true,

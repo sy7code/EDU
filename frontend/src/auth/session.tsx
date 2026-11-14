@@ -37,7 +37,8 @@ export function RequireRole({ role }: { role: Role }) {
   if (role === "student") {
     if (consents.isLoading) return <Spinner />;
     const decided = (consents.data ?? []).length > 0;
-    if (!decided && loc.pathname !== "/student/consent") return <Navigate to="/student/consent" replace />;
+    // 동의 뒤 원래 화면으로 돌아오게 주소를 넘긴다
+    if (!decided && loc.pathname !== "/student/consent") return <Navigate to="/student/consent" replace state={{ from: loc.pathname + loc.search }} />;
   }
   return <Outlet />;
 }

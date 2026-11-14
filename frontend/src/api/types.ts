@@ -82,6 +82,9 @@ export function errorMessage(err: unknown): string {
   return map[code];
 }
 
+/** 실시간 기록 구독 상태 */
+export type RealtimeStatus = "ok" | "unavailable";
+
 export type PaceInputsResult = {
   shared: boolean;
   sessions: LearningSession[];
@@ -129,8 +132,9 @@ export interface Api {
   // 기록
   addEntry(input: { sessionId: string; kind: EntryKind; content: string; visibility: Visibility }): Promise<LearningEntry>;
   listEntries(sessionId: string): Promise<LearningEntry[]>;
-  /** 이 세션에 새 기록이 들어오면 onChange 호출 (실서비스: Realtime, mock: 아무것도 안 함). 돌려준 함수로 구독 해제 */
-  subscribeEntries(sessionId: string, onChange: () => void): () => void;
+  /** 이 세션에 새 기록이 들어오면 onChange 호출 (실서비스: Realtime, mock: 아무것도 안 함). 돌려준 함수로 구독 해제.
+   *  onStatus: 실시간 연결이 되면 "ok", 안 되면 "unavailable" (화면은 그때 주기적으로 다시 불러온다). mock은 부르지 않음 */
+  subscribeEntries(sessionId: string, onChange: () => void, onStatus?: (status: RealtimeStatus) => void): () => void;
   /** 학생 본인: 내 모든 세션의 기록(비공개 포함)과 돌아보기 ('내 정리' 탭) */
   listMyNotes(): Promise<{ sessions: LearningSession[]; entries: LearningEntry[]; reflections: Reflection[] }>;
 

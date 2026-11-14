@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LearningEntry, LearningSession, Reflection } from "../types/domain";
-import { computeDailyPace, paceFeedback, paceTrend, weekDates, weekSeries, type PaceAttempt, type PaceDay, type PaceInputs } from "./pace";
+import { computeDailyPace, isMeaningfulEntry, paceFeedback, paceSince, paceTrend, weekDates, weekSeries, type PaceAttempt, type PaceDay, type PaceInputs } from "./pace";
 
 let n = 0;
 function session(date: string, minutes: number, hour = 15): LearningSession {
@@ -45,13 +45,13 @@ describe("computeDailyPace 평소 학습 시간", () => {
 });
 
 describe("computeDailyPace 과정 기록", () => {
-  it("10자 이상 공개 메모·질문과 공개 종이 기록만 센다 (평소 기준 2개): 나만 보기(종이 포함)·짧은 글·퀴즈 제외", () => {
+  it("10자 이상 공개 메모·질문과 공개 종이 기록만 센다: 나만 보기(종이 포함)·짧은 글·퀴즈 제외", () => {
+    // 평소 기준을 하루 10개로 올려 25점 상한에 걸리지 않게 한다. 제외 대상이 하나라도 세지면 점수가 달라진다
+    const prior = ["2026-11-03", "2026-11-04", "2026-11-05"].map((d) => session(d, 30));
+    const priorEntries = prior.flatMap((p) => Array.from({ length: 10 }, () => entry(p, "MEMO", LONG)));
     const s = session("2026-11-14", 30);
     const one = [entry(s, "MEMO", LONG)];
-    const counted = [
-      entry(s, "QUESTION", LONG),
-      entry(s, "PAPER", "짧음"),
-    ];
+    const counted = [entry(s, "QUESTION", LONG), entry(s, "PAPER", "짧음")];
     const ignored = [
       entry(s, "PAPER", "짧음", "PRIVATE"),
       entry(s, "MEMO", LONG, "PRIVATE"),
@@ -59,8 +59,14 @@ describe("computeDailyPace 과정 기록", () => {
       entry(s, "MEMO", "  짧은 메모      "),
       entry(s, "QUIZ", LONG),
     ];
-    expect(computeDailyPace(inputs({ sessions: [s], entries: [...one, ...ignored] }), "2026-11-14")?.parts.process).toBe(13);
-    expect(computeDailyPace(inputs({ sessions: [s], entries: [...one, ...counted, ...ignored] }), "2026-11-14")?.parts.process).toBe(25);
+    const process = (today: LearningEntry[]) =>
+      computeDailyPace(inputs({ sessions: [...prior, s], entries: [...priorEntries, ...today] }), "2026-11-14")?.parts.process;
+    expect(process(one)).toBe(3); // 1/10 × 25 = 2.5 → 3
+    expect(process([...one, ...ignored])).toBe(3); // 제외 대상 5개는 0개로 친다
+    expect(process([...one, ...counted])).toBe(8); // 3/10 × 25 = 7.5 → 8
+    expect(process([...one, ...counted, ...ignored])).toBe(8);
+    // 제외 대상 하나만 세져도 4/10 × 25 = 10이 되므로 위 단언이 깨진다
+    for (const e of ignored) expect(isMeaningfulEntry(e)).toBe(false);
   });
 
   it("이전 학습일 3일 이상이면 하루 평균 기록 수가 기준 (최소 2): 평균 4개에 2개 → 13", () => {
@@ -120,6 +126,26 @@ describe("weekDates", () => {
   });
 });
 
+describe("paceSince", () => {
+  it("이번 서울 주 월요일 0시에서 28일 전 (토·일·월 새벽도 같은 주)", () => {
+    const since = "2026-10-11T15:00:00.000Z"; // 2026-10-12 00:00 KST
+    expect(paceSince(new Date("2026-11-11T10:00:00+09:00"))).toBe(since);
+    expect(paceSince(new Date("2026-11-15T23:30:00+09:00"))).toBe(since);
+    expect(paceSince(new Date("2026-11-09T00:10:00+09:00"))).toBe(since);
+  });
+  it("그 시각 이후 세션만 있어도 월요일 평소 기준이 같다", () => {
+    const now = new Date("2026-11-14T10:00:00+09:00");
+    const prior = [session("2026-10-13", 60), session("2026-10-20", 60), session("2026-11-01", 60)];
+    const old = session("2026-10-11", 500);
+    const mon = session("2026-11-09", 30);
+    const all = weekSeries(inputs({ sessions: [old, ...prior, mon] }), now);
+    const since = Date.parse(paceSince(now));
+    const recent = [old, ...prior, mon].filter((s) => Date.parse(s.startedAt) >= since);
+    expect(recent).not.toContain(old);
+    expect(weekSeries(inputs({ sessions: recent }), now)).toEqual(all);
+  });
+});
+
 describe("weekSeries", () => {
   it("월~금 요일 이름과 점수, 학습 안 한 날은 null", () => {
     const mon = session("2026-11-09", 30);
@@ -169,5 +195,34 @@ describe("paceFeedback", () => {
     const sel = pace({ persistence: 5, process: 25, reflection: 20, goal: 30 });
     expect(paceFeedback([day("화", 80)], sel)).toBe("이번 주는 화요일에 Pace 지수 80점이었어요. 학습 시간이 평소보다 짧았어요. 조금 더 이어서 공부해 보세요.");
     expect(paceFeedback([day("월", null)], null)).toBe("이번 주 학습 기록이 아직 없어요. 학습을 시작하면 Pace 지수가 생겨요.");
+  });
+});
+
+describe("computeDailyPace 잘못된 입력", () => {
+  it("startedAt을 읽을 수 없는 세션은 건너뛴다 (오류 없이 나머지로 계산)", () => {
+    const ok = session("2026-11-14", 30);
+    const bad = { ...session("2026-11-14", 30), startedAt: "not-a-date" };
+    expect(computeDailyPace(inputs({ sessions: [bad, ok] }), "2026-11-14")?.parts.persistence).toBe(25);
+    expect(weekSeries(inputs({ sessions: [bad] }), new Date("2026-11-14T10:00:00+09:00")).every((d) => d.pace === null)).toBe(true);
+  });
+
+  it("학습 시간이 NaN이면 0분으로 친다 (같은 날 다른 세션 점수는 그대로)", () => {
+    const ok = session("2026-11-14", 15, 9);
+    const nanDuration = { ...session("2026-11-14", 30, 10), durationMinutes: Number.NaN };
+    const badEnd = { ...session("2026-11-14", 30, 11), durationMinutes: null, endedAt: "not-a-date" };
+    const p = computeDailyPace(inputs({ sessions: [ok, nanDuration, badEnd] }), "2026-11-14");
+    expect(p?.parts.persistence).toBe(13);
+    expect(p?.total).toBe(13);
+  });
+
+  it("정답률은 0~1로 자른다: correct > total이나 음수가 목표 30을 넘기지 못한다", () => {
+    const s = session("2026-11-14", 30);
+    const goalDone: Reflection = { sessionId: s.id, checks: ["goal_done", "x"], understanding: 2, remainingQuestions: ["왜?"] };
+    const att = (correct: number, total: number): PaceAttempt => ({ sessionId: s.id, correct, total, createdAt: s.startedAt });
+    const over = computeDailyPace(inputs({ sessions: [s], reflections: [goalDone], attempts: [att(50, 5)] }), "2026-11-14")!;
+    expect(over.parts.goal).toBe(30);
+    expect(over.total).toBe(25 + 0 + 20 + 30);
+    expect(computeDailyPace(inputs({ sessions: [s], attempts: [att(-5, 5)] }), "2026-11-14")?.parts.goal).toBe(0);
+    expect(computeDailyPace(inputs({ sessions: [s], attempts: [att(5, -5)] }), "2026-11-14")?.parts.goal).toBe(0);
   });
 });

@@ -30,19 +30,30 @@ function useTick(ms = 1000) {
 export function SessionPage() {
   const { id = "" } = useParams();
   const session = useQuery({ queryKey: ["session", id], queryFn: () => api.getSession(id) });
-  const entries = useQuery({ queryKey: ["entries", id], queryFn: () => api.listEntries(id) });
+  const active = session.data?.status === "ACTIVE";
+  // 실시간 연결이 안 되면 5초마다 다시 불러와 휴대폰에서 올린 기록을 보여 준다 (mock은 상태를 알리지 않아 폴링 없음)
+  const [realtimeDown, setRealtimeDown] = useState(false);
+  const entries = useQuery({
+    queryKey: ["entries", id],
+    queryFn: () => api.listEntries(id),
+    refetchInterval: active && realtimeDown ? 5000 : false,
+  });
   const [params] = useSearchParams();
   const initialKind = composerKind(params.get("kind"));
   const qc = useQueryClient();
-  const active = session.data?.status === "ACTIVE";
   // 휴대폰에서 올린 기록이 PC 화면에 바로 보이게 (실서비스: Realtime, mock: 아무것도 안 함)
   useEffect(() => {
     if (!active) return;
+    setRealtimeDown(false);
     let unsub: unknown;
     try {
-      unsub = api.subscribeEntries(id, () => void qc.invalidateQueries({ queryKey: ["entries", id] }));
+      unsub = api.subscribeEntries(
+        id,
+        () => void qc.invalidateQueries({ queryKey: ["entries", id] }),
+        (status) => setRealtimeDown(status === "unavailable"),
+      );
     } catch {
-      /* 구독 실패해도 화면은 동작 (새로고침하면 보임) */
+      setRealtimeDown(true); // 구독을 못 하면 주기적으로 다시 불러온다
     }
     // 설정 누락 시 api는 모든 메서드가 Promise를 돌려주는 Proxy라 함수일 때만 해제
     if (unsub instanceof Promise) unsub.catch(() => {});
@@ -235,22 +246,41 @@ function PaperTools({ sessionId, onText }: { sessionId: string; onText: (text: s
 
 function PaperOcr({ sessionId, onText }: { sessionId: string; onText: (text: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  // 사진은 줄여서 글자 인식에만 보내고, 화면·저장소 어디에도 남기지 않는다
+  const [reading, setReading] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [announce, setAnnounce] = useState("");
+  // 사진은 줄여서 글자 인식에만 보내고, 화면·저장소 어디에도 남기지 않는다.
+  // 변환은 mutation 밖에서 하고 data URL만 넘긴다. 성공·실패 모두 reset, gcTime 0으로 캐시에도 남기지 않는다
   const ocr = useMutation({
-    mutationFn: async (file: File) => {
-      let image: string;
-      try {
-        image = await toJpegDataUrl(file);
-      } catch {
-        throw new PhotoReadError();
-      }
-      return api.ocrPaperPhoto(sessionId, image);
-    },
+    mutationFn: (image: string) => api.ocrPaperPhoto(sessionId, image),
+    gcTime: 0,
     onSuccess: (r) => {
       onText(r.text);
-      ocr.reset(); // 넘겨받은 사진 파일 참조도 비운다
+      setAnnounce("글자를 입력칸에 채웠어요. 고친 뒤 기록하세요.");
+      ocr.reset();
+    },
+    onError: (err) => {
+      setError(err);
+      ocr.reset();
     },
   });
+  const busy = reading || ocr.isPending;
+
+  async function readPhoto(file: File) {
+    setError(null);
+    setAnnounce("");
+    setReading(true);
+    let image: string;
+    try {
+      image = await toJpegDataUrl(file);
+    } catch {
+      setError(new PhotoReadError());
+      return;
+    } finally {
+      setReading(false);
+    }
+    ocr.mutate(image);
+  }
 
   return (
     <div className="paper-ocr">
@@ -263,30 +293,33 @@ function PaperOcr({ sessionId, onText }: { sessionId: string; onText: (text: str
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = ""; // 같은 사진을 다시 골라도 동작하게, 입력에 파일을 남기지 않게
-          if (f) ocr.mutate(f);
+          if (f) void readPhoto(f);
         }}
       />
-      <Button variant="secondary" disabled={ocr.isPending} onClick={() => fileRef.current?.click()}>
+      <Button variant="secondary" disabled={busy} onClick={() => fileRef.current?.click()}>
         사진으로 올리기
       </Button>
-      {ocr.isPending ? (
+      {busy ? (
         <p className="paper-wait" role="status">
           사진에서 글자를 읽는 중이에요 · 보통 5초쯤
         </p>
       ) : (
         <small className="paper-note">찍은 글자를 입력칸에 채워 줘요. 고친 뒤 기록하세요. 사진은 저장하지 않아요.</small>
       )}
-      {ocr.error &&
-        (ocr.error instanceof ApiError && ocr.error.code === "RATE_LIMITED" ? (
+      <p className="sr-only" aria-live="polite">
+        {announce}
+      </p>
+      {error != null &&
+        (error instanceof ApiError && error.code === "RATE_LIMITED" ? (
           <div className="paper-limit" role="alert">
             AI는 1분에 10번까지 쓸 수 있어요. 1분쯤 뒤에 다시 올려 주세요.
           </div>
-        ) : ocr.error instanceof PhotoReadError ? (
+        ) : error instanceof PhotoReadError ? (
           <div className="paper-limit" role="alert">
             사진을 열지 못했어요. 다른 사진으로 다시 해 보세요.
           </div>
         ) : (
-          <ErrorState error={ocr.error} />
+          <ErrorState error={error} />
         ))}
     </div>
   );

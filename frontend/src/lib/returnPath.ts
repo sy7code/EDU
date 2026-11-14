@@ -11,3 +11,11 @@ export function returnPath(from: unknown, role: Role): string {
   if (from !== home && !from.startsWith(`${home}/`) && !from.startsWith(`${home}?`)) return home;
   return from;
 }
+
+/** 동의 화면 저장 뒤 갈 곳. 처음 저장이면 동의 전에 가려던 학생 화면으로(동의 화면 자신은 제외), 아니면 학생 첫 화면 */
+export function afterConsentPath(from: unknown, firstSave: boolean): string {
+  if (!firstSave) return "/student";
+  const to = returnPath(from, "student");
+  const consent = "/student/consent";
+  return to === consent || to.startsWith(`${consent}?`) || to.startsWith(`${consent}/`) ? "/student" : to;
+}

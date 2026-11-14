@@ -9,7 +9,8 @@ export function fitWithin(width: number, height: number, maxSide = 1600): { widt
  * 원본·결과를 어디에도 저장하지 않는다. 읽기·그리기에 실패하면 reject.
  */
 export async function toJpegDataUrl(file: File, maxSide = 1600, quality = 0.8): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("not an image");
+  // 일부 기기·앱은 사진의 type을 비워서 준다. 비어 있으면 디코딩을 시도하고, 종류가 있는데 이미지가 아닐 때만 거절
+  if (file.type !== "" && !file.type.startsWith("image/")) throw new Error("not an image");
   // 휴대폰 사진의 회전 정보(EXIF)를 반영해서 그린다
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   try {

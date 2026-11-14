@@ -1,7 +1,7 @@
 // 프론트 형식 ↔ 백엔드(Supabase) 형식 변환. 순수 함수만 둔다.
 import { GOAL_ACTIVITIES, REFLECTION_ITEMS } from "../lib/checklists";
 import type { QuizReportOutcome, ReportedQuestion, AuditLog, ClassAnalyticsRaw, Feedback, Consent, ConsentKind, LearningSession, Dashboard, DashboardRow, GroundedItem, Reflection, SessionGoal, StudentQuizQuestion, User } from "../types/domain";
-import { ApiError, type ApiErrorCode } from "./types";
+import { ApiError, type ApiErrorCode, type RealtimeStatus } from "./types";
 
 const SEP = " | ";
 const GOAL_MAX = 200; // sessions.goal check (1~200자)
@@ -315,4 +315,12 @@ export function toReportOutcome(body: unknown): QuizReportOutcome {
 /** class_reported_questions 행 → ReportedQuestion. 새 필드가 없으면 기본값 */
 export function normalizeReportedQuestion(r: ReportedQuestion & Partial<Pick<ReportedQuestion, "aiReview" | "questionReportCount">>): ReportedQuestion {
   return { ...r, aiReview: r.aiReview ?? null, questionReportCount: typeof r.questionReportCount === "number" ? r.questionReportCount : null };
+}
+
+/** Realtime 구독 상태 → 화면이 쓸 상태. null이면 알리지 않음. 우리가 해제해서 닫힌 CLOSED는 부르는 쪽이 거른다 */
+export function realtimeStatus(status: string, wasSubscribed: boolean): RealtimeStatus | null {
+  if (status === "SUBSCRIBED") return "ok";
+  if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") return "unavailable";
+  if (status === "CLOSED" && !wasSubscribed) return "unavailable";
+  return null;
 }

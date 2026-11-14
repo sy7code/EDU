@@ -1152,7 +1152,7 @@ describe("Pace 지수 원자료", () => {
     const r = await api.getPaceInputs("s01");
     expect(r.shared).toBe(true);
     expect(r.sessions.length).toBeGreaterThan(0);
-    expect(r.entries.every((e) => e.visibility === "TEACHER" || e.kind === "PAPER")).toBe(true);
+    expect(r.entries.every((e) => e.visibility === "TEACHER")).toBe(true);
     expect(r.entries.some((e) => e.content.startsWith("나만 볼"))).toBe(false);
   });
 
@@ -1205,9 +1205,14 @@ describe("종이 사진 글자 인식 (mock)", () => {
   it("디코딩 크기가 2MB를 넘으면 VALIDATION, 2MB까지는 통과", async () => {
     const s = await startAs("s01");
     const MB2 = 2 * 1024 * 1024;
-    // base64 4글자 = 3바이트
-    const atLimit = "data:image/png;base64," + "A".repeat((MB2 / 3) * 4 - ((MB2 / 3) * 4) % 4);
-    const over = "data:image/png;base64," + "A".repeat(Math.ceil((MB2 + 3) / 3) * 4);
+    // base64 4글자 = 3바이트. 2MB = 3 × 699050 + 2 → 699051묶음(2796204글자), 마지막 묶음은 '=' 하나 → 정확히 2,097,152바이트
+    const b64Bytes = (b: string) => (b.length / 4) * 3 - (b.endsWith("==") ? 2 : b.endsWith("=") ? 1 : 0);
+    const atLimitB64 = "A".repeat(Math.ceil(MB2 / 3) * 4 - 1) + "=";
+    const overB64 = "A".repeat(((MB2 + 1) / 3) * 4); // 2MB + 1 = 3 × 699051, 패딩 없음
+    expect(b64Bytes(atLimitB64)).toBe(MB2);
+    expect(b64Bytes(overB64)).toBe(MB2 + 1);
+    const atLimit = "data:image/png;base64," + atLimitB64;
+    const over = "data:image/png;base64," + overB64;
     expect((await api.ocrPaperPhoto(s.id, atLimit)).text).not.toBe("");
     await expectCode(api.ocrPaperPhoto(s.id, over), "VALIDATION");
   });

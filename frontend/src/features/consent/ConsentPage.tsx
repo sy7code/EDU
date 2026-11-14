@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { api, FEATURES } from "../../api";
 import { useConsents, useMe } from "../../auth/session";
 import { Icon } from "../../components/Icon";
 import { Button, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import type { ConsentKind } from "../../types/domain";
+import { afterConsentPath } from "../../lib/returnPath";
 import { formatDateTime } from "../../lib/time";
 
 const ITEMS: Array<{ kind: ConsentKind; title: string; body: string; ifNo: string }> = [
@@ -39,6 +40,8 @@ export function ConsentPage() {
   const consents = useConsents();
   const qc = useQueryClient();
   const nav = useNavigate();
+  // RequireRole이 동의 화면으로 보낼 때 넘긴 원래 주소 (휴대폰 QR → 로그인 → 동의 → 그 학습 화면)
+  const from = (useLocation().state as { from?: unknown } | null)?.from;
   const [values, setValues] = useState<Record<ConsentKind, boolean | null>>({
     FACEPASS: null,
     AI: null,
@@ -60,8 +63,9 @@ export function ConsentPage() {
         ITEMS.map((i) => ({ kind: i.kind, granted: values[i.kind] === true, byGuardian: !!me.data?.under14 && guardian })),
       ),
     onSuccess: async () => {
+      const firstSave = !consents.data?.length; // 저장 전 동의 기록이 없었으면 처음 저장
       await qc.invalidateQueries({ queryKey: ["consents"] });
-      nav("/student");
+      nav(afterConsentPath(from, firstSave));
     },
   });
 

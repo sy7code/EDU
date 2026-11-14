@@ -14,6 +14,12 @@ export type PaceParts = { persistence: number; process: number; reflection: numb
 export type DailyPace = { date: string; total: number; parts: PaceParts };
 
 const KST = 9 * 3600000;
+
+/** 정답률 0~1. correct > total·음수·NaN이 점수를 넘치게 하지 않게 자른다 */
+function quizRatio(a: PaceAttempt): number {
+  const r = a.correct / a.total;
+  return Number.isFinite(r) ? Math.min(1, Math.max(0, r)) : 0;
+}
 const DAY = 86400000;
 
 /** 서울 날짜 YYYY-MM-DD */
@@ -22,8 +28,8 @@ export function seoulDateKey(iso: string): string {
 }
 
 function sessionMinutes(s: LearningSession, now: Date): number {
-  if (s.durationMinutes != null) return s.durationMinutes;
-  return minutesBetween(s.startedAt, s.endedAt ?? now.toISOString());
+  const m = s.durationMinutes != null ? s.durationMinutes : minutesBetween(s.startedAt, s.endedAt ?? now.toISOString());
+  return Number.isFinite(m) && m > 0 ? m : 0; // NaN·음수는 0분
 }
 
 function median(xs: number[]): number {
@@ -36,6 +42,7 @@ function median(xs: number[]): number {
 function byDate(sessions: LearningSession[]): Map<string, LearningSession[]> {
   const map = new Map<string, LearningSession[]>();
   for (const s of sessions) {
+    if (Number.isNaN(Date.parse(s.startedAt))) continue; // 읽을 수 없는 시각은 건너뜀 (toISOString RangeError 방지)
     const k = seoulDateKey(s.startedAt);
     map.set(k, [...(map.get(k) ?? []), s]);
   }
@@ -95,7 +102,7 @@ export function computeDailyPace(inputs: PaceInputs, date: string, now: Date = n
   const goal =
     quizzes.length === 0
       ? goalDone ? 30 : 0
-      : (goalDone ? 15 : 0) + Math.round((quizzes.reduce((sum, a) => sum + a.correct / a.total, 0) / quizzes.length) * 15);
+      : (goalDone ? 15 : 0) + Math.round((quizzes.reduce((sum, a) => sum + quizRatio(a), 0) / quizzes.length) * 15);
   const parts: PaceParts = { persistence, process, reflection, goal };
   return { date, total: parts.persistence + parts.process + parts.reflection + parts.goal, parts };
 }
@@ -109,6 +116,12 @@ export function weekDates(now: Date): string[] {
   const dow = new Date(today).getUTCDay(); // 0 일 ~ 6 토
   const monday = today - ((dow + 6) % 7) * DAY;
   return [0, 1, 2, 3, 4].map((i) => new Date(monday + i * DAY).toISOString().slice(0, 10));
+}
+
+/** Pace 원자료를 읽기 시작할 시각(ISO): 이번 서울 주 월요일 0시 − 28일. 월요일의 '평소'(이전 28일)까지 담는다 */
+export function paceSince(now: Date): string {
+  const monday = Date.parse(`${weekDates(now)[0]}T00:00:00Z`) - KST; // 서울 월요일 0시의 UTC 시각
+  return new Date(monday - 28 * DAY).toISOString();
 }
 
 const DAY_LABELS = ["월", "화", "수", "목", "금"];

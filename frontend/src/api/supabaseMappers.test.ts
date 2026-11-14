@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   changedToReflection,
+  realtimeStatus,
   goalToText,
   mapDashboard,
   mapFnError,
@@ -313,5 +314,17 @@ describe("신고 결과 변환", () => {
     const row = { reportId: "r", topicName: "t", prompt: "p", choices: ["a"], answerIndex: 0, explanation: "e", reason: "UNCLEAR" as const, status: "OPEN" as const, studentNumber: 1, studentReportCount: 1, createdAt: "c" };
     expect(normalizeReportedQuestion(row as never)).toMatchObject({ aiReview: null, questionReportCount: null });
     expect(normalizeReportedQuestion({ ...row, aiReview: { verdict: "OK", reason: "x" }, questionReportCount: 3 })).toMatchObject({ aiReview: { verdict: "OK" }, questionReportCount: 3 });
+  });
+});
+
+describe("realtimeStatus", () => {
+  it("SUBSCRIBED면 ok, 오류·시간 초과는 언제든 unavailable, CLOSED는 구독 전일 때만 unavailable", () => {
+    expect(realtimeStatus("SUBSCRIBED", false)).toBe("ok");
+    expect(realtimeStatus("CHANNEL_ERROR", false)).toBe("unavailable");
+    expect(realtimeStatus("CHANNEL_ERROR", true)).toBe("unavailable");
+    expect(realtimeStatus("TIMED_OUT", false)).toBe("unavailable");
+    expect(realtimeStatus("CLOSED", false)).toBe("unavailable");
+    expect(realtimeStatus("CLOSED", true)).toBeNull();
+    expect(realtimeStatus("JOINING", false)).toBeNull();
   });
 });
