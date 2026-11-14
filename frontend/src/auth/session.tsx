@@ -31,7 +31,8 @@ export function RequireRole({ role }: { role: Role }) {
   const consents = useConsents(me.data?.role === "student");
   const loc = useLocation();
   if (me.isLoading) return <Spinner />;
-  if (!me.data) return <Navigate to="/" replace />;
+  // 로그인 뒤 원래 화면으로 돌아오게 주소를 넘긴다 (휴대폰 QR → 로그인 → 그 학습 화면)
+  if (!me.data) return <Navigate to="/" replace state={{ from: loc.pathname + loc.search }} />;
   if (me.data.role !== role) return <Navigate to={me.data.role === "teacher" ? "/teacher" : "/student"} replace />;
   if (role === "student") {
     if (consents.isLoading) return <Spinner />;

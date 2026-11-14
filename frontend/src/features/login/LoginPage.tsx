@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Navigate, useNavigate } from "react-router";
+import { Navigate, useLocation, useNavigate } from "react-router";
+import { returnPath } from "../../lib/returnPath";
 import { api, USE_MOCK } from "../../api";
 import { useMe } from "../../auth/session";
 import { Icon } from "../../components/Icon";
@@ -38,6 +39,7 @@ function MobileBrand() {
 function RealLogin() {
   const qc = useQueryClient();
   const nav = useNavigate();
+  const from = (useLocation().state as { from?: unknown } | null)?.from;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const login = useMutation({
@@ -46,7 +48,7 @@ function RealLogin() {
       setPassword("");
       qc.clear();
       await qc.invalidateQueries();
-      nav(u.role === "teacher" ? "/teacher" : "/student");
+      nav(returnPath(from, u.role));
     },
   });
   return (
@@ -89,7 +91,8 @@ function RealLogin() {
 // 데모용 로그인: 실제 백엔드 모드에서는 RealLogin
 export function LoginPage() {
   const me = useMe();
-  if (me.data) return <Navigate to={me.data.role === "teacher" ? "/teacher" : "/student"} replace />;
+  const from = (useLocation().state as { from?: unknown } | null)?.from;
+  if (me.data) return <Navigate to={returnPath(from, me.data.role)} replace />;
   if (!USE_MOCK) return me.isLoading ? <Spinner /> : <RealLogin />;
   return <DemoLogin />;
 }
@@ -98,17 +101,18 @@ function DemoLogin() {
   const me = useMe();
   const qc = useQueryClient();
   const nav = useNavigate();
+  const from = (useLocation().state as { from?: unknown } | null)?.from;
   const users = useQuery({ queryKey: ["demo-users"], queryFn: () => api.listDemoUsers() });
   const login = useMutation({
     mutationFn: (id: string) => api.login(id),
     onSuccess: async (u) => {
       qc.clear();
       await qc.invalidateQueries();
-      nav(u.role === "teacher" ? "/teacher" : "/student");
+      nav(returnPath(from, u.role));
     },
   });
 
-  if (me.data) return <Navigate to={me.data.role === "teacher" ? "/teacher" : "/student"} replace />;
+  if (me.data) return <Navigate to={returnPath(from, me.data.role)} replace />;
 
   const teachers = users.data?.filter((u) => u.role === "teacher") ?? [];
   const students = users.data?.filter((u) => u.role === "student") ?? [];
