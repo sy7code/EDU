@@ -3,7 +3,9 @@
 export type Role = "student" | "teacher";
 /** FACEPASS: 얼굴 인증 / QR·BARCODE: 학생증 등 대체 수단 / MANUAL: 교사 수기 확인 */
 export type AuthMethod = "FACEPASS" | "QR" | "BARCODE" | "MANUAL";
-export type ConsentKind = "FACEPASS" | "AI" | "LEARNING_RECORD";
+export type ConsentKind = "FACEPASS" | "AI" | "LEARNING_RECORD" | "SUBJECT_SHARE";
+
+export type TeacherAssignment = { teacherId: string; classId: string; subject: string; term: string };
 /** PAPER: 종이에 수기로 기록함 (쓰기 부담이 큰 학생용, 내용 입력은 선택) */
 export type EntryKind = "MEMO" | "QUESTION" | "QUIZ" | "PAPER";
 export type Visibility = "TEACHER" | "PRIVATE";

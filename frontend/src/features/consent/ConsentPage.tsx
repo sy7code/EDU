@@ -33,7 +33,7 @@ const ITEMS: Array<{ kind: ConsentKind; title: string; body: string; ifNo: strin
   },
 ];
 
-const ICON: Record<ConsentKind, string> = { FACEPASS: "users", AI: "spark", LEARNING_RECORD: "book" };
+const ICON: Record<ConsentKind, string> = { FACEPASS: "users", AI: "spark", LEARNING_RECORD: "book", SUBJECT_SHARE: "book" };
 
 export function ConsentPage() {
   const me = useMe();
@@ -46,12 +46,13 @@ export function ConsentPage() {
     FACEPASS: null,
     AI: null,
     LEARNING_RECORD: null,
+    SUBJECT_SHARE: null,
   });
   const [guardian, setGuardian] = useState(false);
 
   useEffect(() => {
     if (!consents.data?.length) return;
-    const next = { FACEPASS: null, AI: null, LEARNING_RECORD: null } as Record<ConsentKind, boolean | null>;
+    const next = { FACEPASS: null, AI: null, LEARNING_RECORD: null, SUBJECT_SHARE: null } as Record<ConsentKind, boolean | null>;
     for (const c of consents.data) next[c.kind] = c.granted;
     setValues(next);
     setGuardian(consents.data.some((c) => c.byGuardian));
