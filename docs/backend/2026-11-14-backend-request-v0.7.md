@@ -171,3 +171,13 @@ alter table quiz_question_reviews enable row level security;  -- 정책 없음: 
 7. 같은 문항 OPEN 2건 중 하나 DISMISS → 둘 다 `DISMISSED`, 두 응시 모두 `total=5`로 재채점
 
 질문이나 다르게 하고 싶은 부분은 프론트에 알려 주세요.
+
+---
+
+## 반영 확인 (프론트, 2026-11-14)
+
+백엔드 노트 "v0.7 반영 (A ~ H) — 배포됨"을 받고 프론트를 맞춤.
+- 출제 응답 매퍼 `pickQuizQuestions`가 `reportOutcome`을 버리고 있었음 → 남기도록 고침(모르는 `review` 값은 버림, 테스트 추가).
+- 첫 신고는 AI 검토로 몇 초 걸림 → 신고 중 "AI가 문항을 확인하는 중이에요" 문구 추가.
+- `reported` 의미(OPEN·KEEP_EXCLUDED만 true)는 프론트 mock과 같음. G(`read_at` 서버 시각)는 프론트 변경 없음.
+- 실제 모드 화면 확인은 아직(로그인 필요).

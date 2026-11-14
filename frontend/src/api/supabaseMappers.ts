@@ -203,6 +203,10 @@ export function pickQuizQuestions(raw: unknown[]): StudentQuizQuestion[] {
       choices: Array.isArray(q.choices) ? q.choices.map(String) : [],
     };
     if (typeof q.reported === "boolean") out.reported = q.reported;
+    // v0.7: 이 세션에서 이미 신고한 문항의 처리 결과 (새로고침해도 안내 유지). 모르는 값이면 버린다
+    const ro = q.reportOutcome as { review?: unknown; message?: unknown } | undefined;
+    const review = REPORT_REVIEWS.find((r) => r === ro?.review);
+    if (review) out.reportOutcome = { review, message: typeof ro?.message === "string" ? ro.message : "" };
     return out;
   });
 }

@@ -246,9 +246,14 @@ function TopicQuiz({ sessionId, topicId, onDone, onBack }: { sessionId: string; 
                       {r.label}
                     </Button>
                   ))}
-                  <Button variant="ghost" onClick={() => setReporting(null)}>
+                  <Button variant="ghost" disabled={report.isPending} onClick={() => setReporting(null)}>
                     취소
                   </Button>
+                  {report.isPending && report.variables?.questionId === q.id && (
+                    <p className="report-outcome" role="status">
+                      AI가 문항을 확인하는 중이에요. 몇 초 걸릴 수 있어요.
+                    </p>
+                  )}
                 </div>
               )}
             </li>

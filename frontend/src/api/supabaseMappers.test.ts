@@ -163,6 +163,17 @@ describe("미룬 항목 수정 (변환)", () => {
     const qs = pickQuizQuestions([{ id: "q1", type: "MCQ", prompt: "p", choices: ["a", "b"], answerIndex: 1, explanation: "e", reported: true }]);
     expect(qs).toEqual([{ id: "q1", type: "MCQ", prompt: "p", choices: ["a", "b"], reported: true }]);
   });
+
+  it("v0.7: 이미 신고한 문항의 reportOutcome을 남기고, 모르는 review 값은 버린다", () => {
+    const qs = pickQuizQuestions([
+      { id: "q1", type: "MCQ", prompt: "p", choices: ["a"], reported: false, reportOutcome: { review: "AI_OK", message: "괜찮아요" } },
+      { id: "q2", type: "OX", prompt: "p", choices: ["O", "X"], reportOutcome: { review: "HACK", message: "x" } },
+      { id: "q3", type: "OX", prompt: "p", choices: ["O", "X"] },
+    ]);
+    expect(qs[0].reportOutcome).toEqual({ review: "AI_OK", message: "괜찮아요" });
+    expect(qs[1].reportOutcome).toBeUndefined();
+    expect(qs[2].reportOutcome).toBeUndefined();
+  });
 });
 
 describe("목표 메모", () => {
