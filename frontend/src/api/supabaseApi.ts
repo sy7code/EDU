@@ -20,6 +20,7 @@ import { buildAnalyticsRaw, chunk, normalizeReportedQuestion, toReportOutcome, r
 
 const POLICY_VERSION = "2026-11-v1";
 import { ApiError, type Api } from "./types";
+import { paceVisibleEntries } from "../lib/pace";
 
 type Row = Record<string, unknown>;
 
@@ -114,6 +115,20 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     const u = await api.me();
     if (!u) throw new ApiError("UNAUTHENTICATED");
     return u;
+  }
+
+  /** 세션 ID로 100개씩 나눠 조회 (URL 길이). 돌아보기는 세션당 하나라 sessionId 정렬로 충분, 나머지는 id로 경계 고정 */
+  async function rowsBySessions(view: string, sessionIds: string[]): Promise<Row[]> {
+    const out: Row[] = [];
+    for (const part of chunk(sessionIds, 100)) {
+      out.push(
+        ...(await fetchAllPages(async (a, b) => {
+          const q = sb.from(view).select().in("sessionId", part).order("sessionId");
+          return ok(await (view === "v_reflections" ? q : q.order("id")).range(a, b)) as Row[];
+        })),
+      );
+    }
+    return out;
   }
 
   const api: Api = {
@@ -223,19 +238,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       // 세션이 1000개를 넘어도 잘리지 않게 페이지로 (id로 정렬해 경계 고정)
       const sessions = (await fetchAllPages(async (a, b) => ok(await sb.from("v_sessions").select().eq("studentId", u.id).order("id").range(a, b)) as Row[])).map(mapSession);
       // 세션 ID로 100개씩 나눠 조회 (URL 길이). 돌아보기는 세션당 하나라 sessionId 정렬로 충분
-      const bySessions = async (view: string): Promise<Row[]> => {
-        const out: Row[] = [];
-        for (const part of chunk(sessions.map((x) => x.id), 100)) {
-          out.push(
-            ...(await fetchAllPages(async (a, b) => {
-              const q = sb.from(view).select().in("sessionId", part).order("sessionId");
-              return ok(await (view === "v_entries" ? q.order("id") : q).range(a, b)) as Row[];
-            })),
-          );
-        }
-        return out;
-      };
-      const [entryRows, reflRows] = await Promise.all([bySessions("v_entries"), bySessions("v_reflections")]);
+      const ids = sessions.map((x) => x.id);
+      const [entryRows, reflRows] = await Promise.all([rowsBySessions("v_entries", ids), rowsBySessions("v_reflections", ids)]);
       return { sessions, entries: entryRows.map(mapEntry), reflections: reflRows.map(rowToReflection) };
     },
 
@@ -322,6 +326,34 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const rows = ok(await sb.from("v_sessions").select("durationMinutes").eq("studentId", studentId)) as Row[];
       const total = { sessions: rows.length, minutes: rows.reduce((n, r) => n + ((r.durationMinutes as number) ?? 0), 0) };
       return { studentId, shared: raw?.shared !== false, topics: raw?.shared === false ? [] : (raw?.topics ?? []), total };
+    },
+    // Pace 지수: 기존 view로 읽어 프론트에서 계산 (백엔드 변경 없음). 권한은 view RLS가 막는다
+    getPaceInputs: async (studentId) => {
+      const u = await requireMe();
+      if (u.role === "student" && u.id !== studentId) throw new ApiError("NOT_FOUND");
+      if (u.role === "teacher") {
+        const raw = ok(await sb.rpc("student_topic_growth", { p_student_id: studentId })) as { shared?: boolean } | null;
+        if (raw?.shared === false) return { shared: false, sessions: [], entries: [], reflections: [], attempts: [] };
+      }
+      const sessions = (await fetchAllPages(async (a, b) => ok(await sb.from("v_sessions").select().eq("studentId", studentId).order("id").range(a, b)) as Row[])).map(mapSession);
+      const ids = sessions.map((x) => x.id);
+      const [entryRows, reflRows, attemptRows] = await Promise.all([
+        rowsBySessions("v_entries", ids),
+        rowsBySessions("v_reflections", ids),
+        rowsBySessions("v_quiz_attempts", ids),
+      ]);
+      return {
+        shared: true,
+        sessions,
+        entries: paceVisibleEntries(entryRows.map(mapEntry)),
+        reflections: reflRows.map(rowToReflection),
+        attempts: attemptRows.map((r) => ({
+          sessionId: String(r.sessionId),
+          correct: Number(r.correct ?? 0),
+          total: Number(r.total ?? 0),
+          createdAt: String(r.createdAt),
+        })),
+      };
     },
     listReportedQuestions: async (classId) => ((ok(await sb.rpc("class_reported_questions", { p_class_id: classId })) as ReportedQuestion[]) ?? []).map(normalizeReportedQuestion),
     resolveReport: async (reportId, action) => {

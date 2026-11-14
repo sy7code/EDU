@@ -2,6 +2,7 @@
 // 실제 권한은 Supabase RLS·서버 함수가 강제해야 한다.
 import { maskName, maskPii } from "../lib/privacy";
 import { minutesBetween } from "../lib/time";
+import { paceVisibleEntries } from "../lib/pace";
 import { activityLabel } from "../lib/checklists";
 import type {
   AiMessage,
@@ -939,6 +940,30 @@ export function createMockApi(opts: MockOptions): Api {
       }),
 
     // ---------- 주제별 성장·신고 문제 ----------
+    getPaceInputs: (studentId) =>
+      run(() => {
+        const u = me();
+        const target = userById(studentId);
+        const allowed = u.role === "student" ? u.id === studentId : target?.classId === u.classId && target.role === "student";
+        if (!allowed) throw new ApiError("NOT_FOUND");
+        if (u.role === "teacher" && !sharedWithTeacher(studentId)) {
+          return { shared: false, sessions: [], entries: [], reflections: [], attempts: [] };
+        }
+        const sessions = db.sessions.filter((s) => s.studentId === studentId);
+        const ids = new Set(sessions.map((s) => s.id));
+        // 안 A: '나만 보기' 메모·질문은 점수에 안 들어가므로 학생·교사 모두에게 보내지 않는다
+        const entries = paceVisibleEntries(db.entries.filter((e) => ids.has(e.sessionId)));
+        return {
+          shared: true,
+          sessions: sessions.map((s) => ({ ...s })),
+          entries,
+          reflections: db.reflections.filter((r) => ids.has(r.sessionId)).map((r) => ({ ...r })),
+          attempts: db.quizAttempts
+            .filter((a) => ids.has(a.sessionId))
+            .map((a) => ({ sessionId: a.sessionId, correct: a.correct, total: a.total, createdAt: a.createdAt })),
+        };
+      }),
+
     getTopicGrowth: (studentId) =>
       run(() => {
         const u = me();

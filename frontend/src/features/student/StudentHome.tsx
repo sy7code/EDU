@@ -7,6 +7,7 @@ import { Icon } from "../../components/Icon";
 import { Badge, ButtonLink, EmptyState, ErrorState, PageTitle, Spinner } from "../../components/ui";
 import { activityLabel, goalLabel } from "../../lib/checklists";
 import { elapsedLabel, formatDateTime, formatDuration } from "../../lib/time";
+import { PaceCard } from "../records/PaceCard";
 import { latestAttempt, summarizeWeek, unreadFeedback } from "../../lib/studentHome";
 import { FEATURES } from "../../api";
 
@@ -137,6 +138,8 @@ export function StudentHome() {
           </div>
         </section>
       )}
+
+      <PaceCard studentId={studentId} title="나의 성장 페이스" />
 
       <section>
         <div className="section-title">

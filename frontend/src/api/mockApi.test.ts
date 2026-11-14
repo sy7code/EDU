@@ -1116,3 +1116,63 @@ describe("mock 오류 강제 (화면 확인용)", () => {
     expect((await api.askAi(s.id, "꼭짓점이 뭐야?")).role).toBe("ai");
   });
 });
+
+describe("Pace 지수 원자료", () => {
+  async function endedWith(studentId: string) {
+    const s = await startAs(studentId);
+    await api.addEntry({ sessionId: s.id, kind: "MEMO", content: "공개 메모 열 글자 이상이에요", visibility: "TEACHER" });
+    await api.addEntry({ sessionId: s.id, kind: "QUESTION", content: "나만 볼 질문 열 글자 이상이에요", visibility: "PRIVATE" });
+    advance(60_000);
+    await api.endSession(s.id, (await api.simulateFaceAuth(DEVICE, studentId, true)).id);
+    await api.saveReflection({ sessionId: s.id, checks: ["goal_done"], understanding: 2, remainingQuestions: [] });
+    return s;
+  }
+
+  it("학생 본인은 자기 세션·공개 기록·돌아보기를 받고, '나만 보기' 메모·질문은 받지 않는다", async () => {
+    const s = await endedWith("s01");
+    const r = await api.getPaceInputs("s01");
+    expect(r.shared).toBe(true);
+    expect(r.sessions.every((x) => x.studentId === "s01")).toBe(true);
+    expect(r.sessions.some((x) => x.id === s.id)).toBe(true);
+    expect(r.entries.some((e) => e.content === "공개 메모 열 글자 이상이에요")).toBe(true);
+    expect(r.entries.some((e) => e.visibility === "PRIVATE" && e.kind !== "PAPER")).toBe(false);
+    expect(r.reflections.some((x) => x.sessionId === s.id)).toBe(true);
+  });
+
+  it("학생은 다른 학생 것을, 다른 반 교사는 남의 반 학생 것을 받을 수 없다", async () => {
+    await api.login("s01");
+    await expectCode(api.getPaceInputs("s02"), "NOT_FOUND");
+    await api.login("t2");
+    await expectCode(api.getPaceInputs("s01"), "NOT_FOUND");
+  });
+
+  it("같은 반 교사는 공개 기록만 받는다", async () => {
+    await endedWith("s01");
+    await api.login("t1");
+    const r = await api.getPaceInputs("s01");
+    expect(r.shared).toBe(true);
+    expect(r.sessions.length).toBeGreaterThan(0);
+    expect(r.entries.every((e) => e.visibility === "TEACHER" || e.kind === "PAPER")).toBe(true);
+    expect(r.entries.some((e) => e.content.startsWith("나만 볼"))).toBe(false);
+  });
+
+  it("'나만 보기' 종이 기록은 점수에 들어가므로 보내되 내용은 비운다", async () => {
+    const s = await startAs("s01");
+    await api.addEntry({ sessionId: s.id, kind: "PAPER", content: "종이에 쓴 비밀 내용", visibility: "PRIVATE" });
+    await api.login("t1");
+    const paper = (await api.getPaceInputs("s01")).entries.filter((e) => e.sessionId === s.id && e.kind === "PAPER");
+    expect(paper).toHaveLength(1);
+    expect(paper[0].content).toBe("");
+  });
+
+  it("기록 공유 미동의 학생을 교사가 보면 shared=false, 배열은 빈 값", async () => {
+    await endedWith("s01");
+    await api.saveConsents([
+      { kind: "FACEPASS", granted: true, byGuardian: false },
+      { kind: "AI", granted: true, byGuardian: false },
+      { kind: "LEARNING_RECORD", granted: false, byGuardian: false },
+    ]);
+    await api.login("t1");
+    expect(await api.getPaceInputs("s01")).toEqual({ shared: false, sessions: [], entries: [], reflections: [], attempts: [] });
+  });
+});

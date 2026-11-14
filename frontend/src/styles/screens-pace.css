@@ -1,0 +1,180 @@
+/* Pace 지수 카드 (학생 홈 · 교사 학생 상세). 클래스는 모두 pace- 접두사 */
+.pace-card {
+  padding: 20px;
+  margin-top: 16px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.pace-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.pace-head h2 {
+  font-size: 19px;
+}
+.pace-head p {
+  color: var(--muted);
+  font-size: 13px;
+}
+.pace-trend {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pace-trend-up {
+  background: var(--green-2);
+  color: var(--green-3);
+}
+.pace-trend-flat {
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.pace-trend-down {
+  background: var(--orange-bg);
+  color: var(--orange);
+}
+.pace-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 560px;
+}
+.pace-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.pace-axis {
+  fill: var(--muted);
+  font-size: 10px;
+}
+.pace-axis-on {
+  fill: var(--green-3);
+  font-weight: 700;
+}
+.pace-line {
+  fill: none;
+  stroke: var(--green);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pace-dot {
+  fill: var(--white);
+  stroke: var(--green);
+  stroke-width: 2;
+}
+.pace-dot-last {
+  fill: var(--green);
+}
+.pace-value {
+  fill: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+.pace-days {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 12px 0;
+}
+.pace-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pace-day small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.pace-day[aria-pressed="true"] {
+  border-color: var(--green);
+  background: var(--green-2);
+  color: var(--green-3);
+}
+.pace-day:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.pace-parts {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.pace-part {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr) 4.5em;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.pace-part-label {
+  color: var(--ink);
+}
+.pace-part-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.pace-part-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green);
+}
+.pace-part-value {
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pace-feedback {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--green-2);
+  color: var(--green-3);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.pace-empty {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 8px 0 12px;
+}
+.pace-note {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+@media (max-width: 420px) {
+  .pace-card {
+    padding: 16px;
+  }
+  .pace-head {
+    flex-wrap: wrap;
+  }
+  .pace-part {
+    grid-template-columns: 6em minmax(0, 1fr) 4em;
+    font-size: 12px;
+  }
+}

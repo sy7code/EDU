@@ -82,6 +82,14 @@ export function errorMessage(err: unknown): string {
   return map[code];
 }
 
+export type PaceInputsResult = {
+  shared: boolean;
+  sessions: LearningSession[];
+  entries: LearningEntry[];
+  reflections: Reflection[];
+  attempts: Array<{ sessionId: string; correct: number; total: number; createdAt: string }>;
+};
+
 export interface Api {
   // 계정 (데모: 로그인 대신 사용자 선택)
   listDemoUsers(): Promise<User[]>;
@@ -163,6 +171,9 @@ export interface Api {
   // 주제별 성장·신고 문제
   /** 학생 본인 또는 같은 반 교사. 공유 미동의 학생을 교사가 보면 shared=false */
   getTopicGrowth(studentId: string): Promise<GrowthReport>;
+  /** Pace 지수 원자료. 학생 본인 또는 같은 반 교사. '나만 보기' 메모·질문은 빠짐(점수에 안 들어감).
+   *  공유 미동의 학생을 교사가 보면 shared=false, 배열은 모두 빈 값 */
+  getPaceInputs(studentId: string): Promise<PaceInputsResult>;
   /** 교사: 자기 반 신고 문항 (정답·해설 포함) */
   listReportedQuestions(classId: string): Promise<ReportedQuestion[]>;
   /** 교사: KEEP_EXCLUDED → 풀에서 제외 / DISMISS → 그 응시 재채점 */
