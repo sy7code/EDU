@@ -4,7 +4,7 @@
 
 **왜 필요한가**: 담임이 아닌 교과 교사(국어·수학·영어·사회·과학)가 자기가 가르치는 반·과목의 학습만 보게 한다. 지금은 프론트 mock(`FEATURES.subjectTeacher = USE_MOCK`)만 이 규칙을 구현한다. 프론트가 거르는 것은 표시용이고, **서버 RLS가 기준**이다. 조건 하나가 빠지면 다른 과목·다른 반 기록이 새어 나간다.
 
-**SQL은 모두 "제안 SQL"이다.** 기존 스키마(정책 이름, `teaches_student` 정의, `sessions.goal` 타입 등)를 이 문서 작성자가 전부 보지 못했다. 최종 스키마는 백엔드가 정한다. 의미(조건·결과)가 같으면 형태는 달라도 된다.
+**SQL은 모두 "제안 SQL"이다.** 기존 스키마(정책 이름, `teaches_student` 정의, `sessions` 컬럼 등)를 이 문서 작성자가 전부 보지 못했다. 최종 스키마는 백엔드가 정한다. 의미(조건·결과)가 같으면 형태는 달라도 된다.
 
 ## 0. 한눈에
 
@@ -12,7 +12,7 @@
 |---|---|---|---|
 | A | 높음 | `teacher_assignments` 테이블, `current_term()`, `v_my_assignments` | 새 테이블·함수·view |
 | B | 높음 | `consents.kind`에 `SUBJECT_SHARE` 허용, `subject_share_active()` | 변경 |
-| C | 높음 | `teaches_subject()` + 읽기 정책 6개에 `OR` 조건 | 변경 (보안 핵심) |
+| C | 높음 | `sessions.subject` 컬럼(C-0), `teaches_subject()` + 읽기 정책 6개에 `OR` 조건 | 변경 (보안 핵심) |
 | D | 높음 | `feedback` 교과 교사 쓰기 + `author_subject` 서버 채움 | 변경 |
 | E | 높음 | `log_student_view(student_id, subject)` 확장, `audit_logs.subject` | 변경 |
 | F | 높음 | RPC `subject_week_summary(class_id, subject)`, `subject_students(class_id, subject)` | 새 함수 |
@@ -26,7 +26,7 @@
 | 과목 | `국어·수학·영어·사회·과학`만. `기타`·목록 밖·빈 값은 배정도 열람도 없음 (fail-closed) | `lib/checklists.ts` `SUBJECTS`, `lib/subjectAccess.ts` |
 | 현재 학기 | **서울 날짜** 3~8월 `YYYY-1`, 9~12월 `YYYY-2`, 1~2월 `(YYYY-1)-2` | `lib/schoolCalendar.ts` `currentTerm` |
 | 주 | 서울 월요일 00:00 ~ 일요일 23:59 | `seoulWeekStart`, `isInSeoulWeek` |
-| 열람 조건 (모두) | ① 현재 학기 배정(교사 = `auth.uid()`, 학생 반, 세션 `goal->>'subject'`) ② 세션이 **현재 학기에 시작** ③ 학생 `LEARNING_RECORD` 동의 ④ 학생 `SUBJECT_SHARE` 동의 | `canSubjectTeacherSee` |
+| 열람 조건 (모두) | ① 현재 학기 배정(교사 = `auth.uid()`, 학생 반, 세션 `sessions.subject`) ② 세션이 **현재 학기에 시작** ③ 학생 `LEARNING_RECORD` 동의 ④ 학생 `SUBJECT_SHARE` 동의 | `canSubjectTeacherSee` |
 | 기록 범위 | `entries`는 `visibility = 'TEACHER'`만. 성찰·퀴즈 응시·세션 주제·피드백은 세션 단위로 같은 조건 | |
 | 제외 | **AI 대화(`ai_messages`)는 교과 교사에게 0행.** 평가(assessment) 관련 API·테이블 접근 없음 | v0.6 표 |
 | 학생이 `LEARNING_RECORD`를 끔 | `SUBJECT_SHARE` 값과 관계없이 교과 교사에게 안 보임 (서버가 강제) | `subjectShareActive` |
@@ -98,6 +98,28 @@ revoke execute on function subject_share_active(uuid) from public;
 - 동의는 덮어쓰지 않고 이력으로 append(기존 규칙 그대로). 변경은 `audit_logs`(`CONSENT_CHANGE`) 기존대로.
 - **열린 질문**: 만 14세 미만 학생의 `granted=true`는 보호자 동의(`by_guardian = true`)가 필요한지 정책이 아직 정해지지 않았다(`docs/00-review.md`). 기존 `LEARNING_RECORD` 규칙(`docs/api-spec.md` 동의 6번)과 같게 갈지 백엔드·기획이 정해 달라. 정해지기 전까지 `SUBJECT_SHARE`도 같은 `by_guardian` 검사를 적용하는 쪽을 제안한다(더 보수적).
 
+## C-0. 세션 과목 컬럼 `sessions.subject` (높음, C의 전제)
+
+현재 `sessions.goal`은 텍스트 하나(`"과목 | 활동라벨, ... | 메모"`, 프론트 `goalToText`)다. **접근 판단은 이 텍스트를 파싱하는 것에 의존하면 안 된다**(자유 입력 메모·구분자로 깨질 수 있음). 과목을 별도 컬럼으로 둔다.
+
+```sql
+-- 제안 SQL
+alter table sessions add column subject text;
+-- 기존 행 1회 백필: goal 첫 칸. 목록 밖 값은 '기타'
+update sessions set subject = case
+  when split_part(goal, ' | ', 1) in ('국어','수학','영어','사회','과학') then split_part(goal, ' | ', 1)
+  else '기타' end
+where subject is null;
+alter table sessions alter column subject set not null;
+alter table sessions add constraint sessions_subject_check
+  check (subject in ('국어','수학','영어','사회','과학','기타'));
+-- v_sessions 에 subject 열 추가 (학생·담임·교과 교사 모두 읽음)
+```
+
+- 세션 생성(insert) 시점에 클라이언트가 보낸 `subject`를 저장한다. 시작 이후 변경 불가(update 정책·트리거로 막는 것을 제안). `goal` 텍스트는 그대로 두고 표시용으로만 쓴다.
+- `기타`는 저장되지만 교과 교사 열람·배정은 항상 없다(C의 함수가 5개 과목만 허용).
+- **프론트 후속**: `supabaseApi`의 `startSession`이 컬럼 생성 후 `subject`를 함께 보낸다(프론트 작업). 그때까지 `FEATURES.subjectTeacher`는 실제 모드에서 꺼 둔다.
+
 ## C. 열람 권한 함수와 읽기 정책 (높음, 보안 핵심)
 
 ```sql
@@ -126,7 +148,7 @@ grant execute on function teaches_subject(uuid, text, timestamptz) to authentica
 create function teaches_subject_session(sess uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from sessions s
-                 where s.id = sess and teaches_subject(s.student_id, s.goal->>'subject', s.started_at))
+                 where s.id = sess and teaches_subject(s.student_id, s.subject, s.started_at))
 $$;
 revoke execute on function teaches_subject_session(uuid) from public;
 grant execute on function teaches_subject_session(uuid) to authenticated;
@@ -136,7 +158,7 @@ grant execute on function teaches_subject_session(uuid) to authenticated;
 
 ```sql
 -- sessions: 기존 (student_id = auth.uid() or teaches_student(student_id)) 에 OR 추가
---   or teaches_subject(student_id, goal->>'subject', started_at)
+--   or teaches_subject(student_id, subject, started_at)
 
 -- entries: TEACHER 공개분만
 drop policy entries_read on entries;
@@ -162,7 +184,7 @@ create policy quiz_attempts_read on quiz_attempts for select
 
 - `ai_messages_read`와 평가(assessment) 관련 정책에는 **`teaches_subject*`를 넣지 않는다.** 교과 교사가 `getAssessment`를 부르면 `null`, 요청·확정은 `403`이 프론트 규칙이다. 서버는 담임 조건(`teaches_student`) 그대로 두면 교과 교사에게 0행·거부가 된다.
 - 위 정책은 `teaches_student`(담임 판단)를 건드리지 않는다. 담임 겸 교과 교사가 **다른 반**에서는 `teaches_student`가 거짓이라 교과 조건만 적용된다.
-- `v_sessions`·`v_entries`·`v_reflections`·`v_quiz_attempts`·`v_session_topics`·`v_feedback`는 `security_invoker = true`라 정책이 그대로 적용된다. 프론트는 교과 교사일 때 `v_sessions`를 `studentId`와 과목(`goal->>'subject'`)으로 거른다. 과목 필터가 없어도 정책이 막는다(권한 밖은 빈 결과).
+- `v_sessions`·`v_entries`·`v_reflections`·`v_quiz_attempts`·`v_session_topics`·`v_feedback`는 `security_invoker = true`라 정책이 그대로 적용된다. 프론트는 교과 교사일 때 `v_sessions`를 `studentId`와 과목(`v_sessions.subject`)으로 거른다. 과목 필터가 없어도 정책이 막는다(권한 밖은 빈 결과).
 - 퀴즈 정답·해설: `quiz_attempts.items`에는 정답·해설이 들어 있다(기존). 교사에게 이미 열려 있는 담임 경로와 같은 정보다. 교과 교사도 응시 결과를 볼 수 있다는 것이 현재 프론트 결정이다(`getQuizAttempt`).
 
 ## D. 피드백 (높음)
@@ -188,7 +210,7 @@ begin
   select * into s from sessions where id = new.session_id;
   new.teacher_id := auth.uid();
   new.author_subject := case when teaches_student(s.student_id) then null  -- 담임
-                             else s.goal->>'subject' end;                  -- 교과 교사
+                             else s.subject end;                  -- 교과 교사
   return new;
 end $$;
 create trigger feedback_author_subject before insert or update on feedback
@@ -302,7 +324,7 @@ language sql stable security definer set search_path = public as $$
   select s.id, s.student_id, s.started_at
   from sessions s
   join users u on u.id = s.student_id and u.role = 'student' and u.class_id = p_class_id
-  where s.goal->>'subject' = p_subject
+  where s.subject = p_subject
     and subject_share_active(s.student_id)
     and current_term(s.started_at) = current_term()
     and (s.started_at at time zone 'Asia/Seoul')::date >= p_week
@@ -424,14 +446,14 @@ grant execute on function subject_week_summary(uuid, text), subject_students(uui
 지금 `frontend/src/api/index.ts`의 `FEATURES.subjectTeacher`는 `USE_MOCK`이다(실제 모드에서는 꺼져 있어 동의 화면의 교과 공유 항목과 교과 교사 메뉴가 안 보인다). 아래를 모두 만족하면 프론트가 실제 모드에서도 켠다.
 
 1. A~F 배포 완료, G의 1~13 통과 결과를 프론트에 공유.
-2. 실제 모드 클라이언트(`frontend/src/api/supabaseApi.ts`)가 위 이름으로 연결된다: `listMyAssignments` → `v_my_assignments`, `getSubjectSummary` → `rpc subject_week_summary`, `listSubjectStudents` → `rpc subject_students`, `logStudentView(studentId, subject)` → `rpc log_student_view`. (프론트 작업, 백엔드 배포 후 진행)
-3. 시드: 교과 교사 계정 1명 이상(담임 아님, `class_id` 없음), 현재 학기 배정, `SUBJECT_SHARE` 동의 학생 3명 이상(요약이 "적음"으로만 나오지 않게).
-4. 만 14세 미만 보호자 동의 질문의 결론(B).
+2. `sessions.subject` 컬럼(C-0)과 `startSession`의 `subject` 전송이 반영됨.
+3. 실제 모드 클라이언트(`frontend/src/api/supabaseApi.ts`)가 위 이름으로 연결된다: `listMyAssignments` → `v_my_assignments`, `getSubjectSummary` → `rpc subject_week_summary`, `listSubjectStudents` → `rpc subject_students`, `logStudentView(studentId, subject)` → `rpc log_student_view`. (프론트 작업, 백엔드 배포 후 진행)
+4. 시드: 교과 교사 계정 1명 이상(담임 아님, `class_id` 없음), 현재 학기 배정, `SUBJECT_SHARE` 동의 학생 3명 이상(요약이 "적음"으로만 나오지 않게).
+5. 만 14세 미만 보호자 동의 질문의 결론(B).
 
 ## 이 요청에서 확인되지 않은 것 (프론트가 가정한 것)
 
-- `sessions.goal`이 `jsonb`이고 `goal->>'subject'`로 읽힌다고 가정했다. `docs/api-spec.md`의 DDL에는 `goal text`로 되어 있다. 실제 타입과 과목 값 위치를 알려 주세요(다르면 `teaches_subject*`, `_subject_week_sessions`만 고치면 된다).
-- 교과만 맡은 교사의 `users.class_id`는 `null`이라고 가정했다. 프론트 타입은 `classId: ""`(빈 문자열)이다. 백엔드가 `null`이면 프로필 조회(view)에서 `coalesce(class_id::text, '')`로 내려 주세요.
+- (해결) 교과만 맡은 교사는 DB `profiles.class_id`가 NULL이다. 프론트가 NULL을 `""`로 바꿔 `User.classId`(string)에 넣는다. 백엔드는 NULL 그대로 두면 된다. 정책·함수는 `class_id is not null` 조건으로 NULL을 어떤 반과도 맞지 않게 처리한다(위 SQL).
 - `app_role()`, `owns_session()`, `teaches_shared_session()`, `shares_record()`, `teaches_student()`, `users.number`·`users.name`, `reflections.understanding`, `quiz_attempts.items`의 `questionId`·`prompt`·`correct`·`reported` 키는 v0.5 요청서와 프론트 타입 기준이다. 다르면 알려 주세요.
 - 한국어 이름 정렬: 프론트는 `localeCompare("ko")`. DB 정렬 규칙(`"ko-KR-x-icu"`)이 없으면 `name` 정렬 순서가 조금 다를 수 있다(같은 `reviewCount`·학습 학생 수일 때만 영향).
 
